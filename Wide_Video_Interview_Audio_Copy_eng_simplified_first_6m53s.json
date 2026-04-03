@@ -1,0 +1,744 @@
+{
+  "0": {
+    "start": 0.08,
+    "end": 9.639,
+    "text": "[door opening]",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "1": {
+    "start": 12.459,
+    "end": 14.23,
+    "text": "[door closing]",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "2": {
+    "start": 16.66,
+    "end": 19.9,
+    "text": "Let's have a look at my notes on my phone rather than with a whole big computer.",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "3": {
+    "start": 22.0,
+    "end": 29.2,
+    "text": "[clears throat]",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "4": {
+    "start": 38.86,
+    "end": 43.98,
+    "text": "All right. So I'm gonna, uh, tell people welcome to the, uh, podcast.",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "5": {
+    "start": 43.98,
+    "end": 44.66,
+    "text": "Mm-hmm.",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "6": {
+    "start": 44.66,
+    "end": 46.22,
+    "text": "And then say what it's called.",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "7": {
+    "start": 46.22,
+    "end": 46.33,
+    "text": "Mm-hmm.",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "8": {
+    "start": 50.48,
+    "end": 60.48,
+    "text": "Today that's parsing. We're gonna have writers reading, uh, essays, uh, down from the internet that they love or really affected them. Uh,",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "9": {
+    "start": 62.54,
+    "end": 64.379,
+    "text": "our guest today is this guy",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "10": {
+    "start": 66.54,
+    "end": 67.24,
+    "text": "who writes it.",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "11": {
+    "start": 69.1,
+    "end": 72.68,
+    "text": "You've got, uh, Death is Ba- Death, Death is Banned is your blog-",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "12": {
+    "start": 72.68,
+    "end": 72.69,
+    "text": "Yeah",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "13": {
+    "start": 72.69,
+    "end": 75.4,
+    "text": "... which you've been writing it for like a decade?",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "14": {
+    "start": 75.4,
+    "end": 76.99,
+    "text": "Uh, more than that now, yeah.",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "15": {
+    "start": 76.99,
+    "end": 77.76,
+    "text": "More than a decade.",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "16": {
+    "start": 77.76,
+    "end": 78.28,
+    "text": "Mm-hmm.",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "17": {
+    "start": 78.28,
+    "end": 83.66,
+    "text": "And, um, you've got many collections of short stories that have been published.",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "18": {
+    "start": 83.66,
+    "end": 88.72,
+    "text": "I do. I have, uh, two collections published of about sixteen, seventeen short stories between them.",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "19": {
+    "start": 88.72,
+    "end": 89.49,
+    "text": "Yeah.",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "20": {
+    "start": 89.49,
+    "end": 90.48,
+    "text": "And one novel.",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "21": {
+    "start": 90.48,
+    "end": 90.98,
+    "text": "And one novel.",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "22": {
+    "start": 92.16,
+    "end": 92.42,
+    "text": "Yeah.",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "23": {
+    "start": 93.56,
+    "end": 93.86,
+    "text": "Um,",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "24": {
+    "start": 95.94,
+    "end": 97.8,
+    "text": "and you were in Inkhaven Resident the first time.",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "25": {
+    "start": 97.8,
+    "end": 98.2,
+    "text": "Yes.",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "26": {
+    "start": 99.74,
+    "end": 100.25,
+    "text": "Great.",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "27": {
+    "start": 100.25,
+    "end": 101.16,
+    "text": "It was an amazing experience.",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "28": {
+    "start": 102.2,
+    "end": 105.16,
+    "text": "Um, and then I will be, like, asking you, like, um,",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "29": {
+    "start": 106.7,
+    "end": 110.42,
+    "text": "so what have you liked to read today? And then you'll tell us, and, um,",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "30": {
+    "start": 111.58,
+    "end": 111.82,
+    "text": "yeah.",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "31": {
+    "start": 112.84,
+    "end": 116.94,
+    "text": "And at some point we'll go, \"Great,\" and then let's listen to that, and then we'll cut to there, and then we'll come back.",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "32": {
+    "start": 118.12,
+    "end": 118.58,
+    "text": "Great. All right.",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "33": {
+    "start": 120.44,
+    "end": 132.72,
+    "text": "[clears throat]",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "34": {
+    "start": 135.36,
+    "end": 136.9,
+    "text": "I guess nothing to do but start.",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "35": {
+    "start": 136.9,
+    "end": 138.04,
+    "text": "Yeah. Is it already recording?",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "36": {
+    "start": 138.04,
+    "end": 138.38,
+    "text": "Yeah.",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "37": {
+    "start": 138.38,
+    "end": 141.07,
+    "text": "Yeah? Just start? You can always do a quick [claps].",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "38": {
+    "start": 141.07,
+    "end": 149.52,
+    "text": "[laughs] Uh, welcome to Inkhaven Presents: Writers Reading Writing. That's not what it's called.",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "39": {
+    "start": 149.52,
+    "end": 149.84,
+    "text": "[laughs]",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "40": {
+    "start": 149.84,
+    "end": 150.72,
+    "text": "Writers Reading Writers.",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "41": {
+    "start": 152.24,
+    "end": 158.64,
+    "text": "Uh, welcome to Inkhaven Presents: Writing [both laughing] There's no writing.",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "42": {
+    "start": 160.22,
+    "end": 163.02,
+    "text": "Welcome to Inkhaven Presents: Writers Reading Writers.",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "43": {
+    "start": 164.08,
+    "end": 178.74,
+    "text": "Um, this is a podcast where, uh, great internet writers, I invite them here, and they bring a piece of writing that they love, uh, written by someone else on the internet. They're gonna read it for us, and then we're gonna talk about it. Um, my guest today is Eneasz Brodsky-",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "44": {
+    "start": 178.74,
+    "end": 180.23,
+    "text": "Hello there.",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "45": {
+    "start": 180.23,
+    "end": 184.16,
+    "text": "Hello. Um, who's been r- uh, writing on the internet for well over a decade-",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "46": {
+    "start": 184.16,
+    "end": 184.17,
+    "text": "Mm-hmm",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "47": {
+    "start": 184.17,
+    "end": 185.829,
+    "text": "... with his blog, Death is Banned.",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "48": {
+    "start": 185.829,
+    "end": 187.2,
+    "text": "Mm-hmm.",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "49": {
+    "start": 187.2,
+    "end": 191.08,
+    "text": "Um, and his various, uh, published short stories and one novel.",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "50": {
+    "start": 191.08,
+    "end": 193.049,
+    "text": "Mm-hmm.",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "51": {
+    "start": 193.049,
+    "end": 197.14,
+    "text": "Um, and Eneasz was also, uh, a member of the first cohort of Inkhaven.",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "52": {
+    "start": 197.14,
+    "end": 199.66,
+    "text": "It was an amazing experience. Strong recommend.",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "53": {
+    "start": 199.66,
+    "end": 201.5,
+    "text": "Lovely. Um-",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "54": {
+    "start": 201.5,
+    "end": 202.56,
+    "text": "And thank you for running it.",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "55": {
+    "start": 202.56,
+    "end": 208.12,
+    "text": "Yeah, you're welcome. So what, uh, what, uh, what essay have you brought us to read today?",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "56": {
+    "start": 208.12,
+    "end": 215.28,
+    "text": "Well, today I have brought an essay, little known, I think, uh, makes some bold claims called Jugaad Ethics.",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "57": {
+    "start": 215.28,
+    "end": 217.56,
+    "text": "Jugaad, J-U-G-A-A-D.",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "58": {
+    "start": 217.56,
+    "end": 218.5,
+    "text": "Yes.",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "59": {
+    "start": 218.5,
+    "end": 220.38,
+    "text": "Um, yeah, and who's that by?",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "60": {
+    "start": 221.7,
+    "end": 223.299,
+    "text": "Gosh, I forget the name.",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "61": {
+    "start": 223.299,
+    "end": 224.09,
+    "text": "[laughs]",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "62": {
+    "start": 224.09,
+    "end": 225.94,
+    "text": "Uh, I'll read it off here in just a second.",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "63": {
+    "start": 225.94,
+    "end": 227.24,
+    "text": "Sounds good. I'm gonna grab...",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "64": {
+    "start": 234.26,
+    "end": 236.18,
+    "text": "Bastian Niemand.",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "65": {
+    "start": 236.18,
+    "end": 246.4,
+    "text": "It is by Bastian Niemand, and one of the interesting things about it is that it is no longer where it was originally posted. It is, uh, the only surviving copy is an archived copy on somebody else's site.",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "66": {
+    "start": 246.4,
+    "end": 250.94,
+    "text": "Oh, interesting. Um, do you know the cause of, uh, why that happened?",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "67": {
+    "start": 250.94,
+    "end": 252.12,
+    "text": "I do not, no.",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "68": {
+    "start": 252.12,
+    "end": 252.15,
+    "text": "It did-",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "69": {
+    "start": 252.15,
+    "end": 253.14,
+    "text": "I'm privy to the details.",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "70": {
+    "start": 253.14,
+    "end": 257.82,
+    "text": "It did say on the website that the previous site was, uh, um, censored in some way.",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "71": {
+    "start": 257.82,
+    "end": 260.55,
+    "text": "Yeah, but they didn't give details, so I don't know what the story is.",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "72": {
+    "start": 260.55,
+    "end": 263.4,
+    "text": "Perhaps the content of the essay brought down the entire website.",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "73": {
+    "start": 263.4,
+    "end": 264.34,
+    "text": "[laughs] Yeah.",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "74": {
+    "start": 264.34,
+    "end": 264.36,
+    "text": "Um-",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "75": {
+    "start": 264.36,
+    "end": 265.36,
+    "text": "Who knows?",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "76": {
+    "start": 265.36,
+    "end": 266.44,
+    "text": "So wh- why did you pick this one?",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "77": {
+    "start": 267.98,
+    "end": 268.38,
+    "text": "Um,",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "78": {
+    "start": 269.7,
+    "end": 271.0,
+    "text": "I picked it because it",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "79": {
+    "start": 272.16,
+    "end": 294.62,
+    "text": "illuminates some things to me which had been bothering me for quite a while at the time, and, uh, it made some controversial claims, but it clarified my thinking in a way that, uh, really let me run with this new insight afterwards. And, I mean, I guess I could speak more about that after we have read the essay so everyone knows that what I'm talking about, and we're on the same page.",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "80": {
+    "start": 294.62,
+    "end": 297.02,
+    "text": "That's right. Um, okay. Yeah.",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "81": {
+    "start": 297.02,
+    "end": 300.18,
+    "text": "And I think it-- Now we cut to the essay reading [laughs] maybe?",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "82": {
+    "start": 300.18,
+    "end": 300.57,
+    "text": "Uh, um-",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "83": {
+    "start": 300.57,
+    "end": 301.24,
+    "text": "Or not yet?",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "84": {
+    "start": 301.24,
+    "end": 304.2,
+    "text": "When, um, when did you read this essay?",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "85": {
+    "start": 304.2,
+    "end": 308.18,
+    "text": "I don't remember. Um... Ooh, actually, can you give me just one second?",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "86": {
+    "start": 308.18,
+    "end": 308.23,
+    "text": "Mm-hmm.",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "87": {
+    "start": 308.23,
+    "end": 308.56,
+    "text": "I can check.",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "88": {
+    "start": 310.25,
+    "end": 348.42,
+    "text": "[paper rustling] The reason I can look up when I read this essay is because, uh, shortly after reading the essay, I did a Basing Conspiracy episode about it. It is the, uh, the podcast that I run, which I often just-- I find neat things on the internet, and I wanna talk about them with somebody, and so I have a podcast for that. And, uh, if I look at the date on this, it will tell me roughly when I read it. We aired this in twenty twenty-two, so I read it somewhere in late twenty twenty-one or early twenty twenty-two.",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "89": {
+    "start": 350.26,
+    "end": 352.1,
+    "text": "Okay. Okay. Um,",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "90": {
+    "start": 353.48,
+    "end": 359.96,
+    "text": "gotcha. Is there any, uh, context, any of the lessons we'll need, uh, or you should give before, uh, diving into this one?",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "91": {
+    "start": 361.76,
+    "end": 378.019,
+    "text": "Um, I sh-- I don't think so. Uh, the main thing I would say is that I don't necessarily agree with everything the author is claiming, but, uh, it is an interesting new mental handle for me to think about the world, uh, after I read this.",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "92": {
+    "start": 378.02,
+    "end": 379.73,
+    "text": "All right. Well, thanks very much.",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "93": {
+    "start": 379.73,
+    "end": 379.74,
+    "text": "Mm-hmm.",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "94": {
+    "start": 379.74,
+    "end": 381.1,
+    "text": "And, uh, I look forward to hearing it.",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "95": {
+    "start": 382.37,
+    "end": 382.38,
+    "text": "Great.",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "96": {
+    "start": 382.38,
+    "end": 383.47,
+    "text": "Thank heaven. [laughs]",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "97": {
+    "start": 383.47,
+    "end": 385.26,
+    "text": "[laughs]",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "98": {
+    "start": 385.26,
+    "end": 385.54,
+    "text": "Um,",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "99": {
+    "start": 388.22,
+    "end": 389.68,
+    "text": "and then you read \"Jugaad Ethics\"?",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "100": {
+    "start": 389.68,
+    "end": 390.06,
+    "text": "Mm-hmm.",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "101": {
+    "start": 395.54,
+    "end": 397.72,
+    "text": "And we assume everybody knows what we're talking about.",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "102": {
+    "start": 397.72,
+    "end": 399.32,
+    "text": "Perfectly. Um,",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "103": {
+    "start": 403.66,
+    "end": 406.56,
+    "text": "yeah. Yeah, I think probably I should have asked those questions then. Oh well.",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "104": {
+    "start": 406.56,
+    "end": 410.4,
+    "text": "Yeah. Well, I can... Now you can ask like, \"So what is it that you found?\" or something.",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "105": {
+    "start": 410.4,
+    "end": 411.56,
+    "text": "Yeah. Great.",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  }
+}

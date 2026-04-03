@@ -1,0 +1,975 @@
+{
+  "0": {
+    "start": 1.339999999999975,
+    "end": 2.6000000000000227,
+    "text": "Well, thank you very much for reading that.",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "1": {
+    "start": 2.6000000000000227,
+    "end": 3.339999999999975,
+    "text": "Of course.",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "2": {
+    "start": 3.339999999999975,
+    "end": 9.620000000000005,
+    "text": "Um, so yeah, uh, what was it about this essay that, uh, led you to want to re-read it here today?",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "3": {
+    "start": 9.620000000000005,
+    "end": 116.84900000000005,
+    "text": "The thing about it was the idea of a... Well, first of all, okay, there was a, a number of things. Uh, one of the things it did was just really cemented in my mind the idea of social tech, which, like, I always kinda knew what social tech was, but, like, seeing, seeing the actual really concrete examples of it gave me, like, oh, okay, like, a poster and the idea of consent. Like, these are actual social technologies that we use to help run our lives the same way we would use, like, a washing machine or, uh, or, um, cloud code nowadays. It's a tool for ordering our lives and for how we interact with the world. Uh, so it really cemented that in my mind. Uh, but I think the more, the more interesting thing about it is it brought to... It finally clarified in my mind why it was that people would say things that seemed very obviously contradictory and nonsensical and expect them to somehow make sense anyway. Uh, the... One of the examples he gave right at the very top was the idea that both, uh, both teenagers were drunk, but only the woman couldn't consent. And, like, that, that absolutely does not make sense at all. If alcohol takes away your ability to consent, it takes away the ability of both parties to consent. How is it that this is something that people are claiming with a straight face? And, uh, once it was brought to, brought to my mind that the idea isn't, uh, that consent is actually important, the idea is that, uh, m- men and women are different, and they, the costs of sex for them are different. And that cannot be acknowledged really. Uh, and yet somehow we have to deal with the fact that the costs of sex are different for them and, uh, incentivize young people in certain ways. If the only tool we have is the language of consent, that's the tool they're gonna use, even if it doesn't make sense.",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "4": {
+    "start": 116.84900000000005,
+    "end": 116.91999999999996,
+    "text": "Yeah.",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "5": {
+    "start": 116.91999999999996,
+    "end": 126.60000000000002,
+    "text": "And yeah, all of a sudden, like, I saw why they were doing that, and I still didn't like it, but, uh, the reasoning behind it made sense at last.",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "6": {
+    "start": 126.60000000000002,
+    "end": 139.20000000000005,
+    "text": "Yeah. It, uh, it changes the perspective on such people from, uh, being mere, uh, merely making very simple logical errors to trying with what they had to accomplish, uh, a worthy goal-",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "7": {
+    "start": 139.20000000000005,
+    "end": 139.409,
+    "text": "Yeah",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "8": {
+    "start": 139.409,
+    "end": 144.26999999999998,
+    "text": "... uh, whilst perhaps doing it so, uh, inelegantly is not quite the right word.",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "9": {
+    "start": 144.26999999999998,
+    "end": 144.27999999999997,
+    "text": "[laughs]",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "10": {
+    "start": 144.27999999999997,
+    "end": 148.74,
+    "text": "But, uh, uh, yeah, it's just a, such a striking image of the horse-drawn cart.",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "11": {
+    "start": 148.74,
+    "end": 149.29999999999995,
+    "text": "Yeah.",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "12": {
+    "start": 149.29999999999995,
+    "end": 156.10000000000002,
+    "text": "Um, yeah. What, uh, what struck you? Did anything strike you differently rereading it now, uh, five years later?",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "13": {
+    "start": 156.10000000000002,
+    "end": 179.12,
+    "text": "I had forgotten just how conservative coded it was. [laughs] I, I remembered the, like, the, the Jugaad social tech, and I remembered the noble liege part, but I had forgotten, like, that this guy kinda seems to be, I think, some very, uh, reactionary conservative type. I would assume probably one of those, uh, everyone should be trad wife and virgin when they're married kind of people. Uh, and-",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "14": {
+    "start": 179.12,
+    "end": 181.96000000000004,
+    "text": "He certainly had a very negative opinion of the sexual revolution.",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "15": {
+    "start": 181.96000000000004,
+    "end": 198.76,
+    "text": "Yeah, exactly. And, uh, I, if any-- for anyone who knows anything about me, I'm way on the opposite end of the spectrum of that. And, uh, it was neat that I could still find interesting things he had to say. Like, I agreed with a lot of the points he made, I just came to opposite conclusions as him.",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "16": {
+    "start": 198.76,
+    "end": 199.58000000000004,
+    "text": "Mm-hmm.",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "17": {
+    "start": 199.58000000000004,
+    "end": 200.60000000000002,
+    "text": "So it was, uh,",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "18": {
+    "start": 202.10000000000002,
+    "end": 204.67999999999995,
+    "text": "it was striking how much of that I had forgotten in the intervening years.",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "19": {
+    "start": 204.67999999999995,
+    "end": 210.38,
+    "text": "Uh-huh, uh-huh. Do you, uh, what, did you read that many times when you initially found it?",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "20": {
+    "start": 210.38,
+    "end": 221.17999999999995,
+    "text": "No, I read it once, and I thought it was really interesting, and then I read it again before we, uh, recorded an episode on it, and we talked about it during the episode as well. So probably a total of three full readings.",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "21": {
+    "start": 222.29999999999995,
+    "end": 223.15999999999997,
+    "text": "Um-",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "22": {
+    "start": 223.15999999999997,
+    "end": 229.29999999999995,
+    "text": "It was just, it stuck in my mind enough that it was like, uh, like use the try harder. You only have to read it once, and it's in your mind forever.",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "23": {
+    "start": 229.29999999999995,
+    "end": 231.73900000000003,
+    "text": "That's, that's fair. Yeah, I can see that. Um,",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "24": {
+    "start": 233.12,
+    "end": 239.38,
+    "text": "yeah, in what ways has it affected your thinking since then? How... Or does it come up in the back of your mind in certain conversations?",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "25": {
+    "start": 239.38,
+    "end": 246.88,
+    "text": "It, it does. Um, one of the things that it really did to affect my thinking was realizing,",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "26": {
+    "start": 247.96000000000004,
+    "end": 260.28,
+    "text": "I think up until, up until early 2020 or so, I had fully, uh, bought into the myth, uh, now I call it a myth. Uh, I had fully bought into the idea that",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "27": {
+    "start": 262.14,
+    "end": 265.65999999999997,
+    "text": "humanity is progressing in the moral arc. Um,",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "28": {
+    "start": 267.0,
+    "end": 301.5,
+    "text": "and I am now much less sure that that is the case. I think there's definitely been some progress, like we've gotten rid of slavery. Uh, but I don't think that all the change is, are progress anymore. I think there's a lot of going back and forth and not being sure if we're right or not and making adjustments and in some cases regression. And up until that point, I had thought that we are just always progressing and getting better every day. And reading this, I came to realize that sometimes we do make mistakes and make things worse, and then we don't have the ability to make things better again afterwards if we've thrown away certain tools.",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "29": {
+    "start": 302.52,
+    "end": 303.58000000000004,
+    "text": "Yeah, I think it, uh,",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "30": {
+    "start": 304.76,
+    "end": 310.14,
+    "text": "it gave me a sense that sometimes we keep having to resolve the same problems but with different tools.",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "31": {
+    "start": 310.14,
+    "end": 310.53999999999996,
+    "text": "Yeah.",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "32": {
+    "start": 310.53999999999996,
+    "end": 312.55899999999997,
+    "text": "Um, and you can be better or worse than that.",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "33": {
+    "start": 312.55999999999995,
+    "end": 313.14,
+    "text": "Yeah.",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "34": {
+    "start": 313.14,
+    "end": 315.924,
+    "text": "Um-Yeah.",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "35": {
+    "start": 315.924,
+    "end": 331.83399999999995,
+    "text": "It also, like, more solidly cemented in my mind why it's important to be able to be honest about things. Uh, the fact that the progressives of the day, I'm not sure if this is the case anymore, but certainly when I read it, could not say that men and women are really fundamentally different, uh,",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "36": {
+    "start": 332.94399999999996,
+    "end": 333.924,
+    "text": "handicapped them quite a bit.",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "37": {
+    "start": 335.10400000000004,
+    "end": 335.154,
+    "text": "Mm-hmm.",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "38": {
+    "start": 335.154,
+    "end": 347.44399999999996,
+    "text": "And, uh, I think that is kind of an important part, at least when we're talking about sexual ethics. When we're talking about a number of things, uh, the fact that our species is quite bimodal in certain aspects is pretty important.",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "39": {
+    "start": 347.44399999999996,
+    "end": 347.72400000000005,
+    "text": "Mm-hmm.",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "40": {
+    "start": 348.744,
+    "end": 351.024,
+    "text": "Yeah. Was that different from other things you were reading at the time?",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "41": {
+    "start": 352.10400000000004,
+    "end": 369.08399999999995,
+    "text": "It was different from what I had grown up with. Uh, my-- one of my more viral pieces I ever wrote was How to Believe False Things, where I recount as to how it was that I was able to believe for most of my life, up into my thirties, that there was no significant difference between men and women.",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "42": {
+    "start": 369.08399999999995,
+    "end": 370.84400000000005,
+    "text": "Right. I recall that.",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "43": {
+    "start": 370.84400000000005,
+    "end": 371.024,
+    "text": "Yeah.",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "44": {
+    "start": 371.024,
+    "end": 379.36400000000003,
+    "text": "You were under the impression that, uh, the men's, I don't know, football team and the ladies football team, if they competed, would be on even footing, and you didn't understand why they didn't just compete.",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "45": {
+    "start": 379.36400000000003,
+    "end": 380.22400000000005,
+    "text": "Exactly. Yeah.",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "46": {
+    "start": 380.22400000000005,
+    "end": 380.68399999999997,
+    "text": "Nice.",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "47": {
+    "start": 380.68399999999997,
+    "end": 383.56399999999996,
+    "text": "This was during the, uh, the World Cup controversy.",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "48": {
+    "start": 383.56399999999996,
+    "end": 384.124,
+    "text": "In what year?",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "49": {
+    "start": 385.60400000000004,
+    "end": 387.72400000000005,
+    "text": "It was somewhere in the COVID times, so...",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "50": {
+    "start": 387.72400000000005,
+    "end": 389.86400000000003,
+    "text": "Oh, wow. [laughs]",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "51": {
+    "start": 389.86400000000003,
+    "end": 391.384,
+    "text": "Yeah. [laughs] Man, that was a big cup.",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "52": {
+    "start": 391.384,
+    "end": 392.21400000000006,
+    "text": "Like Tuesday.",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "53": {
+    "start": 392.21400000000006,
+    "end": 394.544,
+    "text": "Yes. [laughs] Exactly.",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "54": {
+    "start": 394.544,
+    "end": 394.884,
+    "text": "Um,",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "55": {
+    "start": 395.904,
+    "end": 399.44399999999996,
+    "text": "was this essay-- did you read this before or after that realization?",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "56": {
+    "start": 399.44399999999996,
+    "end": 401.744,
+    "text": "It must have been right around that same time.",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "57": {
+    "start": 401.744,
+    "end": 402.60400000000004,
+    "text": "Interesting.",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "58": {
+    "start": 402.60400000000004,
+    "end": 411.56399999999996,
+    "text": "'Cause '21, '22, that was right near the end of COVID. So it was around the time where everything was sort of crumbling, and I was trying to rebuild things.",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "59": {
+    "start": 411.56399999999996,
+    "end": 419.024,
+    "text": "What kind of things were you reading at the time on these topics that this was, uh, in contrast to?",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "60": {
+    "start": 422.644,
+    "end": 423.264,
+    "text": "At the time,",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "61": {
+    "start": 424.36400000000003,
+    "end": 442.044,
+    "text": "not nearly as much because I had gotten far more into rationalism and the greater rat blogosphere and, uh, there was an ascendant sort of a alt-right movement, which again, I have many differences with, but which were able to say some things that the left was not able to say.",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "62": {
+    "start": 442.044,
+    "end": 442.384,
+    "text": "Mm-hmm.",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "63": {
+    "start": 442.384,
+    "end": 448.96400000000006,
+    "text": "Which gave them a certain amount of power, just that they could point out places where the left was not able to say true things. Um-",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "64": {
+    "start": 448.96400000000006,
+    "end": 453.504,
+    "text": "And out of the subset of, uh, things they were able to say that the left were not able to say, some of them were true.",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "65": {
+    "start": 453.504,
+    "end": 454.244,
+    "text": "Some of them were true. [laughs]",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "66": {
+    "start": 454.244,
+    "end": 455.70399999999995,
+    "text": "Yes. [laughs]",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "67": {
+    "start": 455.70399999999995,
+    "end": 471.46400000000006,
+    "text": "Exactly. Which is one of the reasons that I think, uh, if you're on the good side of things, you should never have to, uh, not say things that are true. Because if your enemies are able to say some true things and point out that you are unable to say them, that gives them some credibility, even if they're wrong on everything else.",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "68": {
+    "start": 471.46400000000006,
+    "end": 474.06399999999996,
+    "text": "Yeah. It certainly gives them certain advantages.",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "69": {
+    "start": 474.06399999999996,
+    "end": 474.86400000000003,
+    "text": "Yeah.",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "70": {
+    "start": 474.86400000000003,
+    "end": 477.124,
+    "text": "Um, yeah. Um,",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "71": {
+    "start": 478.68399999999997,
+    "end": 490.164,
+    "text": "does the-- What feels-- What's the s-strongest part of this essay to you that comes across? Is it a particular point, or is it the writer's overall kind of gestalt and perspective? What, like, rings strongest in your mind?",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "72": {
+    "start": 495.08399999999995,
+    "end": 545.144,
+    "text": "The thing that probably rings str-strongest is the, uh, the idea of the middleman in the Soviet Union because of how important that was to keeping the Soviet Union going for as long as it did and how absolutely uncontroversial I think it is now, uh, that the Soviet Union just could not absolutely say that anything was capitalism, that capitalism had any positive aspects to it. So, uh, everything was communism, but it literally couldn't function without it. So it had these, these great market people, uh, fixing things and keeping the system running. And, uh, having such a stark example of a jugaad sort of social tech that is only possible because the people in power cannot say a true thing, uh, really gives a lot of weight to maybe the other points are-- have some validity to them too. And I think most of the other points do as well.",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "73": {
+    "start": 545.144,
+    "end": 546.164,
+    "text": "Mm-hmm.",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "74": {
+    "start": 546.164,
+    "end": 576.034,
+    "text": "One of the things that, um, is really important to me currently, and has been for a long time, is the breakdown of the social contract between the higher classes and the lower classes. And I think-- I mean, I think it's a two-pronged thing, but specifically the part where he called out noble oblige, where there are people who have more, and it's not because they stole it or something, just maybe for good reasons they have more. But they also have a duty. Uh,",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "75": {
+    "start": 577.304,
+    "end": 578.704,
+    "text": "this came back later, um...",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "76": {
+    "start": 582.584,
+    "end": 608.724,
+    "text": "I'm trying to remember where, what the source is, but I can't place it right now. But, uh, the idea of Batman being a basically, uh, noble republican ideal, uh, that he is a man with great wealth, uh, great physical prowess, great intellectual prowess. He's just like the highest level of humanity, and he was born into wealth, uh, and he uses that for good. But he doesn't impoverish himself, but he uses it to help the people who-- the common people like us.",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "77": {
+    "start": 608.724,
+    "end": 609.464,
+    "text": "Mm-hmm.",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "78": {
+    "start": 609.464,
+    "end": 660.5840000000001,
+    "text": "And, uh, and in return, we respect and admire him. And that is, like, the correct way for society to have nobles and elites and rulers, and every society needs that because there are always common people, and there are always leaders, and more importantly, there's always people who have a lot of gifts that they were not-- they don't necessarily deserve. Like, uh, I don't deserve to be tall. Uh, Scott Alexander said he doesn't deserve to be an amazing writer, and yet those things are true. And if those are true, then there is some responsibility to give back. And that also comes with some responsibility on the other-- on the side of the common people to show some level of, of appreciation for it. This really struck me when I was in Westminster Abbey, and I saw these amazing statues of the, uh, the best people that England had to offer throughout the last few hundred years.",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "79": {
+    "start": 661.7439999999999,
+    "end": 670.8430000000001,
+    "text": "And these people did a lot of good, and they were famous, and they were so admired by the commoners that they put them in their church where they met every Sunday.",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "80": {
+    "start": 670.844,
+    "end": 671.2439999999999,
+    "text": "Mm-hmm.",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "81": {
+    "start": 671.2439999999999,
+    "end": 675.8040000000001,
+    "text": "And carved statues to them and said, you know, like, \"Thanks for helping make this society what it was.\"",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "82": {
+    "start": 675.8040000000001,
+    "end": 675.904,
+    "text": "Mm-hmm.",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "83": {
+    "start": 678.444,
+    "end": 686.364,
+    "text": "I think it's not only tragic but also very detrimental to society that nowadays people believe that anyone who--",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "84": {
+    "start": 687.664,
+    "end": 736.7639999999999,
+    "text": "that, um, equality is a rule of nature, and anyone who is above others in any sort of way has got that way by cheating. Uh, and so that makes them bitter for if anyone has more power or more talent or more intellect. And as opposed to being like a mutual helping each other, like, I'll take care of the apartment building, you take care of the country, uh, or whatever it is, uh, it's, it's a distinct wanting to tear down the rich, uh, wanting to, uh, bring down the successful, and, uh, and it creates a lot of animosity. Instead of having a thriving society that functions on all levels, uh, as these people give back and forth and, uh, the nobles do good things for the common people, the common people do good things for the nobles, instead we're at each other's throats.",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "85": {
+    "start": 736.7639999999999,
+    "end": 737.194,
+    "text": "Mm-hmm.",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "86": {
+    "start": 737.194,
+    "end": 738.2840000000001,
+    "text": "And I think that's terrible. That's--",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "87": {
+    "start": 739.444,
+    "end": 742.5239999999999,
+    "text": "I wanna write more about this, uh, both at Inkhaven",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "88": {
+    "start": 743.5840000000001,
+    "end": 773.5239999999999,
+    "text": "and in the weeks after the Billionaire March, and yet somehow I just end up not spending the time to do that. I'm hoping to do that more, but, um, yeah, his, his whole pointing out that, you know, bele believes is actually still really important in society, and we can't have that if everybody is equal, and that is the law of nature that we believe. Uh, then instead it's like, \"Oh, well, they stole their status, and therefore we are going to steal back things from them,\" and that's how things get redistributed, uh, which is a less functional way to redistribute things than the older way that used to be done.",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "89": {
+    "start": 773.5239999999999,
+    "end": 774.684,
+    "text": "Mm-hmm.",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "90": {
+    "start": 774.684,
+    "end": 779.124,
+    "text": "And, you know, also the older way had some problems as well. I'm not saying it's ideal. [laughs]",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "91": {
+    "start": 779.124,
+    "end": 789.903,
+    "text": "Was, uh, was that something you thought specifically after reading this essay, or, uh, is that something you would j-it just, uh, added another note to what you've been thinking about?",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "92": {
+    "start": 789.904,
+    "end": 792.7139999999999,
+    "text": "It added a way for me to think about it without feeling like I was,",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "93": {
+    "start": 793.7840000000001,
+    "end": 795.124,
+    "text": "[laughs] like I was bad for thinking it-",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "94": {
+    "start": 795.124,
+    "end": 795.2629999999999,
+    "text": "Mm-hmm",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "95": {
+    "start": 795.2629999999999,
+    "end": 796.9839999999999,
+    "text": "... I guess. Yeah.",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "96": {
+    "start": 796.9839999999999,
+    "end": 798.5640000000001,
+    "text": "Yeah. Um-",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "97": {
+    "start": 798.5640000000001,
+    "end": 804.344,
+    "text": "I was very much r-raised in the tradition of the, uh, liberal everyone is completely equal-",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "98": {
+    "start": 805.8040000000001,
+    "end": 806.5039999999999,
+    "text": "Mm-hmm",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "99": {
+    "start": 806.5039999999999,
+    "end": 807.364,
+    "text": "... world.",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "100": {
+    "start": 807.364,
+    "end": 807.5329999999999,
+    "text": "Mm-hmm.",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "101": {
+    "start": 811.4639999999999,
+    "end": 813.4639999999999,
+    "text": "What was, uh... Yeah.",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "102": {
+    "start": 815.604,
+    "end": 819.4839999999999,
+    "text": "I suspect this was not a large step away from that worldview, but it was a, it was a small step.",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "103": {
+    "start": 819.4839999999999,
+    "end": 819.644,
+    "text": "Yeah.",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "104": {
+    "start": 821.424,
+    "end": 823.944,
+    "text": "It's been a very slow incremental progression.",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "105": {
+    "start": 826.424,
+    "end": 826.7840000000001,
+    "text": "Yeah.",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "106": {
+    "start": 831.3240000000001,
+    "end": 835.384,
+    "text": "[sighs] I should",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "107": {
+    "start": 844.844,
+    "end": 845.864,
+    "text": "probably do the same.",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "108": {
+    "start": 845.864,
+    "end": 847.164,
+    "text": "Mm-hmm.",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "109": {
+    "start": 847.164,
+    "end": 858.124,
+    "text": "[sighs] Yeah.",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "110": {
+    "start": 860.3240000000001,
+    "end": 869.364,
+    "text": "Are there any other times you, uh, you see something in the world now a-after reading the essay and go, \"Ah, yes, an ex-jugad example of, uh, that kind of thing?\"",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "111": {
+    "start": 869.424,
+    "end": 870.624,
+    "text": "Yes. Oh,",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "112": {
+    "start": 872.0840000000001,
+    "end": 878.0840000000001,
+    "text": "I had one just a couple months ago, and now I cannot for the life of me remember what it was, which is frustrating. Um,",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "113": {
+    "start": 880.0039999999999,
+    "end": 880.874,
+    "text": "I do see that thing,",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "114": {
+    "start": 881.884,
+    "end": 882.614,
+    "text": "uh, more,",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "115": {
+    "start": 883.864,
+    "end": 896.0640000000001,
+    "text": "a few times a year, and I think maybe I should try to popularize the idea a little more, talk more with my friends about it so, uh, we can be, we can have the same, same mental words.",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "116": {
+    "start": 896.0640000000001,
+    "end": 901.124,
+    "text": "Use it in your essays and then link to it and assume that your readers will have to read the link to find out.",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "117": {
+    "start": 901.124,
+    "end": 918.624,
+    "text": "Yeah. I mean, that's, that's fraught in two ways. And first being that no one ever clicks the links, which is not completely true, but it's a good enough heuristic that it's true within the first order of magnitude. Uh, no one ever follows links. And then secondarily, also kind of worrying like, are they gonna think that I am pro returning to a-",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "118": {
+    "start": 918.624,
+    "end": 918.8140000000001,
+    "text": "[laughs]",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "119": {
+    "start": 918.8140000000001,
+    "end": 922.4639999999999,
+    "text": "... patriarchy? [laughs] 'Cause, uh, 'cause I'm definitely not.",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "120": {
+    "start": 922.4639999999999,
+    "end": 922.684,
+    "text": "Right.",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "121": {
+    "start": 924.0840000000001,
+    "end": 927.844,
+    "text": "Yeah. No, I enjoy being able to talk about this and get the value out of it without endorsing it.",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "122": {
+    "start": 930.2840000000001,
+    "end": 930.424,
+    "text": "Um,",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "123": {
+    "start": 932.184,
+    "end": 933.364,
+    "text": "well, I think we might be done.",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "124": {
+    "start": 933.364,
+    "end": 934.0039999999999,
+    "text": "Okay.",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "125": {
+    "start": 934.0039999999999,
+    "end": 935.383,
+    "text": "Uh, thanks very much for sharing it.",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "126": {
+    "start": 935.383,
+    "end": 935.4739999999999,
+    "text": "Indeed.",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "127": {
+    "start": 935.4739999999999,
+    "end": 936.9639999999999,
+    "text": "I'm glad to have read it now.",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "128": {
+    "start": 936.9639999999999,
+    "end": 937.4739999999999,
+    "text": "Yeah.",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "129": {
+    "start": 937.4739999999999,
+    "end": 941.684,
+    "text": "And, uh, thanks for coming on the, uh, Writers Reading Writers podcast.",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "130": {
+    "start": 941.684,
+    "end": 943.124,
+    "text": "Indeed. Thank you for having me on.",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "131": {
+    "start": 943.124,
+    "end": 948.0340000000001,
+    "text": "All right. Well, uh, as well as thanking Eneasz, I must thank WordPress.com. [laughs]",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "132": {
+    "start": 948.0340000000001,
+    "end": 949.704,
+    "text": "[laughs] WordPress.com.",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "133": {
+    "start": 949.704,
+    "end": 951.104,
+    "text": "All right. Farewell for now.",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "134": {
+    "start": 951.104,
+    "end": 951.364,
+    "text": "Bye.",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "135": {
+    "start": 954.0840000000001,
+    "end": 954.684,
+    "text": "Cool.",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "136": {
+    "start": 954.684,
+    "end": 955.364,
+    "text": "Thank you very much.",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  },
+  "137": {
+    "start": 955.364,
+    "end": 964.463,
+    "text": "Yes, of course. [sighs] How long was that?",
+    "speaker_id": 0,
+    "speaker_name": "Eneasz"
+  },
+  "138": {
+    "start": 966.844,
+    "end": 968.424,
+    "text": "Let me check",
+    "speaker_id": 1,
+    "speaker_name": "Ben"
+  }
+}

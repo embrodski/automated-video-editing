@@ -1,0 +1,2 @@
+file 'outputs/manually_edited_intro.mp4'
+file 'outputs/all_but_intro_1080p_autocuts.mp4'

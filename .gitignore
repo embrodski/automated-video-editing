@@ -1,0 +1,49 @@
+# Output files
+outputs/
+temp_segments/
+*.mp4
+*.mov
+*.avi
+*.mkv
+
+# Input files
+inputs/
+
+# Audio files
+*.mp3
+*.wav
+*.aac
+*.m4a
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+
+# Virtual environments
+venv/
+env/
+ENV/
+.env
+.env.*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+.*.swp
+.*.swo
+
+# IDE
+.vscode/
+.idea/
+.cursor/
+*.sublime-*
