@@ -2,6 +2,20 @@
 Configuration for podcast segments.
 """
 
+from pathlib import Path
+
+
+_PATH_BASE = Path(__file__).resolve().parents[1]
+
+
+def _resolve_repo_path(path_str: str) -> str:
+    """Resolve a path relative to the historical config base (`src`)."""
+    path = Path(path_str)
+    if path.is_absolute():
+        return str(path)
+    return str((_PATH_BASE / path_str).resolve())
+
+
 # Segment configuration
 SEGMENT_CONFIG = {
     '1': {
@@ -132,5 +146,32 @@ SEGMENT_CONFIG = {
             }
         },
         'transcript_file': '../outputs/segment_6_transcript_simplified.json',
+    },
+    '10': {
+        'audio_file': '../Jason_Crawford/Crawford-Ben Enhanced Audio.wav',
+        'audio_offset': 0,
+        'video_files': {
+            'speaker_0': {
+                'file': '../Jason_Crawford/Ben Interview Video.mp4',
+                'offset': 0,
+            },
+            'speaker_1': {
+                'file': '../Jason_Crawford/Crawford Interview Video.mp4',
+                'offset': 0,
+            },
+            'wide': {
+                'file': '../Jason_Crawford/Interview Wide Video.mp4',
+                'offset': 0,
+            }
+        },
+        'transcript_file': '../Jason_Crawford/Interview_Transcript_simplified.json',
     }
 }
+
+
+# Normalize media/transcript paths once so rendering is CWD-independent.
+for segment in SEGMENT_CONFIG.values():
+    segment['audio_file'] = _resolve_repo_path(segment['audio_file'])
+    segment['transcript_file'] = _resolve_repo_path(segment['transcript_file'])
+    for camera in segment['video_files'].values():
+        camera['file'] = _resolve_repo_path(camera['file'])

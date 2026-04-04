@@ -121,13 +121,14 @@ def get_clip_info(segment_id: str, camera_name: str, slice_start: float = None, 
     }
 
 
-def group_consecutive_clips(clips_to_render: List[Tuple[str, str, str, float, float, Optional[float], Optional[float], Optional[float], Optional[float], float]], max_gap: float = 5.0):
+def group_consecutive_clips(clips_to_render: List[Tuple[str, str, str, float, float, Optional[float], Optional[float], Optional[float], Optional[float], float]], max_gap: Optional[float] = None):
     """
     Group consecutive clips that are close together in time AND sequential in the transcript.
 
     Args:
         clips_to_render: List of (segment_id, camera, comment, cut_before, cut_after, fade_in_ms, fade_out_ms, slice_start, slice_end, volume) tuples
-        max_gap: Maximum gap in seconds to consider clips as consecutive
+        max_gap: Maximum gap in seconds to consider clips as consecutive.
+            If None, preserve all gaps between sequential transcript sentences.
 
     Returns:
         List of groups, where each group is a list of (segment_id, camera, comment, cut_before, cut_after, fade_in_ms, fade_out_ms, slice_start, slice_end, volume)
@@ -186,8 +187,8 @@ def group_consecutive_clips(clips_to_render: List[Tuple[str, str, str, float, fl
 
                 gap = curr_start - prev_end
 
-                # Group if gap is within max_gap seconds
-                if gap <= max_gap:
+                # Group if gap is within max_gap, or preserve all gaps when max_gap is None.
+                if max_gap is None or gap <= max_gap:
                     current_group.append(clips_to_render[i])
                     continue
 

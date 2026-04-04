@@ -25,6 +25,11 @@ OUTPUT_FPS = 24000 / 1001
 OUTPUT_FPS_STR = '24000/1001'
 
 
+def _ffmpeg_cmd_base() -> List[str]:
+    """Build a low-noise FFmpeg command prefix."""
+    return ['ffmpeg', '-hide_banner', '-nostats', '-loglevel', 'error', '-y']
+
+
 @lru_cache(maxsize=None)
 def _get_video_dimensions(video_file: str) -> Tuple[int, int]:
     """Return the width and height of a video file."""
@@ -208,7 +213,7 @@ def _concatenate_clips_reencode(clip_files: List[str], output_file: str):
     filter_complex = video_filter + ';' + audio_filter
 
     # Build FFmpeg command
-    cmd = ['ffmpeg', '-y']
+    cmd = _ffmpeg_cmd_base()
 
     # Add all input files
     for clip_file in clip_files:
@@ -294,8 +299,7 @@ def _concatenate_clips_demuxer(clip_files: List[str], output_file: str):
         concat_file.close()
 
         # Use concat demuxer with stream copy for perfect sync
-        cmd = [
-            'ffmpeg', '-y',
+        cmd = _ffmpeg_cmd_base() + [
             '-f', 'concat',
             '-safe', '0',
             '-i', concat_file.name,
@@ -372,8 +376,7 @@ def apply_volume_adjustments(video_file: str, output_file: str, volume_timeline:
 
     filter_complex = ';'.join(filter_complex_parts)
 
-    cmd = [
-        'ffmpeg', '-y',
+    cmd = _ffmpeg_cmd_base() + [
         '-i', video_file,
         '-filter_complex', filter_complex,
         '-map', '[outv]',
@@ -422,7 +425,7 @@ def apply_audio_overlays(video_file: str, output_file: str, audio_overlays: List
     print(f"\nApplying {len(valid_overlays)} audio overlay(s)...")
 
     # Build ffmpeg command with audio overlays
-    cmd = ['ffmpeg', '-y', '-i', video_file]
+    cmd = _ffmpeg_cmd_base() + ['-i', video_file]
 
     # Add all audio overlay files as inputs
     for i, (timestamp, audio_file, volume, speed) in enumerate(valid_overlays):
@@ -508,8 +511,7 @@ def generate_black_clip(duration_ms: float, output_file: str):
     duration_sec = duration_ms / 1000.0
 
     # Generate black video (640x360, 23.976fps) with silent audio to match source
-    cmd = [
-        'ffmpeg', '-y',
+    cmd = _ffmpeg_cmd_base() + [
         '-f', 'lavfi', '-i', f'color=c=black:s=640x360:r=24000/1001:d={duration_sec}',
         '-f', 'lavfi', '-i', f'anullsrc=r=48000:cl=stereo:d={duration_sec}',
         '-c:v', 'libx264',
@@ -638,7 +640,7 @@ def _extract_single_camera_group(segment_ids: List[str], clips_info: List[Dict],
     # Single FFmpeg call to extract and combine video + audio for perfect sync
     # Using -ss BEFORE -i for fast seeking to the right position
     # NOTE: Using -ss after -i for audio accuracy (slower but works)
-    cmd = ['ffmpeg', '-y']
+    cmd = _ffmpeg_cmd_base()
 
     # Video: use fast seek (-ss before -i)
     cmd.extend(['-ss', str(video_start), '-i', first_clip['video_file']])
@@ -802,7 +804,7 @@ def _extract_camera_segment(args):
         filter_parts.append(f"[0:v]{','.join(video_filter_chain)}[vout]")
 
     # Single FFmpeg call to extract the video span using fast seek.
-    cmd = ['ffmpeg', '-y']
+    cmd = _ffmpeg_cmd_base()
     cmd.extend(['-ss', str(video_start), '-i', video_file])
     cmd.extend(['-t', str(segment_duration)])
 
@@ -933,8 +935,7 @@ def _extract_multi_camera_group(group: List[Tuple[str, str, str, float, float, O
 
         concatenate_clips(combined_segments, temp_video_path, use_reencode=False)
 
-        cmd = [
-            'ffmpeg', '-y',
+        cmd = _ffmpeg_cmd_base() + [
             '-i', temp_video_path,
             '-ss', str(audio_start_in_main_file), '-i', main_audio_file,
             '-t', str(group_duration),
@@ -1237,8 +1238,9 @@ def _render_dsl_from_commands(commands: List, output_file: str, dsl_file: str = 
         clips_to_render = clips_to_render[start_idx:end_idx]
         print(f"Applied skip/limit: {original_count} clips -> {len(clips_to_render)} clips (skipped {skip_clips}, limited to {limit_clips if limit_clips else 'all'})\n")
 
-    # Group consecutive clips that are close in time (now groups by timing, not camera)
-    clip_groups = group_consecutive_clips(clips_to_render, max_gap=5.0)
+    # Group consecutive transcript clips and preserve long pauses between them.
+    # This avoids unintentionally compressing timeline silence.
+    clip_groups = group_consecutive_clips(clips_to_render, max_gap=None)
     print(f"Grouped into {len(clip_groups)} extraction(s):")
     for i, group in enumerate(clip_groups):
         seg_id = group[0][0]
@@ -1447,8 +1449,7 @@ def _render_dsl_from_commands(commands: List, output_file: str, dsl_file: str = 
 
         # Final conversion to AAC/MP4
         print(f"\nConverting to final AAC/MP4 format...")
-        cmd = [
-            'ffmpeg', '-y',
+        cmd = _ffmpeg_cmd_base() + [
             '-i', intermediate_file,
             '-c:v', 'copy',  # Copy video without re-encoding
             '-c:a', 'aac',
