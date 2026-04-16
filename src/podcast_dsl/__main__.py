@@ -37,11 +37,15 @@ Examples:
     parser.add_argument('--dry-run', action='store_true',
                         help='Calculate total duration without rendering')
     parser.add_argument('--auto-cuts', action='store_true',
-                        help='Automatically generate camera cuts based on speaker (min 5s clips)')
+                        help='Auto-insert cameras: Ben open, intro/crosstalk wide, 5s min / random wide / <1s hold')
+    parser.add_argument('--auto-cuts-legacy', action='store_true',
+                        help='Use older auto-cuts (random wide, minimum 5s per angle, short-hold)')
     parser.add_argument('--skip', type=int, default=0,
                         help='Skip first N clips (for testing)')
     parser.add_argument('--limit', type=int, default=None,
                         help='Render only M clips after skipping (for testing)')
+    parser.add_argument('--max-seconds', type=float, default=None,
+                        help='Render only the first N seconds of timeline (for testing)')
     parser.add_argument('--debug', action='store_true',
                         help='Save intermediate segment files to debug_segments/ folder for inspection')
     parser.add_argument('--workers', type=int, default=8,
@@ -53,16 +57,29 @@ Examples:
 
     args = parser.parse_args()
 
+    if args.auto_cuts and args.auto_cuts_legacy:
+        parser.error('Use only one of --auto-cuts and --auto-cuts-legacy')
+
     # Render all cams mode takes precedence
     if args.render_all_cams:
         from .video_renderer import render_all_cams
         render_all_cams(args.dsl_file, args.output, dry_run=args.dry_run,
-                       skip_clips=args.skip, limit_clips=args.limit, debug=args.debug,
+                       skip_clips=args.skip, limit_clips=args.limit, max_seconds=args.max_seconds, debug=args.debug,
                        num_workers=args.workers, margin=args.margin)
     else:
-        render_dsl(args.dsl_file, args.output, dry_run=args.dry_run, auto_cuts=args.auto_cuts,
-                   skip_clips=args.skip, limit_clips=args.limit, debug=args.debug,
-                   num_workers=args.workers, margin=args.margin)
+        render_dsl(
+            args.dsl_file,
+            args.output,
+            dry_run=args.dry_run,
+            auto_cuts=args.auto_cuts or args.auto_cuts_legacy,
+            auto_cuts_legacy=args.auto_cuts_legacy,
+            skip_clips=args.skip,
+            limit_clips=args.limit,
+            max_seconds=args.max_seconds,
+            debug=args.debug,
+            num_workers=args.workers,
+            margin=args.margin,
+        )
 
 
 if __name__ == '__main__':

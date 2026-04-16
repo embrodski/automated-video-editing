@@ -13,6 +13,8 @@ import json
 from typing import List, Dict, Tuple, Optional
 from multiprocessing import Pool, cpu_count
 from functools import lru_cache
+import re
+import math
 
 from .config import SEGMENT_CONFIG
 from .clip_processing import get_clip_info, parse_segment_id, load_transcript
@@ -64,6 +66,141 @@ def _get_segment_target_resolution(segment_num: str) -> Tuple[int, int]:
     target_width = max(width for width, _ in dimensions)
     target_height = max(height for _, height in dimensions)
     return target_width, target_height
+
+
+@lru_cache(maxsize=None)
+def _probe_mean_yavg(video_file: str, *, sample_seconds: float = 8.0, max_frames: int = 240) -> float:
+    """
+    Estimate mean luma (YAVG) for a video using ffmpeg signalstats on a short sample.
+
+    This is used to auto-match close cameras to the wide camera for a segment.
+    """
+    # Crop to central region before measuring luma so letterboxing / framing differences
+    # don't dominate the statistic.
+    vf = "crop=iw*0.6:ih*0.6:(iw-ow)/2:(ih-oh)/2,signalstats,metadata=print:file=-"
+    cmd = _ffmpeg_cmd_base() + [
+        '-i', video_file,
+        '-t', str(sample_seconds),
+        '-vf', vf,
+        '-frames:v', str(max_frames),
+        '-f', 'null',
+        '-',
+    ]
+    p = subprocess.run(cmd, capture_output=True, text=True)
+    if p.returncode != 0:
+        raise RuntimeError(f"ffmpeg signalstats failed for {video_file}:\n{p.stderr.strip()}")
+
+    y_vals: List[float] = []
+    for line in p.stdout.splitlines():
+        # ffmpeg metadata lines look like: lavfi.signalstats.YAVG=123.45
+        m = re.search(r'(?:^|\b)YAVG=(\d+(?:\.\d+)?)\b', line, flags=re.IGNORECASE)
+        if not m:
+            # Alternate formatting seen in some builds
+            m = re.search(r'\byavg:(\d+(?:\.\d+)?)\b', line, flags=re.IGNORECASE)
+        if m:
+            y_vals.append(float(m.group(1)))
+
+    if not y_vals:
+        raise RuntimeError(f"No YAVG values parsed for {video_file}")
+
+    return sum(y_vals) / len(y_vals)
+
+
+@lru_cache(maxsize=None)
+def _segment_color_match_eq(segment_num: str, camera: str) -> str:
+    """
+    Return an ffmpeg filter chain snippet (no labels) to color-match a camera to `wide`.
+
+    Wide is the reference (identity). Close cameras get a mild gamma correction derived
+    from sampled mean luma differences.
+    """
+    if camera == 'wide':
+        return ''
+
+    config = SEGMENT_CONFIG[segment_num]
+    cam_cfg = config['video_files'].get(camera, {})
+
+    vf = cam_cfg.get('color_match_vf')
+    if isinstance(vf, str) and vf.strip():
+        return vf.strip().rstrip(',')
+
+    cams = config.get('video_files', {})
+    if 'wide' not in cams:
+        return ''
+
+    # Only auto-match the two common close angles; leave other layouts untouched.
+    if camera not in ('speaker_0', 'speaker_1'):
+        return ''
+
+    y_wide = _probe_mean_yavg(cams['wide']['file'])
+    y_src = _probe_mean_yavg(cams[camera]['file'])
+
+    # Avoid divide-by-zero / nonsense
+    if y_wide <= 1.0 or y_src <= 1.0:
+        return ''
+
+    # Map average luma ratio into a bounded gamma tweak on luma (Y).
+    # This is a pragmatic match (not a full grade), but stabilizes cross-angle brightness.
+    # Match close cameras toward wide without the "flat/washed" look that a big additive
+    # brightness lift tends to produce. Prefer a mild gamma lift plus a small saturation bump.
+    #
+    # `d` is a normalized luma gap in ~[0, 1] when shots are very different.
+    d = (y_wide - y_src) / 255.0
+    d = max(-0.35, min(0.35, d))
+
+    # If we're extremely close, skip filtering entirely.
+    if abs(d) < 0.004:
+        return ''
+
+    # Smooth aggressiveness: big mismatches still cap out (tanh), small mismatches are subtle.
+    x = d * 6.0
+    t = math.tanh(x)  # in (-1, 1)
+
+    # Gamma > 1 brightens midtones more than highlights (less "milky" than big brightness).
+    # Keep this fairly gentle; heavy gamma reads as "washed" once mids get lifted.
+    gamma = 1.0 + 0.12 * t
+    gamma = max(0.95, min(1.14, gamma))
+
+    # Keep a *small* brightness component for very dark closeups, but clamp it hard.
+    brightness = 0.35 * d
+    brightness = max(-0.04, min(0.06, brightness))
+
+    # `eq` saturation is global; pair it with `vibrance` which tends to boost muted colors
+    # more than already-saturated areas (helps avoid chalky skin when lifting exposure).
+    sat_k = 0.28 if d > 0 else 0.22
+    saturation = 1.0 + sat_k * max(0.0, d) * 2.0
+    saturation = max(0.95, min(1.18, saturation))
+
+    vibrance = 0.22 * max(0.0, t)
+    vibrance = max(0.0, min(0.45, vibrance))
+
+    # Mild sharpening helps restore perceived contrast after lifts (keep subtle).
+    unsharp = ""
+    if d > 0.02:
+        unsharp = "unsharp=5:5:0.65:3:3:0.0"
+
+    parts = [
+        f"eq=gamma={gamma:.6f}:brightness={brightness:.6f}:saturation={saturation:.6f}",
+    ]
+    if vibrance > 0:
+        parts.append(f"vibrance={vibrance:.6f}")
+    if unsharp:
+        parts.append(unsharp)
+
+    return ",".join(parts)
+
+
+def _append_vf_snippet(video_filter_chain: List[str], snippet: str) -> None:
+    if not snippet:
+        return
+    if video_filter_chain:
+        video_filter_chain[-1] = f"{video_filter_chain[-1]},{snippet}"
+    else:
+        video_filter_chain.append(snippet)
+
+
+def _append_video_eq(video_filter_chain: List[str], eq_snippet: str) -> None:
+    _append_vf_snippet(video_filter_chain, eq_snippet)
 
 
 def _init_cache_db():
@@ -539,7 +676,8 @@ def generate_black_clip(duration_ms: float, output_file: str):
 
 
 def extract_clip_group(group: List[Tuple[str, str, str, float, float, Optional[float], Optional[float], Optional[float], Optional[float], float]],
-                       output_file: str, margin: float = 0.0):
+                       output_file: str, margin: float = 0.0,
+                       episode_starts_at_timeline_zero: bool = False):
     """
     Extract a group of clips as a single continuous clip with continuous audio.
     Renders video and audio together in a single FFmpeg call for perfect sync.
@@ -575,18 +713,25 @@ def extract_clip_group(group: List[Tuple[str, str, str, float, float, Optional[f
         volume = volumes[0]  # Use first volume (all should be same in a group)
         clips_info = [get_clip_info(sid, camera, slice_start, slice_end, margin)
                       for sid, slice_start, slice_end in zip(segment_ids, slice_starts, slice_ends)]
-        return _extract_single_camera_group(segment_ids, clips_info, camera, output_file,
-                                           before_padding_ms, after_padding_ms, fade_in_ms, fade_out_ms, volume)
+        return _extract_single_camera_group(
+            segment_ids, clips_info, camera, output_file,
+            before_padding_ms, after_padding_ms, fade_in_ms, fade_out_ms, volume,
+            episode_starts_at_timeline_zero=episode_starts_at_timeline_zero,
+        )
     else:
         # Complex case: camera changes within group - extract audio once, video separately
-        return _extract_multi_camera_group(group, output_file, margin)
+        return _extract_multi_camera_group(
+            group, output_file, margin,
+            episode_starts_at_timeline_zero=episode_starts_at_timeline_zero,
+        )
 
 
 def _extract_single_camera_group(segment_ids: List[str], clips_info: List[Dict], camera: str,
                                  output_file: str,
                                  before_padding_ms: float, after_padding_ms: float,
                                  fade_in_ms: Optional[float], fade_out_ms: Optional[float],
-                                 volume: float = 1.0):
+                                 volume: float = 1.0,
+                                 episode_starts_at_timeline_zero: bool = False):
     """
     Extract group where all clips use the same camera.
     Renders video and audio together in a single FFmpeg call for perfect sync.
@@ -607,27 +752,35 @@ def _extract_single_camera_group(segment_ids: List[str], clips_info: List[Dict],
     before_padding = before_padding_ms / 1000.0
     after_padding = after_padding_ms / 1000.0
 
-    # Extract from start of first clip to end of last clip (including gaps and padding)
-    audio_start = max(0, first_clip['audio_start'] - before_padding + audio_offset_in_file)
+    # Extract from start of first clip to end of last clip (including gaps and padding).
+    # Full-episode opening: include master media from timeline 0 through first utterance.
+    if episode_starts_at_timeline_zero:
+        audio_start = audio_offset_in_file
+        video_start = max(0.0, first_clip['video_start'] - first_clip['audio_start'])
+    else:
+        audio_start = max(0, first_clip['audio_start'] - before_padding + audio_offset_in_file)
+        video_start = max(0, first_clip['video_start'] - before_padding)
     audio_end = last_clip['audio_end'] + after_padding + audio_offset_in_file
-    video_start = max(0, first_clip['video_start'] - before_padding)
     video_end = last_clip['video_end'] + after_padding
     duration = audio_end - audio_start
 
-    # Build filter_complex for video fades
+    # Build filter_complex for scaling + optional wide-referenced color match + fades
     filter_parts = []
-    has_video_filters = fade_in_ms or fade_out_ms
+    has_video_filters = bool(fade_in_ms or fade_out_ms)
     source_width, source_height = _get_video_dimensions(first_clip['video_file'])
     needs_scaling = (source_width, source_height) != (target_width, target_height)
+    eq_snippet = _segment_color_match_eq(segment_num, camera)
+    needs_color = bool(eq_snippet)
 
     # Video filters (fades)
-    if needs_scaling or has_video_filters:
+    if needs_scaling or has_video_filters or needs_color:
         video_filter_chain = []
         if needs_scaling:
             video_filter_chain.append(
                 f"scale={target_width}:{target_height}:force_original_aspect_ratio=decrease,"
                 f"pad={target_width}:{target_height}:(ow-iw)/2:(oh-ih)/2:black,setsar=1"
             )
+        _append_vf_snippet(video_filter_chain, eq_snippet)
         if fade_in_ms:
             fade_in_sec = fade_in_ms / 1000.0
             video_filter_chain.append(f"fade=t=in:st=0:d={fade_in_sec}")
@@ -694,7 +847,8 @@ def _extract_single_camera_group(segment_ids: List[str], clips_info: List[Dict],
 def _build_camera_spans(group: List[Tuple[str, str, str, float, float, Optional[float], Optional[float], Optional[float], Optional[float], float]],
                         margin: float,
                         group_audio_start: float,
-                        group_audio_end: float) -> List[Dict]:
+                        group_audio_end: float,
+                        segment_num: str) -> List[Dict]:
     """
     Build a camera timeline for a grouped clip extraction.
 
@@ -744,6 +898,7 @@ def _build_camera_spans(group: List[Tuple[str, str, str, float, float, Optional[
             continue
 
         spans.append({
+            'segment_num': segment_num,
             'camera': clip['camera'],
             'video_file': clip_info['video_file'],
             'video_start': video_start,
@@ -774,6 +929,8 @@ def _extract_camera_segment(args):
     video_start = span['video_start']
     segment_duration = span['duration']
     frame_count = span['frame_count']
+    segment_num = span['segment_num']
+    camera = span['camera']
 
     # Create temp file for this video+audio segment
     # Use .mp4 throughout, but strip audio here to keep the group audio continuous.
@@ -792,6 +949,7 @@ def _extract_camera_segment(args):
             f"scale={target_width}:{target_height}:force_original_aspect_ratio=decrease,"
             f"pad={target_width}:{target_height}:(ow-iw)/2:(oh-ih)/2:black,setsar=1"
         )
+    _append_vf_snippet(video_filter_chain, _segment_color_match_eq(segment_num, camera))
     if is_first and fade_in_ms:
         fade_in_sec = fade_in_ms / 1000.0
         video_filter_chain.append(f"fade=t=in:st=0:d={fade_in_sec}")
@@ -856,7 +1014,8 @@ def _extract_camera_segment(args):
 
 
 def _extract_multi_camera_group(group: List[Tuple[str, str, str, float, float, Optional[float], Optional[float], Optional[float], Optional[float], float]],
-                                output_file: str, margin: float = 0.0):
+                                output_file: str, margin: float = 0.0,
+                                episode_starts_at_timeline_zero: bool = False):
     """
     Extract group with camera changes, using a continuous group audio timeline.
 
@@ -892,11 +1051,14 @@ def _extract_multi_camera_group(group: List[Tuple[str, str, str, float, float, O
     # Calculate the continuous group audio range.
     first_clip = get_clip_info(segment_ids[0], cameras[0], slice_starts[0], slice_ends[0], margin)
     last_clip = get_clip_info(segment_ids[-1], cameras[-1], slice_starts[-1], slice_ends[-1], margin)
-    group_audio_start = max(0, first_clip['audio_start'] - before_padding)
+    if episode_starts_at_timeline_zero:
+        group_audio_start = 0.0
+    else:
+        group_audio_start = max(0, first_clip['audio_start'] - before_padding)
     group_audio_end = last_clip['audio_end'] + after_padding
     group_duration = group_audio_end - group_audio_start
 
-    camera_spans = _build_camera_spans(group, margin, group_audio_start, group_audio_end)
+    camera_spans = _build_camera_spans(group, margin, group_audio_start, group_audio_end, segment_num)
     group_duration = sum(span['duration'] for span in camera_spans)
 
     camera_segment_tasks = []
@@ -960,7 +1122,7 @@ def _extract_multi_camera_group(group: List[Tuple[str, str, str, float, float, O
 
 def _render_segment_wrapper(args):
     """Wrapper function for parallel segment rendering"""
-    group, output_file, group_idx, total_groups, margin = args
+    group, output_file, group_idx, total_groups, margin, skip_clips = args
 
     # Check if this is a black clip (special segment)
     segment_id = group[0][0]
@@ -995,7 +1157,11 @@ def _render_segment_wrapper(args):
     # Use .mp4 extension for AAC audio (all intermediate files)
 
     # Extract clip (volume is applied during extraction now)
-    duration = extract_clip_group(group, output_file, margin)
+    episode_starts_at_timeline_zero = skip_clips == 0 and group_idx == 0
+    duration = extract_clip_group(
+        group, output_file, margin,
+        episode_starts_at_timeline_zero=episode_starts_at_timeline_zero,
+    )
 
     # Get fade and cut info for display
     fade_in = group[0][5]
@@ -1018,7 +1184,9 @@ def _render_segment_wrapper(args):
 
 
 def render_all_cams(dsl_file: str, output_file: str, dry_run: bool = False,
-                    skip_clips: int = 0, limit_clips: Optional[int] = None, debug: bool = False,
+                    skip_clips: int = 0, limit_clips: Optional[int] = None,
+                    max_seconds: Optional[float] = None,
+                    debug: bool = False,
                     num_workers: int = 8, margin: float = 0.0):
     """
     Render separate output files for each camera feed.
@@ -1100,6 +1268,7 @@ def render_all_cams(dsl_file: str, output_file: str, dry_run: bool = False,
             auto_cuts=False,  # Don't use auto-cuts in render-all-cams mode
             skip_clips=skip_clips,
             limit_clips=limit_clips,
+            max_seconds=max_seconds,
             debug=debug,
             num_workers=num_workers,
             margin=margin
@@ -1118,7 +1287,10 @@ def render_all_cams(dsl_file: str, output_file: str, dry_run: bool = False,
 
 
 def render_dsl(dsl_file: str, output_file: str, dry_run: bool = False, auto_cuts: bool = False,
-               skip_clips: int = 0, limit_clips: Optional[int] = None, debug: bool = False,
+               auto_cuts_legacy: bool = False,
+               skip_clips: int = 0, limit_clips: Optional[int] = None,
+               max_seconds: Optional[float] = None,
+               debug: bool = False,
                num_workers: int = 8, margin: float = 0.0):
     """Render a DSL file to video"""
     from .parser import parse_dsl_file
@@ -1131,8 +1303,15 @@ def render_dsl(dsl_file: str, output_file: str, dry_run: bool = False, auto_cuts
     # Apply auto-cuts if requested
     if auto_cuts:
         from auto_cuts import insert_auto_cuts
-        print("Applying auto-cut heuristics...")
-        commands = insert_auto_cuts(commands, min_clip_duration=5.0)
+        if auto_cuts_legacy:
+            print("Applying legacy auto-cut heuristics (random wide, 5s minimum)...")
+            commands = insert_auto_cuts(commands, min_clip_duration=5.0, legacy=True)
+        else:
+            print(
+                "Applying auto-cut heuristics (Ben open, intro/crosstalk wide, "
+                "5s min / random wide / <1s hold)..."
+            )
+            commands = insert_auto_cuts(commands, legacy=False)
         print(f"After auto-cuts: {len(commands)} commands\n")
 
     _render_dsl_from_commands(
@@ -1143,6 +1322,7 @@ def render_dsl(dsl_file: str, output_file: str, dry_run: bool = False, auto_cuts
         auto_cuts=auto_cuts,
         skip_clips=skip_clips,
         limit_clips=limit_clips,
+        max_seconds=max_seconds,
         debug=debug,
         num_workers=num_workers,
         margin=margin
@@ -1152,6 +1332,7 @@ def render_dsl(dsl_file: str, output_file: str, dry_run: bool = False, auto_cuts
 def _render_dsl_from_commands(commands: List, output_file: str, dsl_file: str = None,
                               dry_run: bool = False, auto_cuts: bool = False,
                               skip_clips: int = 0, limit_clips: Optional[int] = None,
+                              max_seconds: Optional[float] = None,
                               debug: bool = False, num_workers: int = 8, margin: float = 0.0):
     """
     Internal function to render DSL commands to video.
@@ -1238,6 +1419,47 @@ def _render_dsl_from_commands(commands: List, output_file: str, dsl_file: str = 
         clips_to_render = clips_to_render[start_idx:end_idx]
         print(f"Applied skip/limit: {original_count} clips -> {len(clips_to_render)} clips (skipped {skip_clips}, limited to {limit_clips if limit_clips else 'all'})\n")
 
+    # Apply max-seconds truncation for testing (from the already-generated full DSL).
+    # Important: truncate at CLIP boundaries (not grouped extractions), otherwise a single
+    # giant group could exceed the requested duration by a lot.
+    if max_seconds is not None:
+        if max_seconds <= 0:
+            raise ValueError(f"--max-seconds must be > 0 (got {max_seconds})")
+
+        def _clip_duration_seconds(clip, *, clip_idx: int) -> float:
+            segment_id, camera, _, cut_before, cut_after, _, _, slice_start, slice_end, _ = clip
+
+            if segment_id.startswith('__BLACK__'):
+                duration_ms = float(segment_id.split(':')[1])
+                return duration_ms / 1000.0
+
+            info = get_clip_info(segment_id, camera, slice_start, slice_end, margin)
+            before_padding = cut_before / 1000.0
+            after_padding = cut_after / 1000.0
+
+            if skip_clips == 0 and clip_idx == 0:
+                audio_start = 0.0
+            else:
+                audio_start = max(0, info['audio_start'] - before_padding)
+            audio_end = info['audio_end'] + after_padding
+            return audio_end - audio_start
+
+        elapsed = 0.0
+        kept = []
+        for clip_idx, clip in enumerate(clips_to_render):
+            d = _clip_duration_seconds(clip, clip_idx=clip_idx)
+            kept.append(clip)
+            elapsed += d
+            if elapsed >= max_seconds:
+                break
+
+        original_count = len(clips_to_render)
+        clips_to_render = kept
+        print(
+            f"Applied max-seconds: {original_count} clips -> {len(clips_to_render)} clips "
+            f"(target {max_seconds:.2f}s, actual ~{elapsed:.2f}s)\n"
+        )
+
     # Group consecutive transcript clips and preserve long pauses between them.
     # This avoids unintentionally compressing timeline silence.
     clip_groups = group_consecutive_clips(clips_to_render, max_gap=None)
@@ -1298,7 +1520,11 @@ def _render_dsl_from_commands(commands: List, output_file: str, dsl_file: str = 
             before_padding = cut_before / 1000.0
             after_padding = cut_after / 1000.0
 
-            audio_start = max(0, first_clip['audio_start'] - before_padding)
+            episode_starts_at_timeline_zero = skip_clips == 0 and i == 0
+            if episode_starts_at_timeline_zero:
+                audio_start = 0.0
+            else:
+                audio_start = max(0, first_clip['audio_start'] - before_padding)
             audio_end = last_clip['audio_end'] + after_padding
             duration = audio_end - audio_start
 
@@ -1339,7 +1565,9 @@ def _render_dsl_from_commands(commands: List, output_file: str, dsl_file: str = 
 
         render_args = []
         for group, segment_file, original_idx, size in groups_with_metadata:
-            render_args.append((group, segment_file, original_idx, len(clip_groups), margin))
+            render_args.append(
+                (group, segment_file, original_idx, len(clip_groups), margin, skip_clips),
+            )
 
         # Render segments in parallel
         actual_workers = min(num_workers, len(clip_groups), cpu_count())
@@ -1403,7 +1631,7 @@ def _render_dsl_from_commands(commands: List, output_file: str, dsl_file: str = 
             # We need to map clip indices to actual timeline positions
 
             cumulative_durations = [0.0]  # Start at 0
-            for segment_id, camera, comment, cut_before, cut_after, fade_in, fade_out, slice_start, slice_end, volume in clips_to_render:
+            for clip_i, (segment_id, camera, comment, cut_before, cut_after, fade_in, fade_out, slice_start, slice_end, volume) in enumerate(clips_to_render):
                 # Calculate duration for this individual clip
                 if segment_id.startswith('__BLACK__'):
                     # Black clip
@@ -1414,7 +1642,10 @@ def _render_dsl_from_commands(commands: List, output_file: str, dsl_file: str = 
                     clip_info = get_clip_info(segment_id, camera, slice_start, slice_end, margin)
                     before_padding = cut_before / 1000.0
                     after_padding = cut_after / 1000.0
-                    audio_start = max(0, clip_info['audio_start'] - before_padding)
+                    if clip_i == 0 and skip_clips == 0:
+                        audio_start = 0.0
+                    else:
+                        audio_start = max(0, clip_info['audio_start'] - before_padding)
                     audio_end = clip_info['audio_end'] + after_padding
                     duration = audio_end - audio_start
 
@@ -1451,7 +1682,14 @@ def _render_dsl_from_commands(commands: List, output_file: str, dsl_file: str = 
         print(f"\nConverting to final AAC/MP4 format...")
         cmd = _ffmpeg_cmd_base() + [
             '-i', intermediate_file,
-            '-c:v', 'copy',  # Copy video without re-encoding
+            # Intermediates may be H.264 4:4:4 / yuv444p depending on source filters.
+            # Re-encode here for broad player compatibility (Windows Movies & TV, etc.).
+            '-c:v', 'libx264',
+            '-preset', 'fast',
+            '-crf', '18',
+            '-profile:v', 'high',
+            '-pix_fmt', 'yuv420p',
+            '-movflags', '+faststart',
             '-c:a', 'aac',
             '-b:a', '320k',  # High bitrate for quality
             '-aac_coder', 'twoloop',  # Better quality AAC encoding

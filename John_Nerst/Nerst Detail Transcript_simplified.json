@@ -1,0 +1,4146 @@
+{
+  "0": {
+    "start": 1.34,
+    "end": 3.76,
+    "text": "Uh, welcome to Ink Cave Presents Readings from the Archive.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "1": {
+    "start": 4.28,
+    "end": 4.84,
+    "text": "I'm Ben Pace.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "2": {
+    "start": 5.02,
+    "end": 5.5,
+    "text": "I'm the host.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "3": {
+    "start": 6.12,
+    "end": 16.88,
+    "text": "Um, on this show, I invite re-writers from the internet who I respect and admire and read, uh, to bring themselves an essay that they read and love, that's dear to their hearts or has influenced them greatly.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "4": {
+    "start": 17.04,
+    "end": 19.8,
+    "text": "Um, they read it to us, and then we have a short discussion about it.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "5": {
+    "start": 20.7,
+    "end": 22.5,
+    "text": "My guest today is John Nerst.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "6": {
+    "start": 23.06,
+    "end": 29.74,
+    "text": "Um, John's a researcher of disagreements, why they form, uh, how our in... and how our individual psychologies give rise to our beliefs.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "7": {
+    "start": 30.41,
+    "end": 37.66,
+    "text": "He's been writing on his blog, Everything Studies, since twenty-sixteen, uh, with over a hundred posts there, uh, also powered by wordpress.com.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "8": {
+    "start": 38.42,
+    "end": 61.82,
+    "text": "Um, I first discovered him due to his, uh, thoughtful and extensive analysis of a, a conflict and debate between Sam Harris and Ezra Klein in twenty-eighteen, uh, where he noted a, I think, a key difference in their perspectives as being the willingness and desire to decouple, to cognitively decouple, um, to isolate or detach a point of discussion from its context and analyze it, uh, entirely on its own terms.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "9": {
+    "start": 62.8,
+    "end": 74.92,
+    "text": "Um, he was blogging there, and then in, since twenty-twenty-three, he's, uh, taken a leave of absence from the blog to, uh, compile his research into, uh, this book, \"Competitive Sense Making: An Upgrade to Common Sense and Disagreement.\"",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "10": {
+    "start": 75.08,
+    "end": 77.95,
+    "text": "Um, John, thank you very much for joining me today.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "11": {
+    "start": 77.96,
+    "end": 78.38,
+    "text": "Well, thank you.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "12": {
+    "start": 78.42,
+    "end": 79.28,
+    "text": "It's lovely to be here.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "13": {
+    "start": 79.52,
+    "end": 79.74,
+    "text": "Good.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "14": {
+    "start": 80.18,
+    "end": 81.68,
+    "text": "Uh, and what have you, uh, brought for us to read?",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "15": {
+    "start": 82.96,
+    "end": 98.56,
+    "text": "Um, well, you mentioned the, the idea of a cognitive decoupling, and that actually made it into that article, uh, because I happened to read a specific blog post just as I was doing the research and the processing for the, for the article you mentioned.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "16": {
+    "start": 98.78,
+    "end": 99.36,
+    "text": "Lovely.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "17": {
+    "start": 99.46,
+    "end": 100.98,
+    "text": "And so that's, uh, what you'll read for us today?",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "18": {
+    "start": 101.28,
+    "end": 101.48,
+    "text": "Yes.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "19": {
+    "start": 101.82,
+    "end": 102.14,
+    "text": "Great.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "20": {
+    "start": 102.4,
+    "end": 107.7,
+    "text": "Um, do we need any particular context before going in, or are you, uh... Will we understand it from hearing?",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "21": {
+    "start": 107.73,
+    "end": 108.98,
+    "text": "I think it will speak for itself.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "22": {
+    "start": 109.42,
+    "end": 109.72,
+    "text": "Wonderful.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "23": {
+    "start": 110.26,
+    "end": 110.46,
+    "text": "All right.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "24": {
+    "start": 110.6,
+    "end": 112.1,
+    "text": "Well then, uh, let's listen to that.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "25": {
+    "start": 113.62,
+    "end": 113.88,
+    "text": "Bam.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "26": {
+    "start": 114.06,
+    "end": 114.26,
+    "text": "Done.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "27": {
+    "start": 114.46,
+    "end": 115.12,
+    "text": "Intro nailed.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "28": {
+    "start": 115.3,
+    "end": 115.74,
+    "text": "Is that working?",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "29": {
+    "start": 116.14,
+    "end": 116.66,
+    "text": "Yeah, that was great.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "30": {
+    "start": 117.32,
+    "end": 117.64,
+    "text": "All right.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "31": {
+    "start": 118.32,
+    "end": 118.72,
+    "text": "Um,",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "32": {
+    "start": 120.62,
+    "end": 121.44,
+    "text": "I forgot to say a thing.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "33": {
+    "start": 122.08,
+    "end": 122.3,
+    "text": "Oops.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "34": {
+    "start": 122.52,
+    "end": 122.88,
+    "text": "I will.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "35": {
+    "start": 123.8,
+    "end": 124.32,
+    "text": "Um...",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "36": {
+    "start": 147.26,
+    "end": 147.5,
+    "text": "Yeah.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "37": {
+    "start": 148.06,
+    "end": 148.92,
+    "text": "So I think, um,",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "38": {
+    "start": 150.02,
+    "end": 154.52,
+    "text": "just for the rough structure, I'm planning to, uh, first we'll just chat a little bit about what we like about the essay.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "39": {
+    "start": 154.7,
+    "end": 154.8,
+    "text": "Mm.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "40": {
+    "start": 155.44,
+    "end": 161.86,
+    "text": "Um, and then I'm interested in asking you a bit where it landed for you in your, like, intellectual s- uh, journey.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "41": {
+    "start": 161.94,
+    "end": 168.28,
+    "text": "And then I just kind of have a bunch of general questions about decoupling, how you think about it, and some of the other ideas in your book that will flow into that.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "42": {
+    "start": 168.58,
+    "end": 168.74,
+    "text": "Yep.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "43": {
+    "start": 169.34,
+    "end": 169.66,
+    "text": "Um,",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "44": {
+    "start": 170.8,
+    "end": 174.25,
+    "text": "and then I might say some... I might s-ask you one thing about Ink Cave at the end, and then we'll wrap up.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "45": {
+    "start": 174.67,
+    "end": 174.69,
+    "text": "Mm.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "46": {
+    "start": 174.68,
+    "end": 175.3,
+    "text": "But yeah.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "47": {
+    "start": 175.42,
+    "end": 175.88,
+    "text": "Um...",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "48": {
+    "start": 181.68,
+    "end": 181.92,
+    "text": "Yeah.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "49": {
+    "start": 182.5,
+    "end": 183.92,
+    "text": "Um, great.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "50": {
+    "start": 185.18,
+    "end": 186.34,
+    "text": "Uh, all right.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "51": {
+    "start": 186.62,
+    "end": 186.67,
+    "text": "Yeah.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "52": {
+    "start": 186.67,
+    "end": 188.019,
+    "text": "Uh, well, thanks very much for reading that.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "53": {
+    "start": 188.1,
+    "end": 189.54,
+    "text": "I, I really enjoyed listening to it.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "54": {
+    "start": 190.08,
+    "end": 194.2,
+    "text": "Uh, you are the first person who re-read a thing where I did not have to ask you to slow down during the reading.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "55": {
+    "start": 195.02,
+    "end": 197.32,
+    "text": "Um, yeah, I mean, I really love the essay.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "56": {
+    "start": 197.44,
+    "end": 200.38,
+    "text": "Uh, I always remembered Dross Bucket on early Less Wrong two point oh.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "57": {
+    "start": 200.42,
+    "end": 202.5,
+    "text": "I always loved when she submitted new posts.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "58": {
+    "start": 203.2,
+    "end": 207.2,
+    "text": "Um, but yeah, please tell me what, what made you choose this one for the podcast today?",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "59": {
+    "start": 207.78,
+    "end": 208.94,
+    "text": "Um, well,",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "60": {
+    "start": 209.96,
+    "end": 218.54,
+    "text": "part of the brief was something that ha-that's ha-that has had, um, a lot of impact on me, and this one had an impact on me, like, in two ways,",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "61": {
+    "start": 219.82,
+    "end": 232.4,
+    "text": "both, like, psychologically, like, I've started to think in these terms a lot, and then also it had the impact o-on the article that I was writing at the time, the, the discussion of the, uh, Sam Harris/Ezra Klein conflict.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "62": {
+    "start": 233.42,
+    "end": 240.64,
+    "text": "And this concept made it into that article because, because I read this one when I was writing that, and it clicked.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "63": {
+    "start": 241.18,
+    "end": 243.34,
+    "text": "Everything fell into place with that.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "64": {
+    "start": 243.38,
+    "end": 246.84,
+    "text": "So I added that idea to the end of the Harris/Klein article.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "65": {
+    "start": 247.46,
+    "end": 251.96,
+    "text": "And I think that's what most people took with them away from, from that article.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "66": {
+    "start": 252.12,
+    "end": 256.62,
+    "text": "I don't know how successful it would've been if I hadn't ad-added that on.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "67": {
+    "start": 256.78,
+    "end": 259.36,
+    "text": "So it's had a big, uh, big im-importance for me.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "68": {
+    "start": 259.66,
+    "end": 259.8,
+    "text": "Yeah.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "69": {
+    "start": 259.829,
+    "end": 270.98,
+    "text": "And I should say for anyone listening, uh, the, the, the concept of high and low decouplers has become ubiquitous in certainly my rationalist subculture that I live in, um, since that article of yours.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "70": {
+    "start": 271.08,
+    "end": 272.28,
+    "text": "Um, yeah.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "71": {
+    "start": 272.4,
+    "end": 275.44,
+    "text": "Had you been reading much others of, uh, Dross Bucket's at the time?",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "72": {
+    "start": 275.52,
+    "end": 277.42,
+    "text": "Had you been following her blog, or was that the first one you-",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "73": {
+    "start": 277.8,
+    "end": 280.29,
+    "text": "No, I think I... I don't remember.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "74": {
+    "start": 280.32,
+    "end": 281.43,
+    "text": "It was quite some time ago now.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "75": {
+    "start": 281.52,
+    "end": 284.02,
+    "text": "But I don't think I had read anything, um, from her before.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "76": {
+    "start": 284.06,
+    "end": 285.18,
+    "text": "I think that was the first one.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "77": {
+    "start": 285.38,
+    "end": 285.78,
+    "text": "Gotcha.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "78": {
+    "start": 286.16,
+    "end": 293.06,
+    "text": "I, I had already read, um, if I get the order right, she had a fantastic essay on Less Wrong about the bat and the ball problem from Daniel Kahneman.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "79": {
+    "start": 293.66,
+    "end": 293.73,
+    "text": "Yeah.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "80": {
+    "start": 293.76,
+    "end": 297.14,
+    "text": "You know, the standard, uh, rationality question that everyone gets wrong.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "81": {
+    "start": 297.46,
+    "end": 299.54,
+    "text": "A, a bat and a ball costs a dollar ten.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "82": {
+    "start": 299.72,
+    "end": 301.0,
+    "text": "The bat costs a dollar more than the ball.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "83": {
+    "start": 301.06,
+    "end": 301.92,
+    "text": "How much does the ball cost?",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "84": {
+    "start": 302.32,
+    "end": 305.16,
+    "text": "And just the majority of people, I believe, when asked that, will say 10 cents.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "85": {
+    "start": 305.62,
+    "end": 313.7,
+    "text": "But if you add a dollar to 10 cents, you get a dollar ten, and if that's the price of the bat, and the teller... the ball is 10 cents, then the su- the com-combination would be a dollar twenty.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "86": {
+    "start": 313.74,
+    "end": 317.29,
+    "text": "Anyway, so Kahneman would use this as an example of, uh, people getting things wrong.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "87": {
+    "start": 317.86,
+    "end": 321.36,
+    "text": "But, uh, I remember Dross Bucket's article being like, \"What are they thinking?",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "88": {
+    "start": 321.56,
+    "end": 323.68,
+    "text": "What is going on in their heads when they are doing this math?\"",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "89": {
+    "start": 324.04,
+    "end": 327.86,
+    "text": "Uh, and she would find comment sections where people would explain it, and she would just analyze it and analyze it.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "90": {
+    "start": 328.44,
+    "end": 332.78,
+    "text": "Uh, I had forgotten about that till rereading this, but that was, uh, that really affected my thinking of that problem.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "91": {
+    "start": 332.84,
+    "end": 332.91,
+    "text": "Mm-hmm.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "92": {
+    "start": 333.44,
+    "end": 346.86,
+    "text": "Um, and the linked post, she links about two types of mathematicians, the kind of, uh, um, geometric, uh, intuitional, uh, kind of people and the very explicit algebraic kind of people.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "93": {
+    "start": 347.0,
+    "end": 349.96,
+    "text": "Um, do you... Have you heard of the corn eating hypothesis?",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "94": {
+    "start": 350.92,
+    "end": 351.64,
+    "text": "I have heard of it.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "95": {
+    "start": 351.96,
+    "end": 353.76,
+    "text": "I have also heard that it has been debunked.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "96": {
+    "start": 354.06,
+    "end": 354.64,
+    "text": "Yes.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "97": {
+    "start": 354.68,
+    "end": 361.66,
+    "text": "It may well not be accurate, but I, I recall it being very much in the time trying to find these interesting splits in the psychology of the technical people.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "98": {
+    "start": 361.67,
+    "end": 368.804,
+    "text": "And then she does this wonderful analysis here of the, uh, uh, piece of literature by, uh-... uh, The Bell Jar by Sylvia Plath.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "99": {
+    "start": 368.984,
+    "end": 369.064,
+    "text": "Mm.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "100": {
+    "start": 369.524,
+    "end": 374.424,
+    "text": "Um, yeah, I, I really agree that the, she really expanded on that in a bunch of ways.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "101": {
+    "start": 374.564,
+    "end": 386.784,
+    "text": "Um, yeah, I really... I like the fact, observation that the, uh, not only is the, the, the work that the physicists are doing very abstract, but he doesn't have very good clothes, and there's nothing interesting in the room.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "102": {
+    "start": 386.824,
+    "end": 390.624,
+    "text": "There's one object, a ball, which has been optimized to have as few interesting properties as possible.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "103": {
+    "start": 391.344,
+    "end": 400.544,
+    "text": "Um, yeah, it really gave me a sense into this world that, uh, I think as you think, you would agree is not written very well about this perspective of she's very accomplished technically-",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "104": {
+    "start": 400.704,
+    "end": 400.744,
+    "text": "Mm",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "105": {
+    "start": 400.764,
+    "end": 401.844,
+    "text": "... but doesn't quite like the world.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "106": {
+    "start": 402.544,
+    "end": 405.794,
+    "text": "Um, is that what landed with you when you were reading it, or, uh, was it-",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "107": {
+    "start": 405.884,
+    "end": 416.524,
+    "text": "Well, this is sort of catnip to me because I like these two things, which is, like what, what different ideas do people have about how and why do, do they disagree?",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "108": {
+    "start": 416.764,
+    "end": 416.884,
+    "text": "Mm.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "109": {
+    "start": 417.464,
+    "end": 422.344,
+    "text": "And on the other hand, how does this connect to differences in internal experience?",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "110": {
+    "start": 423.024,
+    "end": 427.224,
+    "text": "How do people really, like, experience the inside of their own heads?",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "111": {
+    "start": 427.684,
+    "end": 430.844,
+    "text": "And that's something that we just tend to take for granted that everyone else",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "112": {
+    "start": 431.904,
+    "end": 435.824,
+    "text": "has insides of heads that are the, the same as our own.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "113": {
+    "start": 436.004,
+    "end": 436.284,
+    "text": "Mm-hmm.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "114": {
+    "start": 437.264,
+    "end": 440.224,
+    "text": "And then we get frustrated when people don't act the way we expect them to act.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "115": {
+    "start": 440.384,
+    "end": 440.584,
+    "text": "Mm-hmm.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "116": {
+    "start": 441.364,
+    "end": 451.854,
+    "text": "Uh, so I really love reading about people who experience the world and experience their own mind in ways that are different from, from me, from, uh, from my way,",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "117": {
+    "start": 453.224,
+    "end": 454.623,
+    "text": "and they say it explicitly.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "118": {
+    "start": 455.264,
+    "end": 455.444,
+    "text": "Mm-hmm.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "119": {
+    "start": 455.604,
+    "end": 460.124,
+    "text": "They don't just assume it and, uh, think that other people are broken when they're not the same way.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "120": {
+    "start": 460.624,
+    "end": 460.824,
+    "text": "Yeah.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "121": {
+    "start": 460.884,
+    "end": 461.444,
+    "text": "And so",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "122": {
+    "start": 462.784,
+    "end": 466.044,
+    "text": "articles where people say, \"This is how I experience the world.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "123": {
+    "start": 466.504,
+    "end": 470.184,
+    "text": "I have this reaction to this, and it feels like this,\" I think that's tremendously helpful.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "124": {
+    "start": 471.404,
+    "end": 474.044,
+    "text": "It's very, uh, interesting and helpful.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "125": {
+    "start": 474.644,
+    "end": 474.804,
+    "text": "Yeah.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "126": {
+    "start": 474.964,
+    "end": 483.644,
+    "text": "And I think, and that's a big part of my book, I think that this kind of difference, not just, not just this, but you know, differences like this, um,",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "127": {
+    "start": 485.064,
+    "end": 493.544,
+    "text": "are very, very important for how we form our opinions about things, how, what things should be like, what's good and bad, what's important and not important.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "128": {
+    "start": 494.524,
+    "end": 495.904,
+    "text": "Um, because I...",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "129": {
+    "start": 497.004,
+    "end": 499.464,
+    "text": "She discusses that a little bit in the piece as well, that there's a,",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "130": {
+    "start": 501.364,
+    "end": 509.884,
+    "text": "I don't know about low level, but there's a certain ambient hostility between people who think in different ways, maybe who, who are eager to cognitively decouple, and those-",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "131": {
+    "start": 509.934,
+    "end": 510.044,
+    "text": "Yeah",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "132": {
+    "start": 510.064,
+    "end": 510.344,
+    "text": "... who don't.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "133": {
+    "start": 511.304,
+    "end": 511.624,
+    "text": "And",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "134": {
+    "start": 512.764,
+    "end": 516.324,
+    "text": "if you don't approach such a difference with very much understanding and respect,",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "135": {
+    "start": 517.344,
+    "end": 518.594,
+    "text": "you very easily get hostility.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "136": {
+    "start": 519.204,
+    "end": 533.624,
+    "text": "And I think a lot of the hostilities that exist between people of different temperaments could possibly be improved if people really tried to understand that people really experience things differently in a very, very deep sense, almost on a physiological level.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "137": {
+    "start": 534.124,
+    "end": 534.404,
+    "text": "Yeah.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "138": {
+    "start": 534.484,
+    "end": 542.044,
+    "text": "Now that you say that, I realize someone was telling me the other day that someone they knew, who I, who I like, uh, was using the phrase low decoupler as an insult.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "139": {
+    "start": 543.044,
+    "end": 543.424,
+    "text": "Yes.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "140": {
+    "start": 543.784,
+    "end": 549.744,
+    "text": "The, that's, that's part of the reason I am a bit... I was a, a little bit ambivalent with how this article was received.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "141": {
+    "start": 549.804,
+    "end": 550.084,
+    "text": "I thought-",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "142": {
+    "start": 550.094,
+    "end": 550.114,
+    "text": "Yeah",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "143": {
+    "start": 550.094,
+    "end": 552.264,
+    "text": "... people sort of over applied it a little bit.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "144": {
+    "start": 553.004,
+    "end": 559.264,
+    "text": "I, um, I think I admitted I, that I said it was, uh, like speculative, and I'm just thinking out loud.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "145": {
+    "start": 560.024,
+    "end": 566.004,
+    "text": "And also when I wrote that, I have a very, I had a very, very, uh, small audience, and I wasn't used to anyone really listening or-",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "146": {
+    "start": 566.184,
+    "end": 567.004,
+    "text": "Yeah, that happens",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "147": {
+    "start": 567.044,
+    "end": 567.724,
+    "text": "... being said seriously.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "148": {
+    "start": 568.384,
+    "end": 571.124,
+    "text": "Uh, so I was a little bit like, \"Oh my God, what's happening?",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "149": {
+    "start": 571.184,
+    "end": 573.584,
+    "text": "This is like out of my control now.\"",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "150": {
+    "start": 573.824,
+    "end": 573.904,
+    "text": "Yeah.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "151": {
+    "start": 573.944,
+    "end": 576.624,
+    "text": "And that was like the first time, and it was a bit frightening.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "152": {
+    "start": 577.584,
+    "end": 583.324,
+    "text": "And when people use it as an insult, and when other, then other people think it's obviously an insult to... Um,",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "153": {
+    "start": 584.664,
+    "end": 588.404,
+    "text": "that makes me a little sad because, uh, I really,",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "154": {
+    "start": 589.484,
+    "end": 596.244,
+    "text": "like, put that there because I didn't want to accuse anyone of being dishonest or being stupid or whatever it was.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "155": {
+    "start": 596.284,
+    "end": 596.294,
+    "text": "Mm.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "156": {
+    "start": 597.084,
+    "end": 603.624,
+    "text": "Um, I wanted to say that, well, people have different norms in different contexts, contexts where you think, um,",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "157": {
+    "start": 604.784,
+    "end": 606.244,
+    "text": "there are different standards for how to reason-",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "158": {
+    "start": 606.264,
+    "end": 606.353,
+    "text": "Yeah",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "159": {
+    "start": 606.764,
+    "end": 610.804,
+    "text": "... and what counts as a, as an argument and what counts as relevant and, and, uh, so.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "160": {
+    "start": 610.853,
+    "end": 614.824,
+    "text": "And, and I think the, the piece gives me m- much more sympathy to their perspective.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "161": {
+    "start": 614.904,
+    "end": 620.164,
+    "text": "I think I have often... I think the perspective being, oh, you seem to not be able to like set aside irrelevant information.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "162": {
+    "start": 620.214,
+    "end": 629.004,
+    "text": "But I get a sense of, from Sylvia Plath of like just constantly being exposed to all of this incoming data and not being able to tune it out, and being very aware of it and-",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "163": {
+    "start": 629.224,
+    "end": 629.284,
+    "text": "Mm",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "164": {
+    "start": 629.324,
+    "end": 632.184,
+    "text": "... being able to notice things in it that I might not have noticed otherwise.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "165": {
+    "start": 632.244,
+    "end": 632.364,
+    "text": "Mm.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "166": {
+    "start": 632.724,
+    "end": 637.824,
+    "text": "It's not always the case that the thing that's not being explicitly discussed is irrelevant to the question.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "167": {
+    "start": 638.364,
+    "end": 648.844,
+    "text": "Um, and someone who is more, uh, absorbing all of the sense data and is very high contextualizing, uh, may occasionally notice patterns that I'm not paying attention to because it's not the explicit conversational subject.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "168": {
+    "start": 648.994,
+    "end": 649.264,
+    "text": "Mm.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "169": {
+    "start": 649.444,
+    "end": 651.794,
+    "text": "Um, so yeah, it gave me more sympathy to it, certainly.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "170": {
+    "start": 652.344,
+    "end": 658.984,
+    "text": "There's one, uh, section in the book as well where I talk about how people experiences their own will differently.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "171": {
+    "start": 659.464,
+    "end": 663.914,
+    "text": "Like, um, your, your desires and motivations, they might be very clear and straightforward.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "172": {
+    "start": 664.044,
+    "end": 666.484,
+    "text": "I know what I want, I know what I like and not.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "173": {
+    "start": 666.504,
+    "end": 668.304,
+    "text": "But apparently, it, it seems to me,",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "174": {
+    "start": 669.684,
+    "end": 673.364,
+    "text": "not everyone experiences their own wills and desires as clearly.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "175": {
+    "start": 674.264,
+    "end": 675.904,
+    "text": "A lot of people can experience like",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "176": {
+    "start": 676.964,
+    "end": 682.244,
+    "text": "social pleash- pressure... Sorry, social pressure or social influences much more strongly than I do.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "177": {
+    "start": 682.924,
+    "end": 683.984,
+    "text": "To me, it's just something that I,",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "178": {
+    "start": 686.024,
+    "end": 687.724,
+    "text": "I barely experience it, to be honest.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "179": {
+    "start": 687.874,
+    "end": 693.044,
+    "text": "And, uh, therefore, I think that people tend to exaggerate when they say, \"Oh, there's so much social pressure for this and that.\"",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "180": {
+    "start": 693.824,
+    "end": 699.324,
+    "text": "But I've come to understand that some people might just see it and hear it and perceive it much more strongly.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "181": {
+    "start": 699.634,
+    "end": 699.864,
+    "text": "Mm-hmm.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "182": {
+    "start": 699.964,
+    "end": 700.204,
+    "text": "Mm-hmm.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "183": {
+    "start": 701.284,
+    "end": 701.464,
+    "text": "Yeah.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "184": {
+    "start": 701.474,
+    "end": 707.464,
+    "text": "And experiences their own, and then therefore experience their own relationship to the social environment differently.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "185": {
+    "start": 708.384,
+    "end": 708.504,
+    "text": "Yeah.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "186": {
+    "start": 708.584,
+    "end": 713.084,
+    "text": "I think I've changed... I think the fun things about these is I've changed my experience of them over time.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "187": {
+    "start": 713.484,
+    "end": 719.184,
+    "text": "I think as a teenager, I used to have a very kind of visceral sense of the winds of, uh, fashion around me.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "188": {
+    "start": 719.574,
+    "end": 719.5939999999999,
+    "text": "Mm.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "189": {
+    "start": 719.574,
+    "end": 728.044,
+    "text": "That, uh, if someone would say something, I'd be like, \"Oh, now there's certain things I cannot say, otherwise that will cause a conflict,\" uh, or I can't even state an opinion, otherwise something's gonna happen.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "190": {
+    "start": 728.224,
+    "end": 728.584,
+    "text": "Mm.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "191": {
+    "start": 729.432,
+    "end": 731.792,
+    "text": "And then in my later years, I practiced being disagreeable more-",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "192": {
+    "start": 732.192,
+    "end": 732.261,
+    "text": "Mm-hmm",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "193": {
+    "start": 732.312,
+    "end": 734.732,
+    "text": "... and, uh, found that it went okay.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "194": {
+    "start": 734.762,
+    "end": 735.052,
+    "text": "And now I-",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "195": {
+    "start": 735.082,
+    "end": 735.102,
+    "text": "Yeah",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "196": {
+    "start": 735.092,
+    "end": 736.302,
+    "text": "... pay less attention to such things.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "197": {
+    "start": 736.532,
+    "end": 737.692,
+    "text": "But it has changed for me a lot.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "198": {
+    "start": 737.932,
+    "end": 738.752,
+    "text": "It's funny that you say that.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "199": {
+    "start": 738.792,
+    "end": 740.932,
+    "text": "I think I've done the, I've done it the other way.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "200": {
+    "start": 740.972,
+    "end": 743.632,
+    "text": "I was much more disagreeable when I was younger.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "201": {
+    "start": 743.672,
+    "end": 744.432,
+    "text": "Oh, really?",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "202": {
+    "start": 744.942,
+    "end": 744.962,
+    "text": "Yes.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "203": {
+    "start": 745.052,
+    "end": 745.142,
+    "text": "Um,",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "204": {
+    "start": 746.332,
+    "end": 746.812,
+    "text": "yeah.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "205": {
+    "start": 746.912,
+    "end": 748.272,
+    "text": "Um, so-",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "206": {
+    "start": 748.492,
+    "end": 750.872,
+    "text": "One, one more thing, unless you have another and question.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "207": {
+    "start": 751.182,
+    "end": 751.202,
+    "text": "Please.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "208": {
+    "start": 751.252,
+    "end": 754.472,
+    "text": "Uh, you were talking about how, uh, Lucy, uh, Drost-Buckett-",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "209": {
+    "start": 754.732,
+    "end": 754.822,
+    "text": "Yes",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "210": {
+    "start": 754.892,
+    "end": 759.722,
+    "text": "... she was, um, taking the perspective, uh, regarding the bat and ball problem-",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "211": {
+    "start": 759.932,
+    "end": 760.052,
+    "text": "Yes",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "212": {
+    "start": 760.062,
+    "end": 762.812,
+    "text": "... that, okay, people aren't just doing it wrong.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "213": {
+    "start": 762.952,
+    "end": 764.572,
+    "text": "What are they doing?",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "214": {
+    "start": 764.612,
+    "end": 765.422,
+    "text": "What exactly are they doing-",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "215": {
+    "start": 765.652,
+    "end": 765.732,
+    "text": "Yes",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "216": {
+    "start": 765.772,
+    "end": 766.012,
+    "text": "... right?",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "217": {
+    "start": 766.212,
+    "end": 769.012,
+    "text": "Or what, what is the process that is actually going?",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "218": {
+    "start": 770.292,
+    "end": 774.412,
+    "text": "Uh, that's also very, very, um, important thing, I think, and I discuss it in the book as well.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "219": {
+    "start": 775.332,
+    "end": 785.192,
+    "text": "Um, historically, all those deviations from what we would consider perfect rationality, basically all the way that public discourse is not like a philosophy seminar,",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "220": {
+    "start": 786.492,
+    "end": 792.712,
+    "text": "has been considered to be just irrationality, or just wrong, or just failing to be rational.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "221": {
+    "start": 793.612,
+    "end": 793.952,
+    "text": "Um,",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "222": {
+    "start": 795.052,
+    "end": 800.012,
+    "text": "but more recently, we've been better at understanding it's not just random failures.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "223": {
+    "start": 800.112,
+    "end": 806.652,
+    "text": "We don't have this rational- rationality that just fails for no adequately explained reason here and there.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "224": {
+    "start": 807.352,
+    "end": 809.292,
+    "text": "Um, it's actually doing something else.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "225": {
+    "start": 810.852,
+    "end": 812.092,
+    "text": "So what is it doing right?",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "226": {
+    "start": 812.332,
+    "end": 815.772,
+    "text": "Why is it working this way and not the way we imagine it to be working?",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "227": {
+    "start": 816.792,
+    "end": 835.832,
+    "text": "And I think we've been very, very bad at understanding that historically, because all the people who have wanted to make explicit accounts of how things work, they've been the philosopher scientist types who have been very much, well, the decoupler type or the type who likes very explicit formal systems, things like that.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "228": {
+    "start": 837.232,
+    "end": 838.542,
+    "text": "And therefore have been, uh,",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "229": {
+    "start": 840.232,
+    "end": 844.772,
+    "text": "I don't know if uninterested, but they have been disdain- disdainful or uninterested in",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "230": {
+    "start": 845.812,
+    "end": 848.622,
+    "text": "other ways of thinking, modes of thinking.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "231": {
+    "start": 849.752,
+    "end": 863.332,
+    "text": "I kind of think it's like, uh, a bit like the difference between analytical and continental philosophy, because the analyticals tend to basically disdain the continental tradition because they won't say outright what they mean.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "232": {
+    "start": 863.972,
+    "end": 864.792,
+    "text": "They won't, uh,",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "233": {
+    "start": 865.992,
+    "end": 874.152,
+    "text": "they won't, uh, phrase their philosophy in like clear logical propositions and things like that, which analyticals like.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "234": {
+    "start": 874.172,
+    "end": 879.552,
+    "text": "And then the continentals are disdainful, um, back because they think that the, um, analyticals are too,",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "235": {
+    "start": 880.912,
+    "end": 886.381,
+    "text": "too, uh, rigorous, too, uh, stiff, too, too narrow, too autistic maybe.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "236": {
+    "start": 887.072,
+    "end": 900.772,
+    "text": "Uh, and they like to write things that are more holistic, and you're supposed to like just take it in as a, as an impression, and they're... they want to communicate their insights and truths in ways that are, um, ineffable in a way, more artistic.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "237": {
+    "start": 901.852,
+    "end": 907.652,
+    "text": "And, uh, one way you could see that is that they're just failing to be rational.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "238": {
+    "start": 907.672,
+    "end": 909.812,
+    "text": "But there's also the case that",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "239": {
+    "start": 911.072,
+    "end": 924.172,
+    "text": "if you do that, you're just gonna take a big chunk of humanity, maybe, maybe the majority, and just say that the way they work is just wrong, and it's just a failure to be rational, and I don't think that's true.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "240": {
+    "start": 924.232,
+    "end": 926.132,
+    "text": "I think that's also something, something that",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "241": {
+    "start": 927.192,
+    "end": 940.312,
+    "text": "this other way of thinking that is not formal and rational, but more kind of impressionistic and associative, uh, als- is also something that we should be studying in detail and understand how it works on it own, on its own terms, not just what it fails to do.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "242": {
+    "start": 941.392,
+    "end": 941.692,
+    "text": "Uh-huh.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "243": {
+    "start": 941.772,
+    "end": 942.032,
+    "text": "Uh-huh.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "244": {
+    "start": 942.512,
+    "end": 942.692,
+    "text": "Yeah.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "245": {
+    "start": 942.992,
+    "end": 944.812,
+    "text": "I think, uh, uh,",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "246": {
+    "start": 946.032,
+    "end": 946.662,
+    "text": "there is something to that.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "247": {
+    "start": 946.712,
+    "end": 958.012,
+    "text": "I think one of the reasons I would... I personally lean more in the analytic sense is, uh, it has some benefits of being very, like, you can take a single piece of it, you can examine that piece for like internal consistency.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "248": {
+    "start": 958.022,
+    "end": 966.872,
+    "text": "You can see whether it's, uh, the claims are true or false without having to like be awash in a whole entire book's worth of like meaning and association and so forth.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "249": {
+    "start": 967.352,
+    "end": 974.532,
+    "text": "And so it has some like, especially for a larger like body of people who are trying to work on things, it is easier to take apart piece by piece.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "250": {
+    "start": 974.972,
+    "end": 976.212,
+    "text": "Oh, I very much prefer it too.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "251": {
+    "start": 976.512,
+    "end": 988.112,
+    "text": "I, um, I just feel like you want to take that approach of being very specific about things and also apply it to things that aren't like that themselves and try to figure out what, what makes this system tick-",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "252": {
+    "start": 988.532,
+    "end": 988.772,
+    "text": "Mm-hmm",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "253": {
+    "start": 989.012,
+    "end": 990.412,
+    "text": "... even if it isn't very systematic.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "254": {
+    "start": 990.872,
+    "end": 991.132,
+    "text": "Yeah.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "255": {
+    "start": 991.832,
+    "end": 992.092,
+    "text": "Um,",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "256": {
+    "start": 993.132,
+    "end": 993.312,
+    "text": "yeah.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "257": {
+    "start": 993.632,
+    "end": 994.482,
+    "text": "Have you had any success?",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "258": {
+    "start": 994.552,
+    "end": 997.472,
+    "text": "Have you been reading more continental philosophy in recent years?",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "259": {
+    "start": 997.732,
+    "end": 999.292,
+    "text": "Re- I don't think that's for reading.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "260": {
+    "start": 999.372,
+    "end": 1000.792,
+    "text": "I think that's more for reading about.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "261": {
+    "start": 1002.272,
+    "end": 1013.652,
+    "text": "I like to, I like to explain the differences, and, uh, I have, um, I think my, uh, my second to last chapter is, uh, a sort of a taxonomy of the kind of ways that people link different ideas together.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "262": {
+    "start": 1013.692,
+    "end": 1013.811,
+    "text": "Uh-huh.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "263": {
+    "start": 1013.872,
+    "end": 1023.871,
+    "text": "I think from a, from an analytical point of view or a decoupler point of view, um, there are basically two legitimate ways to link together ideas, and that would be logical.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "264": {
+    "start": 1023.912,
+    "end": 1025.022,
+    "text": "This strictly implies this.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "265": {
+    "start": 1025.612,
+    "end": 1026.532,
+    "text": "Or it would be causal.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "266": {
+    "start": 1026.672,
+    "end": 1028.872,
+    "text": "This thing causes this thing, like in reality.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "267": {
+    "start": 1028.932,
+    "end": 1029.122,
+    "text": "Mm-hmm.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "268": {
+    "start": 1029.652,
+    "end": 1029.892,
+    "text": "Um,",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "269": {
+    "start": 1030.952,
+    "end": 1031.222,
+    "text": "but",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "270": {
+    "start": 1032.432,
+    "end": 1032.802,
+    "text": "for,",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "271": {
+    "start": 1034.232,
+    "end": 1044.252,
+    "text": "well, what would, what you'd call them coupler or contextual or even the artistic or, uh, the, uh, continental tradition, you know, whatever you'd call it, there are many other ways to legitimately link things together.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "272": {
+    "start": 1044.752,
+    "end": 1061.512,
+    "text": "Like they're historically relate, historically related, or there's some symbolic connection, or they're structurally similar in some way, or there's an aesthetic similarity, or there's a social link because the... it's the same people who like both things.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "273": {
+    "start": 1061.552,
+    "end": 1076.092,
+    "text": "And, you know, all these kinds of, um... Basically, they-- You can also, in this perspective, you can accept any kind of connection between two things, uh, not just a strictly logical or, uh, or a causal, causal, um,",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "274": {
+    "start": 1077.492,
+    "end": 1077.942,
+    "text": "connection.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "275": {
+    "start": 1078.512,
+    "end": 1083.832,
+    "text": "And I don't think that actually works as arguments.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "276": {
+    "start": 1084.012,
+    "end": 1092.272,
+    "text": "Um, but it is still something you should understood, you should understand what the, what the thought is, what you're trying to do when people do that.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "277": {
+    "start": 1092.312,
+    "end": 1092.492,
+    "text": "Mm-hmm.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "278": {
+    "start": 1093.292,
+    "end": 1101.656,
+    "text": "Um, even thoughI think many who make that sort of argument, they don't understand how unconvincing it is to others who don't agree with them.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "279": {
+    "start": 1101.696,
+    "end": 1105.896,
+    "text": "It's, it's sometimes when you make an argument, I think it's... What was it?",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "280": {
+    "start": 1105.936,
+    "end": 1114.196,
+    "text": "Yeah, there's one argument that I found w- found was really funny when someone says that, um, classical symphonies are a fascist form of music",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "281": {
+    "start": 1115.376,
+    "end": 1128.806,
+    "text": "because it has a conductor, and it's very regimented and, like, controlled from the top, while jazz music is a liberal form of music because it involves, um, improvisation by this individual performer,",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "282": {
+    "start": 1130.336,
+    "end": 1132.876,
+    "text": "and that's a sort of structural similarity.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "283": {
+    "start": 1132.956,
+    "end": 1138.946,
+    "text": "So they try to build a story where things are similar in some way, uh, because of this very abstract similarity.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "284": {
+    "start": 1140.176,
+    "end": 1145.566,
+    "text": "And then if you try to use that as an argument, like jazz is good, Beethoven is bad,",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "285": {
+    "start": 1147.376,
+    "end": 1153.706,
+    "text": "that might sound very insightful to someone who already agrees with it or want to, um, agree with it,",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "286": {
+    "start": 1154.936,
+    "end": 1158.596,
+    "text": "but extremely silly and pointless and far-fetched to someone who doesn't.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "287": {
+    "start": 1159.876,
+    "end": 1175.156,
+    "text": "And actually, that form of argument then contributes to polarization because those who are prone to agreeing with it, they, they feel it's, yeah, it's been as insightful, but of course the other side, they are too stupid to understand the subtlety and poetry of the connection.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "288": {
+    "start": 1176.516,
+    "end": 1179.796,
+    "text": "And those who disagree with it just think, \"Is this, is this the strongest you've got?",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "289": {
+    "start": 1179.856,
+    "end": 1181.136,
+    "text": "That's, that's ridiculous.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "290": {
+    "start": 1181.816,
+    "end": 1183.826,
+    "text": "I mean, you don't have any better arguments than that?\"",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "291": {
+    "start": 1183.856,
+    "end": 1186.146,
+    "text": "And then people are just further away from-",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "292": {
+    "start": 1186.316,
+    "end": 1187.216,
+    "text": "Yeah.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "293": {
+    "start": 1187.256,
+    "end": 1192.136,
+    "text": "I mean, seems interesting as a way of illustrating a perspective or a value system.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "294": {
+    "start": 1192.796,
+    "end": 1197.416,
+    "text": "I think, uh, if you listen to Shostakovich's symphonies written in, uh,",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "295": {
+    "start": 1198.476,
+    "end": 1211.336,
+    "text": "uh, the USSR, uh, under relatively fascist, uh, kinds of, uh, situations, I think you'll be able to find ways that he's able to rebel against, uh, such political ideologies in the form of a symphony.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "296": {
+    "start": 1211.536,
+    "end": 1215.176,
+    "text": "Oh, and that's, uh, in that case, uh, there is a genuine intent.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "297": {
+    "start": 1215.576,
+    "end": 1215.756,
+    "text": "Yes.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "298": {
+    "start": 1215.816,
+    "end": 1222.396,
+    "text": "It's not, uh, it's not a similarity that is, uh, derived purely from this abstract stru- structural similarity.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "299": {
+    "start": 1222.436,
+    "end": 1222.656,
+    "text": "Right.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "300": {
+    "start": 1222.726,
+    "end": 1223.516,
+    "text": "Which is quite a different thing.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "301": {
+    "start": 1223.776,
+    "end": 1224.035,
+    "text": "True.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "302": {
+    "start": 1224.836,
+    "end": 1225.136,
+    "text": "Um,",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "303": {
+    "start": 1226.296,
+    "end": 1232.816,
+    "text": "I just wanted to go back to a thing you mentioned about your, uh, essay, uh, being... You were like, \"Oh, not too many people read my blog.\"",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "304": {
+    "start": 1233.276,
+    "end": 1235.766,
+    "text": "And then that one essay came out, a lot of people read it.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "305": {
+    "start": 1236.016,
+    "end": 1240.216,
+    "text": "Do you have any rec- re- recollection of the numbers of r- like, views on that post relative to others?",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "306": {
+    "start": 1240.976,
+    "end": 1241.636,
+    "text": "Um, I don't know.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "307": {
+    "start": 1241.696,
+    "end": 1241.916,
+    "text": "I haven't-",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "308": {
+    "start": 1241.956,
+    "end": 1243.636,
+    "text": "I assume it was at least in the tens of thousands.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "309": {
+    "start": 1244.676,
+    "end": 1248.676,
+    "text": "Yes, I think that one and, uh, my most popular one has, I don't know, a few tens of thousands.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "310": {
+    "start": 1249.016,
+    "end": 1249.096,
+    "text": "Cool.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "311": {
+    "start": 1249.196,
+    "end": 1254.186,
+    "text": "I don't... Haven't checked for a very long time, and they do get a, they do get a, a fairly decent trickle-",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "312": {
+    "start": 1254.596,
+    "end": 1254.736,
+    "text": "Yeah",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "313": {
+    "start": 1254.746,
+    "end": 1256.436,
+    "text": "... for, for years.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "314": {
+    "start": 1256.476,
+    "end": 1257.225,
+    "text": "Yeah, no, I think that's been a-",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "315": {
+    "start": 1257.225,
+    "end": 1259.416,
+    "text": "I think it's somewhere, that's some- I think it's somewhere in there.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "316": {
+    "start": 1259.856,
+    "end": 1264.876,
+    "text": "It's been a somewhat common enough experience at Inkaven, or not uncommon, I'll say.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "317": {
+    "start": 1265.176,
+    "end": 1272.256,
+    "text": "Um, I think Jen last Inkaven, uh, uh, said she enjoys thinking of her blog as just a thing a few of her friends read.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "318": {
+    "start": 1272.476,
+    "end": 1272.556,
+    "text": "Mm-hmm.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "319": {
+    "start": 1272.616,
+    "end": 1283.216,
+    "text": "But unfortunately, the analytics graph showed one post with 80,000 views and one with 60,000 views, and she was very u- she was like, she was almost annoyed at the person who had linked to it on Hacker News being like, \"I didn't want people to read it.\"",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "320": {
+    "start": 1283.276,
+    "end": 1287.816,
+    "text": "And then she realized, \"Oh, I, I did want people to read it,\" and she's having to come to grips with a, with a similar thing.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "321": {
+    "start": 1288.316,
+    "end": 1292.976,
+    "text": "And now I believe CBS Canada is doing a radio hour based on the, uh, two essays that she wrote.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "322": {
+    "start": 1293.716,
+    "end": 1294.256,
+    "text": "Wow.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "323": {
+    "start": 1294.336,
+    "end": 1294.676,
+    "text": "Yeah.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "324": {
+    "start": 1294.716,
+    "end": 1295.156,
+    "text": "It's, uh-",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "325": {
+    "start": 1295.496,
+    "end": 1302.816,
+    "text": "It's funny, I had an opportunity, uh, to, uh, to actually appear on, uh, on British radio to talk about decoupling once.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "326": {
+    "start": 1302.826,
+    "end": 1302.846,
+    "text": "Oh, really?",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "327": {
+    "start": 1302.836,
+    "end": 1313.496,
+    "text": "But I couldn't do it because I had been... I had actually been to the, with the, to the United States and came back exactly on that day, so I was, um, jet lagged out of my mind, and I just couldn't.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "328": {
+    "start": 1313.536,
+    "end": 1313.796,
+    "text": "Right.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "329": {
+    "start": 1315.076,
+    "end": 1315.316,
+    "text": "Yeah.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "330": {
+    "start": 1315.816,
+    "end": 1321.546,
+    "text": "Um, so yeah, I mean, I love Druss Bucket's writing, and, uh, I imagine you went on to read other things by them and follow them-",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "331": {
+    "start": 1322.136,
+    "end": 1322.546,
+    "text": "Yeah",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "332": {
+    "start": 1322.546,
+    "end": 1323.026,
+    "text": "... afterwards.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "333": {
+    "start": 1323.676,
+    "end": 1325.026,
+    "text": "Um, yeah.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "334": {
+    "start": 1325.176,
+    "end": 1334.536,
+    "text": "I think... I'm interested in chatting a little bit more about... So yeah, I think you'd been blogging for, like, a year, two years by that point or so about disagreements and your interest in send them.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "335": {
+    "start": 1334.636,
+    "end": 1336.316,
+    "text": "Um, yeah, about two years.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "336": {
+    "start": 1336.416,
+    "end": 1339.136,
+    "text": "Um, and then you continued after that to develop them.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "337": {
+    "start": 1339.556,
+    "end": 1339.856,
+    "text": "Uh,",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "338": {
+    "start": 1341.796,
+    "end": 1344.336,
+    "text": "yeah, and then you started the book in '22?",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "339": {
+    "start": 1344.716,
+    "end": 1345.696,
+    "text": "2022, yes.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "340": {
+    "start": 1345.956,
+    "end": 1346.116,
+    "text": "Yeah.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "341": {
+    "start": 1346.756,
+    "end": 1355.496,
+    "text": "Um, was that, uh... So you, you said that was a significant point in your, like, the journey of your writing and your research, the, like, concept of decoupling.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "342": {
+    "start": 1355.616,
+    "end": 1357.355,
+    "text": "Was that the first time you'd come across the concept?",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "343": {
+    "start": 1358.076,
+    "end": 1358.276,
+    "text": "Yes.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "344": {
+    "start": 1358.396,
+    "end": 1363.196,
+    "text": "Actually, the, the, that article by, by Druss Bucket was the first, uh, time I'd, I'd ever heard it.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "345": {
+    "start": 1364.036,
+    "end": 1364.336,
+    "text": "Um-",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "346": {
+    "start": 1364.456,
+    "end": 1367.736,
+    "text": "Hey, actually, I think I want to just give a slight history of the, the concept.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "347": {
+    "start": 1367.816,
+    "end": 1373.976,
+    "text": "I think, um, it was, uh, first, uh, mentioned, I think, in 1987 in a paper by Alan M.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "348": {
+    "start": 1374.056,
+    "end": 1381.416,
+    "text": "Leslie from, uh, the University of London in their paper on the, uh, pretense and representation and the origins of theory of mind, where they would-",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "349": {
+    "start": 1381.656,
+    "end": 1381.776,
+    "text": "Mm",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "350": {
+    "start": 1381.936,
+    "end": 1386.436,
+    "text": "... uh, describe, like, you know, having a world model and a representation of that world and that being interaction.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "351": {
+    "start": 1386.896,
+    "end": 1392.076,
+    "text": "But then, uh, they were talking about children, um, you know, uh, playing imaginary games or having imaginary friends.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "352": {
+    "start": 1392.616,
+    "end": 1400.396,
+    "text": "Um, and they would say from the primary representation, they would make a meta repres- representation, a decoupled copy, and that would lead to action, but in pretend play.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "353": {
+    "start": 1400.656,
+    "end": 1400.756,
+    "text": "Mm.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "354": {
+    "start": 1400.836,
+    "end": 1402.156,
+    "text": "And so I think that was the first concept.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "355": {
+    "start": 1402.636,
+    "end": 1412.796,
+    "text": "And then I think it was continued with, uh, Nichols and Stitch in their '03 academic book on mind reading, uh, an integrated account of pretense, self-awareness, and the understanding of others' minds.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "356": {
+    "start": 1413.396,
+    "end": 1417.886,
+    "text": "Um, and they talked about cognitive quarantine, taking a part of your world model and then separating it from everything else-",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "357": {
+    "start": 1417.886,
+    "end": 1418.316,
+    "text": "Mm",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "358": {
+    "start": 1418.376,
+    "end": 1419.446,
+    "text": "... and just being able to play with it there.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "359": {
+    "start": 1420.556,
+    "end": 1424.086,
+    "text": "I first came across it in Keith Stanovich's writing, which Sarah mentions there.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "360": {
+    "start": 1424.756,
+    "end": 1424.786,
+    "text": "Yeah.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "361": {
+    "start": 1424.806,
+    "end": 1434.476,
+    "text": "I did bring along my, uh, uh, teenage copy of his, uh, 2011 book, Rationality and the Reflective Mind, uh, which, uh, talks about it extensively.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "362": {
+    "start": 1434.896,
+    "end": 1438.596,
+    "text": "Um, I think, uh, as a... Yeah.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "363": {
+    "start": 1439.236,
+    "end": 1443.696,
+    "text": "Um, and I think, uh, Stanovich is where they got it from in that quote.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "364": {
+    "start": 1444.256,
+    "end": 1445.236,
+    "text": "Um, yeah.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "365": {
+    "start": 1445.376,
+    "end": 1453.296,
+    "text": "I'm curious how you, uh, how you think of the separation between decoupling and contextualizing, how you cleanly would, like, separate it in your own thinking.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "366": {
+    "start": 1453.996,
+    "end": 1454.276,
+    "text": "Hmm.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "367": {
+    "start": 1454.696,
+    "end": 1456.976,
+    "text": "Well, I, uh, I'd heard about Leslie only-",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "368": {
+    "start": 1457.596,
+    "end": 1457.796,
+    "text": "Oh",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "369": {
+    "start": 1457.836,
+    "end": 1458.236,
+    "text": "... before.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "370": {
+    "start": 1458.356,
+    "end": 1463.988,
+    "text": "Uh, yeah, I, I, um-I went back to study it a little bit, uh, what, uh, Stanovich had written-",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "371": {
+    "start": 1464.288,
+    "end": 1464.338,
+    "text": "Yeah",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "372": {
+    "start": 1464.368,
+    "end": 1470.068,
+    "text": "... before, uh, so I could give it its proper discussion in the book more than I had done in the original article.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "373": {
+    "start": 1471.048,
+    "end": 1471.448,
+    "text": "Um,",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "374": {
+    "start": 1472.848,
+    "end": 1474.008,
+    "text": "how do I look at separating it?",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "375": {
+    "start": 1474.048,
+    "end": 1474.188,
+    "text": "Well,",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "376": {
+    "start": 1475.228,
+    "end": 1478.008,
+    "text": "I've obv- I've obviously been sort of wrestling with this a lot.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "377": {
+    "start": 1478.688,
+    "end": 1488.488,
+    "text": "Um, after the, uh, Harris Klein article, I wrote a, uh, another one called \"Decoupling Revisited\" when I sort of worked it out more and discussed it more.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "378": {
+    "start": 1488.608,
+    "end": 1489.288,
+    "text": "Uh, and,",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "379": {
+    "start": 1491.208,
+    "end": 1499.148,
+    "text": "uh, I feel quite good that people often link to that one and not the original one because it's, uh, because it discusses things in a little bit more nuance,",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "380": {
+    "start": 1500.228,
+    "end": 1503.448,
+    "text": "um, once I understood that people were going to read this.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "381": {
+    "start": 1504.448,
+    "end": 1504.688,
+    "text": "Yes.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "382": {
+    "start": 1505.208,
+    "end": 1506.268,
+    "text": "More people than just a few.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "383": {
+    "start": 1507.048,
+    "end": 1507.348,
+    "text": "Um,",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "384": {
+    "start": 1508.648,
+    "end": 1509.248,
+    "text": "but then again,",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "385": {
+    "start": 1510.748,
+    "end": 1513.228,
+    "text": "I realize, and, um, the second, um,",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "386": {
+    "start": 1514.328,
+    "end": 1522.688,
+    "text": "the second to last chapter in the book is called \"Family and Empire,\" and that's because decoupling is not just necessarily one thing, but more like a family of things in the Wittgensteinian sense.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "387": {
+    "start": 1523.828,
+    "end": 1541.658,
+    "text": "But, uh, it's also an empire because I realized that once you start thinking about things this way, you separate between the, you know, the, the strictly formal, the logical, the sort of individual me- mechanistic almost thinking, and then the, this, uh, loose and associative and essentially social kind of thinking.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "388": {
+    "start": 1542.808,
+    "end": 1548.718,
+    "text": "Um, if you separate them into two things, then, um, there are so many things it applies to.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "389": {
+    "start": 1548.748,
+    "end": 1551.628,
+    "text": "You can basically just project it onto almost anything.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "390": {
+    "start": 1551.648,
+    "end": 1555.108,
+    "text": "Almost anything in, uh, in the book can be, um,",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "391": {
+    "start": 1556.368,
+    "end": 1557.888,
+    "text": "can be thought of as an instance of this.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "392": {
+    "start": 1559.868,
+    "end": 1564.288,
+    "text": "And that made me, made me think maybe I'm over-applying this.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "393": {
+    "start": 1564.888,
+    "end": 1568.708,
+    "text": "Maybe I'm, I'm kind of losing my mind, and I'm using this too much.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "394": {
+    "start": 1569.148,
+    "end": 1571.568,
+    "text": "Maybe I'm going too much galaxy brain with this idea.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "395": {
+    "start": 1571.588,
+    "end": 1571.778,
+    "text": "Mm-hmm.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "396": {
+    "start": 1572.888,
+    "end": 1575.388,
+    "text": "Um, so I thought that",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "397": {
+    "start": 1576.528,
+    "end": 1586.468,
+    "text": "if all these examples that I bring up, uh, if they, if they're not convincing, then maybe just think of this as a description of what it feels like to, like, lose your mind and go,",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "398": {
+    "start": 1587.608,
+    "end": 1588.478,
+    "text": "go nuts with something.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "399": {
+    "start": 1589.228,
+    "end": 1589.948,
+    "text": "So I don't know.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "400": {
+    "start": 1590.008,
+    "end": 1590.257,
+    "text": "I mean,",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "401": {
+    "start": 1591.488,
+    "end": 1595.548,
+    "text": "there are many things that are partially similar to each other, but they're not exactly similar.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "402": {
+    "start": 1595.748,
+    "end": 1595.808,
+    "text": "Mm.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "403": {
+    "start": 1595.928,
+    "end": 1598.288,
+    "text": "Uh, well, they're not exactly the same, and we have...",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "404": {
+    "start": 1599.548,
+    "end": 1602.148,
+    "text": "It's very difficult for us to deal with, to deal with that.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "405": {
+    "start": 1602.668,
+    "end": 1606.888,
+    "text": "We either want to treat something as, oh, well, this is the same thing, or these are completely different things.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "406": {
+    "start": 1607.448,
+    "end": 1608.108,
+    "text": "It's hard to say.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "407": {
+    "start": 1608.648,
+    "end": 1612.788,
+    "text": "It's hard to model in our minds things that are kind of overlapping a little bit.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "408": {
+    "start": 1613.228,
+    "end": 1614.258,
+    "text": "And I think this idea,",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "409": {
+    "start": 1616.328,
+    "end": 1620.128,
+    "text": "it is relevant for a lot of things, but it's not exactly the same.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "410": {
+    "start": 1620.948,
+    "end": 1622.108,
+    "text": "Um, I discuss, like,",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "411": {
+    "start": 1623.508,
+    "end": 1625.138,
+    "text": "things like ask and guess culture-",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "412": {
+    "start": 1625.428,
+    "end": 1625.908,
+    "text": "Yep",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "413": {
+    "start": 1625.928,
+    "end": 1631.948,
+    "text": "... um, where you assume a lot from the context, or you just listen strictly to what people say.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "414": {
+    "start": 1631.958,
+    "end": 1634.328,
+    "text": "It also has to do with this, but it's not exactly the same thing.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "415": {
+    "start": 1634.648,
+    "end": 1634.928,
+    "text": "Yeah.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "416": {
+    "start": 1634.988,
+    "end": 1635.178,
+    "text": "So if-",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "417": {
+    "start": 1635.178,
+    "end": 1641.948,
+    "text": "So if you're anyone listening, the, uh, the ask culture is where if you wish to ask someone for something, then that is acceptable.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "418": {
+    "start": 1641.988,
+    "end": 1642.037,
+    "text": "Mm.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "419": {
+    "start": 1642.168,
+    "end": 1645.798,
+    "text": "They can decline if they did not wish for it, or they can accept it, and that's free action.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "420": {
+    "start": 1646.228,
+    "end": 1656.188,
+    "text": "And in the guess culture, um, you, uh, you only ask if you expect that they would like to give it to you, and to ask otherwise is a slight social faux pas or, uh, an imposition.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "421": {
+    "start": 1656.588,
+    "end": 1656.688,
+    "text": "Yeah.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "422": {
+    "start": 1656.948,
+    "end": 1667.828,
+    "text": "Um, and then, uh, we get to fewer complicated negotiations because, uh, all the, all the negotiations are done when they're expected to work out rather than all of the other times.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "423": {
+    "start": 1668.728,
+    "end": 1669.228,
+    "text": "Thank you.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "424": {
+    "start": 1671.448,
+    "end": 1671.588,
+    "text": "Yeah.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "425": {
+    "start": 1671.597,
+    "end": 1675.208,
+    "text": "Yeah, but there are, there are lots of, uh, lots of situations where the,",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "426": {
+    "start": 1676.688,
+    "end": 1683.908,
+    "text": "there's a contrast between straightforward explicitness and this heavy context implicitness.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "427": {
+    "start": 1685.388,
+    "end": 1685.508,
+    "text": "Mm.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "428": {
+    "start": 1685.808,
+    "end": 1686.168,
+    "text": "Excuse me.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "429": {
+    "start": 1687.148,
+    "end": 1693.568,
+    "text": "Uh, so it, it is, it does seem to be relevant to a lot of, a lot of things, but you don't want to reduce everything to it-",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "430": {
+    "start": 1693.768,
+    "end": 1693.998,
+    "text": "Mm-hmm",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "431": {
+    "start": 1694.088,
+    "end": 1697.948,
+    "text": "... because that makes you kind of a, like, that makes you a monomaniac sort of-",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "432": {
+    "start": 1698.408,
+    "end": 1699.268,
+    "text": "A head case perhaps.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "433": {
+    "start": 1699.328,
+    "end": 1703.028,
+    "text": "Yeah, everything is about my pet idea, and I want to, I want to avoid that.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "434": {
+    "start": 1703.068,
+    "end": 1703.128,
+    "text": "So",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "435": {
+    "start": 1704.748,
+    "end": 1710.948,
+    "text": "it is an idea with very, uh, sort of, uh, expansionist tendencies, and I try to, I try to be careful about that.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "436": {
+    "start": 1711.388,
+    "end": 1711.568,
+    "text": "All right.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "437": {
+    "start": 1711.648,
+    "end": 1712.968,
+    "text": "Nonetheless, I'm gonna ask some follow-ups.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "438": {
+    "start": 1713.088,
+    "end": 1713.228,
+    "text": "Yeah.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "439": {
+    "start": 1713.308,
+    "end": 1723.548,
+    "text": "Um, do you think, uh, have you come to find that... Do you come to believe that it's mostly temperament or culture that affects people's choice or ability to, to couple in a certain situation?",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "440": {
+    "start": 1724.468,
+    "end": 1726.368,
+    "text": "It depends on how much the culture varies.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "441": {
+    "start": 1726.428,
+    "end": 1730.707,
+    "text": "I mean, if, if you're in a similar culture, then the temperament's going to be most important.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "442": {
+    "start": 1730.848,
+    "end": 1730.968,
+    "text": "Uh-huh.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "443": {
+    "start": 1731.348,
+    "end": 1736.267,
+    "text": "But if you take people, uh, and put them in very different cultures, then obviously the culture's gonna be more important.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "444": {
+    "start": 1736.368,
+    "end": 1750.068,
+    "text": "Um, I, I know that's not a very it's not a very good answer, but I think people tend to self-select into cultures that, like, reinforce and validate their internal temperamental predilections.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "445": {
+    "start": 1750.788,
+    "end": 1752.128,
+    "text": "Do you, do you have an example of that?",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "446": {
+    "start": 1752.208,
+    "end": 1752.368,
+    "text": "Yeah.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "447": {
+    "start": 1752.428,
+    "end": 1754.828,
+    "text": "Well, mathematicians or programmers, for example-",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "448": {
+    "start": 1754.858,
+    "end": 1754.878,
+    "text": "Right",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "449": {
+    "start": 1754.858,
+    "end": 1758.108,
+    "text": "... they are people who like to think in a certain way.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "450": {
+    "start": 1758.148,
+    "end": 1758.538,
+    "text": "I suspect many-",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "451": {
+    "start": 1758.538,
+    "end": 1762.128,
+    "text": "And then they find themselves in a culture that also values that, and it gets reinforced.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "452": {
+    "start": 1762.628,
+    "end": 1768.008,
+    "text": "I suspect many of the mathematicians are not super hyper-aware of the poor quality of the coat of their professors.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "453": {
+    "start": 1770.288,
+    "end": 1771.108,
+    "text": "Oh, I, I guess.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "454": {
+    "start": 1771.188,
+    "end": 1773.988,
+    "text": "I mean, if, if you are... That's actually a good example.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "455": {
+    "start": 1774.188,
+    "end": 1781.688,
+    "text": "If you're more likely to notice when someone isn't dressing very well, you're probably less likely to find yourself at a mathematics institution and probably more-",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "456": {
+    "start": 1783.268,
+    "end": 1783.508,
+    "text": "Um",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "457": {
+    "start": 1783.668,
+    "end": 1785.668,
+    "text": "... uh, more likely to find yourself somewhere else.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "458": {
+    "start": 1785.948,
+    "end": 1800.888,
+    "text": "Um, but then again, I mean, there are obviously, uh, in the world, there are more high context and low con- context cultures in general, so people also, people are also trained to think more or less about specific contextual clues.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "459": {
+    "start": 1800.948,
+    "end": 1801.017,
+    "text": "Yeah.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "460": {
+    "start": 1801.068,
+    "end": 1803.708,
+    "text": "And that's another facet of it, so.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "461": {
+    "start": 1803.828,
+    "end": 1804.028,
+    "text": "Um,",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "462": {
+    "start": 1805.548,
+    "end": 1816.548,
+    "text": "do you view a, a lot of, uh, or how much of, uh, sort of disagreement and political disagreement do you view as differences in choices about when to decouple versus simple object level disagreement?",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "463": {
+    "start": 1816.588,
+    "end": 1816.968,
+    "text": "Yeah.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "464": {
+    "start": 1817.048,
+    "end": 1821.868,
+    "text": "Whether you're supposed to apply this to politics or not, that's like a big question.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "465": {
+    "start": 1821.948,
+    "end": 1824.144,
+    "text": "PeopleLiked it.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "466": {
+    "start": 1824.864,
+    "end": 1826.064,
+    "text": "People liked that I did that.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "467": {
+    "start": 1826.104,
+    "end": 1828.484,
+    "text": "A lot of people found it very, very illuminating.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "468": {
+    "start": 1829.144,
+    "end": 1839.504,
+    "text": "Um, I still don't know if it's really good because there were, there were also some criticisms saying that people don't really think like this across the board or not.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "469": {
+    "start": 1840.164,
+    "end": 1854.884,
+    "text": "Um, I think in, in terms of politics, whether you should decouple something or whether you should think about it in terms of aesthetics and associations, I think that is very often a, a component of specific, uh, political disagreements.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "470": {
+    "start": 1855.923,
+    "end": 1858.864,
+    "text": "But I'm less certain that it is, for the most part,",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "471": {
+    "start": 1860.064,
+    "end": 1861.584,
+    "text": "something that people do across the board.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "472": {
+    "start": 1861.624,
+    "end": 1866.344,
+    "text": "I don't think there are many people who think, \"Oh, we should always decouple everything,\" or, \"You should never decouple anything,\"",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "473": {
+    "start": 1867.404,
+    "end": 1879.144,
+    "text": "because we are, we're often strategic in our reasoning, and often we tend to pick the position that helps us the most in any given, in any given situation.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "474": {
+    "start": 1879.544,
+    "end": 1879.684,
+    "text": "Yeah.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "475": {
+    "start": 1879.704,
+    "end": 1885.854,
+    "text": "Like, it's an opportunistic practice to say that, \"Oh, you can't separate these two things,\" or, \"You must separate these two things.\"",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "476": {
+    "start": 1886.964,
+    "end": 1892.824,
+    "text": "Then again, I als- I also think there are people who have certain personalities that make them lean consistently in one direction.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "477": {
+    "start": 1892.884,
+    "end": 1893.704,
+    "text": "I mean, I know I do.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "478": {
+    "start": 1894.704,
+    "end": 1895.664,
+    "text": "Um, so",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "479": {
+    "start": 1896.804,
+    "end": 1897.684,
+    "text": "it's a little of both.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "480": {
+    "start": 1897.824,
+    "end": 1899.694,
+    "text": "I know that's the boring answer, but...",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "481": {
+    "start": 1899.724,
+    "end": 1903.384,
+    "text": "I think, yeah, I think it's fair in the Harris-Klein situation to think that, um,",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "482": {
+    "start": 1905.004,
+    "end": 1910.044,
+    "text": "while I think on that particular topic that we were discussing, Klein was pushing for a contextual approach-",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "483": {
+    "start": 1910.064,
+    "end": 1910.074,
+    "text": "Yeah",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "484": {
+    "start": 1910.074,
+    "end": 1913.264,
+    "text": "... and Harris was pushing for a decoupled approach.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "485": {
+    "start": 1913.654,
+    "end": 1914.464,
+    "text": "That is not to...",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "486": {
+    "start": 1915.604,
+    "end": 1916.784,
+    "text": "While there is definitely...",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "487": {
+    "start": 1918.464,
+    "end": 1928.654,
+    "text": "My-- I don't obviously see Harris as f-fundamentally, personality, uh, psychologically far more disposed to, um, decoupling.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "488": {
+    "start": 1928.744,
+    "end": 1933.664,
+    "text": "I think I would a little, but my guess is in other situations, they would make diff- the two of them would make different-",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "489": {
+    "start": 1933.744,
+    "end": 1936.844,
+    "text": "Yes, I think they probably would, and they're, I think they're both capable of both.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "490": {
+    "start": 1936.924,
+    "end": 1937.644,
+    "text": "Yes, certainly.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "491": {
+    "start": 1937.944,
+    "end": 1941.204,
+    "text": "I did discuss that they have slightly different, like, backgrounds.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "492": {
+    "start": 1941.304,
+    "end": 1945.584,
+    "text": "Harris is, uh, they're a neuroscientist, and, uh, Klein's, uh, like a political strategist.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "493": {
+    "start": 1945.624,
+    "end": 1945.854,
+    "text": "But it-",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "494": {
+    "start": 1946.024,
+    "end": 1948.704,
+    "text": "Obviously, that matters, but I think, yes, they are capable of being both.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "495": {
+    "start": 1949.064,
+    "end": 1958.844,
+    "text": "As much as that gives some information about, uh, what kind of pers- psychologies were selected for, it also gives some amount of information perhaps more so about what cultures they think are supposed to be applied to the-",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "496": {
+    "start": 1959.184,
+    "end": 1959.273,
+    "text": "Yeah",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "497": {
+    "start": 1959.273,
+    "end": 1960.064,
+    "text": "... the conversation at hand.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "498": {
+    "start": 1960.124,
+    "end": 1960.284,
+    "text": "Yeah.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "499": {
+    "start": 1960.304,
+    "end": 1961.984,
+    "text": "That, that's, I think that's part of why.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "500": {
+    "start": 1961.993,
+    "end": 1973.684,
+    "text": "I think reading, reading their, um, exchange carefully, I think Klein was genuinely surprised at how upset Harris was, because I believe that he thought",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "501": {
+    "start": 1974.944,
+    "end": 1978.404,
+    "text": "some of the rhetoric that he brought up was just, \"Well, that's just how things are done.\"",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "502": {
+    "start": 1978.604,
+    "end": 1978.704,
+    "text": "Yeah.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "503": {
+    "start": 1978.794,
+    "end": 1979.764,
+    "text": "\"This is how this works.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "504": {
+    "start": 1979.824,
+    "end": 1980.384,
+    "text": "This is standard.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "505": {
+    "start": 1980.444,
+    "end": 1981.904,
+    "text": "Why are you upset about this?",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "506": {
+    "start": 1981.924,
+    "end": 1983.464,
+    "text": "This is pretty mild,\" things like that.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "507": {
+    "start": 1983.664,
+    "end": 1983.784,
+    "text": "Yeah.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "508": {
+    "start": 1984.224,
+    "end": 1985.684,
+    "text": "Uh, and Harris was very angry about it.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "509": {
+    "start": 1986.104,
+    "end": 1986.244,
+    "text": "Yeah.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "510": {
+    "start": 1986.304,
+    "end": 1988.064,
+    "text": "So I think that's a bit of a cultural differences.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "511": {
+    "start": 1988.804,
+    "end": 1989.164,
+    "text": "Yeah.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "512": {
+    "start": 1989.784,
+    "end": 1990.404,
+    "text": "Uh, yeah.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "513": {
+    "start": 1991.664,
+    "end": 1991.824,
+    "text": "Yeah.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "514": {
+    "start": 1992.344,
+    "end": 1994.764,
+    "text": "Um, when should, um...",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "515": {
+    "start": 2000.444,
+    "end": 2001.864,
+    "text": "I get to cut this bit where I think.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "516": {
+    "start": 2003.144,
+    "end": 2004.944,
+    "text": "You can have a cut where, where it's just you thinking.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "517": {
+    "start": 2007.724,
+    "end": 2009.664,
+    "text": "Um, da-da-dum.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "518": {
+    "start": 2012.284,
+    "end": 2012.724,
+    "text": "I think,",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "519": {
+    "start": 2014.404,
+    "end": 2025.584,
+    "text": "um, one question that I wanted to wonder, I mean, I guess you've read this in preparation for your book as well, but in reading it today, was there anything about it that stood out to you differently than when you had read it originally?",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "520": {
+    "start": 2025.904,
+    "end": 2028.244,
+    "text": "Was there any part of it that, uh, landed differently with you?",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "521": {
+    "start": 2028.664,
+    "end": 2029.264,
+    "text": "Hmm.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "522": {
+    "start": 2031.804,
+    "end": 2034.064,
+    "text": "No, I don't think it, I don't think it landed differently.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "523": {
+    "start": 2034.144,
+    "end": 2038.164,
+    "text": "I think it sort of almost slotted into my psychology the first time I read it-",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "524": {
+    "start": 2038.213,
+    "end": 2038.233,
+    "text": "Right",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "525": {
+    "start": 2038.213,
+    "end": 2039.424,
+    "text": "... like a key into a hole.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "526": {
+    "start": 2040.184,
+    "end": 2042.944,
+    "text": "Specifically this idea, I think that the part when she said, um,",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "527": {
+    "start": 2044.064,
+    "end": 2051.743,
+    "text": "um, \"The opposite of decoupling is to have very sensitive social antenna,\" like you're very, uh, you're very sensitive to cues and tone and things like that.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "528": {
+    "start": 2051.804,
+    "end": 2052.254,
+    "text": "And I, uh,",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "529": {
+    "start": 2053.824,
+    "end": 2060.324,
+    "text": "I realized that that's, um, that's a personality difference, and I'm quite a lot of the, you know, on the other end of that.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "530": {
+    "start": 2061.244,
+    "end": 2069.564,
+    "text": "Uh, and therefore it was interesting to, uh, to get a sense of what it's like to have to experience all these... I mean,",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "531": {
+    "start": 2070.884,
+    "end": 2077.944,
+    "text": "I, I used to think that when people were talking about social cues and things, it was very simple to just not look for them, and then you wouldn't perceive them.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "532": {
+    "start": 2079.644,
+    "end": 2084.584,
+    "text": "But a lot of people just perceive things involuntarily that I don't really perceive unless I try.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "533": {
+    "start": 2084.804,
+    "end": 2085.063,
+    "text": "Mm-hmm.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "534": {
+    "start": 2085.123,
+    "end": 2085.824,
+    "text": "If you understand what I mean.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "535": {
+    "start": 2085.964,
+    "end": 2086.144,
+    "text": "Yep.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "536": {
+    "start": 2087.304,
+    "end": 2090.944,
+    "text": "Um, in a second I'm gonna move on to a different, slightly different subject.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "537": {
+    "start": 2091.044,
+    "end": 2093.444,
+    "text": "Is there anything else on this, uh, subject that I should ask you about?",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "538": {
+    "start": 2094.004,
+    "end": 2094.424,
+    "text": "Um-",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "539": {
+    "start": 2094.624,
+    "end": 2095.284,
+    "text": "About decoupling?",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "540": {
+    "start": 2095.984,
+    "end": 2096.784,
+    "text": "No, I don't think so.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "541": {
+    "start": 2096.844,
+    "end": 2097.684,
+    "text": "I think this is most of-",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "542": {
+    "start": 2098.184,
+    "end": 2098.724,
+    "text": "We've, we've hear-",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "543": {
+    "start": 2098.784,
+    "end": 2099.744,
+    "text": "Most of the thoughts, yeah.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "544": {
+    "start": 2099.774,
+    "end": 2100.444,
+    "text": "A thorough treatment.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "545": {
+    "start": 2100.944,
+    "end": 2103.364,
+    "text": "Um, you've flown out here for Ink Haven.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "546": {
+    "start": 2103.644,
+    "end": 2103.964,
+    "text": "Yes.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "547": {
+    "start": 2104.004,
+    "end": 2104.644,
+    "text": "Thank you very much.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "548": {
+    "start": 2104.704,
+    "end": 2105.404,
+    "text": "I really appreciate it.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "549": {
+    "start": 2105.484,
+    "end": 2108.244,
+    "text": "It's been great having you around, uh, all the way from, uh, Sweden-",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "550": {
+    "start": 2108.424,
+    "end": 2108.514,
+    "text": "Yeah",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "551": {
+    "start": 2108.844,
+    "end": 2110.764,
+    "text": "... uh, with your family, who've been lovely to get to know.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "552": {
+    "start": 2111.244,
+    "end": 2112.464,
+    "text": "Um, yeah.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "553": {
+    "start": 2112.724,
+    "end": 2118.104,
+    "text": "Uh, curious, uh, whether anything about being at Ink Haven has surprised you, uh, whether it is what you anticipated?",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "554": {
+    "start": 2118.824,
+    "end": 2121.244,
+    "text": "Uh, it's pretty close to what, uh, to what I anticipated.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "555": {
+    "start": 2121.444,
+    "end": 2125.344,
+    "text": "I am a little surprised at how, uh, like diligent people are.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "556": {
+    "start": 2126.104,
+    "end": 2127.823,
+    "text": "Uh, there are more than 50 people here.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "557": {
+    "start": 2128.024,
+    "end": 2128.464,
+    "text": "Yeah.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "558": {
+    "start": 2128.564,
+    "end": 2130.344,
+    "text": "And it's very, very calm.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "559": {
+    "start": 2130.964,
+    "end": 2139.464,
+    "text": "Uh, even at night, people are writing and they're, they're writing all day, and, uh, they're very... Yeah, I mean, I would expect with the...",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "560": {
+    "start": 2140.544,
+    "end": 2146.174,
+    "text": "You know, there are so many, so many young people, I would expect them to be more, more rowdy, uh, than they are.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "561": {
+    "start": 2146.244,
+    "end": 2148.304,
+    "text": "But people are very, very diligent with their work.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "562": {
+    "start": 2148.664,
+    "end": 2149.264,
+    "text": "Oh, that's nice.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "563": {
+    "start": 2149.764,
+    "end": 2149.964,
+    "text": "Yeah.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "564": {
+    "start": 2150.164,
+    "end": 2151.344,
+    "text": "It's an odd selection effect.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "565": {
+    "start": 2151.544,
+    "end": 2166.084,
+    "text": "I think someone was expecting everyone to be very, um, rationalist and very kind of, uh, psychologically decoupling and nerdy, um, and was surprised to find, you know... There was a, there was a lovely lady here who submitted just a play and some poems-",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "566": {
+    "start": 2166.144,
+    "end": 2166.204,
+    "text": "Mm",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "567": {
+    "start": 2166.344,
+    "end": 2167.654,
+    "text": "... she'd written that were fantastic.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "568": {
+    "start": 2168.024,
+    "end": 2168.044,
+    "text": "Oh.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "569": {
+    "start": 2168.264,
+    "end": 2175.544,
+    "text": "Um, and I think she was one of the people up late the other evening, uh, reading Shakespeare whilst, uh, baking, uh, uh-",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "570": {
+    "start": 2175.764,
+    "end": 2176.884,
+    "text": "Yeah, it's, uh, Twelfth Night.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "571": {
+    "start": 2176.964,
+    "end": 2184.244,
+    "text": "I actually, um, they had... They, they lost her Olivia for a few minutes, and I had to, uh, Anne had to, uh, jump in and, uh, do a couple of lines.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "572": {
+    "start": 2185.604,
+    "end": 2185.844,
+    "text": "Great.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "573": {
+    "start": 2186.144,
+    "end": 2186.464,
+    "text": "Wonderful.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "574": {
+    "start": 2186.564,
+    "end": 2187.304,
+    "text": "I hope, I hope I did it well.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "575": {
+    "start": 2188.204,
+    "end": 2191.564,
+    "text": "Um, so, uh, thanks so much for coming.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "576": {
+    "start": 2192.004,
+    "end": 2194.924,
+    "text": "Um, da-da-da-dum.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "577": {
+    "start": 2195.124,
+    "end": 2195.604,
+    "text": "Uh,",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "578": {
+    "start": 2197.104,
+    "end": 2197.864,
+    "text": "yeah, I think that was it.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "579": {
+    "start": 2198.344,
+    "end": 2199.484,
+    "text": "Uh, so thanks so much for coming.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "580": {
+    "start": 2199.644,
+    "end": 2202.304,
+    "text": "I really appreciate being on the podcast and discussing this with us.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "581": {
+    "start": 2202.434,
+    "end": 2202.454,
+    "text": "Yeah.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "582": {
+    "start": 2202.544,
+    "end": 2203.604,
+    "text": "Uh, it was lovely to read this essay.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "583": {
+    "start": 2203.614,
+    "end": 2204.204,
+    "text": "Thank you for inviting me.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "584": {
+    "start": 2204.254,
+    "end": 2204.524,
+    "text": "Oh, yeah.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "585": {
+    "start": 2204.664,
+    "end": 2205.024,
+    "text": "You're welcome.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "586": {
+    "start": 2205.584,
+    "end": 2206.664,
+    "text": "Uh, it was a lovely essay to read.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "587": {
+    "start": 2206.764,
+    "end": 2207.904,
+    "text": "Um, so thank you very much, Dan.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "588": {
+    "start": 2208.484,
+    "end": 2209.264,
+    "text": "Thank you.",
+    "speaker_id": 1,
+    "speaker_name": "Speaker 1"
+  },
+  "589": {
+    "start": 2209.344,
+    "end": 2209.904,
+    "text": "Farewell for now.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "590": {
+    "start": 2211.904,
+    "end": 2212.704,
+    "text": "Ooh, we did it.",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  },
+  "591": {
+    "start": 2212.724,
+    "end": 2213.204,
+    "text": "All right",
+    "speaker_id": 0,
+    "speaker_name": "Speaker 0"
+  }
+}

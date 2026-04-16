@@ -6,6 +6,7 @@ Input format:
 - Top-level JSON object with a "segments" array
 - Each segment has "text", "start_time", "end_time", and an optional nested
   "speaker" object with "id" and/or "name"
+- Optional per-segment "words" array with { "text", "start_time", "end_time" }
 
 Output format:
 - JSON object keyed by sentence index as a string
@@ -16,10 +17,19 @@ Output format:
   - "speaker_id": integer speaker id
   - "speaker_name": optional human-readable speaker name
 
+By default, if a segment includes a non-empty "words" list, the converter splits that
+segment into one simplified row per detected sentence (using word timestamps for start/end).
+That gives auto-cuts and DSL one line per sentence instead of one long paragraph per segment.
+Segments without "words" still emit a single row each.
+
+Rows where the ASR gives end <= start are kept (sentence IDs stay consecutive for grouping):
+end is bumped to start + MIN_UTTERANCE_DURATION_SEC so the renderer can extract a valid clip.
+
 Example:
   python convert_transcript_json.py Wide_Video_Interview_Audio_Copy_eng.json
   python convert_transcript_json.py input.json -o outputs/segment_1_transcript_simplified.json
   python convert_transcript_json.py input.json --drop-nonspeech
+  python convert_transcript_json.py detail.json --no-split-sentences
 """
 
 import argparse
@@ -28,6 +38,30 @@ import os
 import re
 import sys
 from typing import Dict, List, Optional, Tuple
+
+# Word tokens ending a sentence (after strip); excludes common abbreviations.
+_ABBREV_ENDINGS = frozenset(
+    x.lower()
+    for x in (
+        "mr.",
+        "mrs.",
+        "ms.",
+        "dr.",
+        "prof.",
+        "sr.",
+        "jr.",
+        "etc.",
+        "e.g.",
+        "i.e.",
+        "vs.",
+        "st.",
+        "ave.",
+    )
+)
+
+# Zero-length ASR sentences are expanded so every sentence keeps a row id and the renderer
+# gets a positive duration (preserves consecutive grouping / timeline gaps).
+MIN_UTTERANCE_DURATION_SEC = 0.02
 
 
 def parse_args() -> argparse.Namespace:
@@ -58,6 +92,11 @@ def parse_args() -> argparse.Namespace:
         choices=["id", "name", "auto"],
         default="auto",
         help="How to derive speaker identity (default: auto)",
+    )
+    parser.add_argument(
+        "--no-split-sentences",
+        action="store_true",
+        help="One simplified row per input segment only (ignore word-level sentence splits).",
     )
     return parser.parse_args()
 
@@ -116,6 +155,86 @@ def convert_speaker_token_to_int(
     return speaker_map[token]
 
 
+def _strip_trailing_quote(s: str) -> str:
+    t = s.strip()
+    if t.endswith(('"', "'")) and len(t) > 1:
+        t = t[:-1].rstrip()
+    return t
+
+
+def is_sentence_terminal_token(text: str) -> bool:
+    """
+    Heuristic: ASR word token ends a sentence (., ?, !, …).
+    Conservative about abbreviations, ellipses, and very short tokens.
+    """
+    t = _strip_trailing_quote(text)
+    if len(t) < 2:
+        return False
+    if t.lower() in _ABBREV_ENDINGS:
+        return False
+    if t.endswith("...") or t.endswith("…"):
+        return False
+    if t.endswith("?") or t.endswith("!"):
+        return True
+    if t.endswith("."):
+        if len(t) >= 2 and t[-2] == ".":
+            return False
+        return True
+    return False
+
+
+def words_to_sentence_rows(
+    segment: Dict,
+    speaker_id: Optional[int],
+    speaker_name: Optional[str],
+) -> Optional[List[Dict]]:
+    """
+    Split segment.words into sentence-sized rows with start/end from first/last word.
+    Returns None if words are missing or unusable (caller should use whole segment).
+    """
+    words = segment.get("words")
+    if not isinstance(words, list) or not words:
+        return None
+
+    rows: List[Dict] = []
+    buf: List[Dict] = []
+
+    def flush() -> None:
+        nonlocal buf
+        if not buf:
+            return
+        substantive = [w for w in buf if (w.get("text") or "").strip()]
+        if not substantive:
+            buf = []
+            return
+        text = "".join(w.get("text") or "" for w in buf)
+        text = normalize_text(re.sub(r"\s+", " ", text))
+        start = float(substantive[0]["start_time"])
+        end = float(substantive[-1]["end_time"])
+        if end <= start:
+            end = start + MIN_UTTERANCE_DURATION_SEC
+        row: Dict = {"start": start, "end": end, "text": text}
+        if speaker_id is not None:
+            row["speaker_id"] = speaker_id
+        if speaker_name:
+            row["speaker_name"] = speaker_name
+        rows.append(row)
+        buf = []
+
+    for w in words:
+        if not isinstance(w, dict):
+            continue
+        if "start_time" not in w or "end_time" not in w:
+            return None
+        buf.append(w)
+        piece = (w.get("text") or "").strip()
+        if piece and is_sentence_terminal_token(w.get("text") or ""):
+            flush()
+
+    flush()
+    return rows if rows else None
+
+
 def validate_segment(segment: Dict, index: int) -> Tuple[float, float]:
     if "start_time" not in segment or "end_time" not in segment:
         raise ValueError(f"Segment {index} is missing start_time or end_time")
@@ -134,6 +253,7 @@ def convert_segments(
     drop_nonspeech: bool,
     keep_empty: bool,
     speaker_source: str,
+    split_sentences: bool,
 ) -> Tuple[Dict[str, Dict], Dict[str, int]]:
     output: Dict[str, Dict] = {}
     speaker_map: Dict[str, int] = {}
@@ -151,6 +271,34 @@ def convert_segments(
         speaker_token, speaker_name = extract_speaker_token(segment, speaker_source)
         speaker_id = convert_speaker_token_to_int(speaker_token, speaker_name, speaker_map)
 
+        sentence_rows: Optional[List[Dict]] = None
+        if split_sentences:
+            sentence_rows = words_to_sentence_rows(segment, speaker_id, speaker_name)
+
+        if sentence_rows:
+            for row in sentence_rows:
+                st = row["text"]
+                if not keep_empty and not normalize_text(st):
+                    continue
+                if drop_nonspeech and is_nonspeech_text(st):
+                    continue
+                rs, re_ = float(row["start"]), float(row["end"])
+                if re_ <= rs:
+                    re_ = rs + MIN_UTTERANCE_DURATION_SEC
+                output[str(output_index)] = {
+                    "start": rs,
+                    "end": re_,
+                    "text": normalize_text(st),
+                }
+                if "speaker_id" in row:
+                    output[str(output_index)]["speaker_id"] = row["speaker_id"]
+                if row.get("speaker_name"):
+                    output[str(output_index)]["speaker_name"] = row["speaker_name"]
+                output_index += 1
+            continue
+
+        if end <= start:
+            end = start + MIN_UTTERANCE_DURATION_SEC
         converted = {
             "start": start,
             "end": end,
@@ -178,18 +326,23 @@ def main() -> int:
         return 1
 
     output_path = args.output or infer_output_path(args.input_json)
+    split_sentences = not args.no_split_sentences
     converted, speaker_map = convert_segments(
         segments,
         drop_nonspeech=args.drop_nonspeech,
         keep_empty=args.keep_empty,
         speaker_source=args.speaker_source,
+        split_sentences=split_sentences,
     )
 
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(converted, f, indent=2, ensure_ascii=False)
         f.write("\n")
 
-    print(f"Wrote {len(converted)} transcript segments to {output_path}")
+    mode = "per-sentence (from word timings)" if split_sentences else "one row per input segment"
+    print(f"Wrote {len(converted)} transcript rows ({mode}) to {output_path}")
+    if split_sentences:
+        print("  Re-run with --no-split-sentences to match legacy one-row-per-segment indices.")
     if speaker_map:
         print("Speaker mapping:")
         for token, speaker_id in speaker_map.items():

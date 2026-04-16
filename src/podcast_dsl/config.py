@@ -165,7 +165,86 @@ SEGMENT_CONFIG = {
             }
         },
         'transcript_file': '../Jason_Crawford/Interview_Transcript_simplified.json',
-    }
+    },
+    '4': {
+        'audio_file': '../John_Nerst/Nerst audio.wav',
+        'audio_offset': 0,
+        'video_files': {
+            'speaker_0': {
+                'file': '../John_Nerst/Ben.mp4',
+                'offset': 0,
+            },
+            'speaker_1': {
+                'file': '../John_Nerst/Nerst.mp4',
+                'offset': 0,
+            },
+            'wide': {
+                'file': '../John_Nerst/wide.mp4',
+                'offset': 0,
+            }
+        },
+        'transcript_file': '../John_Nerst/Nerst Detail Transcript_simplified.json',
+    },
+    # Inkhaven Thessaly — paths absolute so project folder can live outside this repo
+    '11': {
+        'audio_file': r'E:\PodcastRoom\Cursor\Inkhaven Thessaly\Input\interview audio.wav',
+        'audio_offset': 0,
+        'video_files': {
+            'speaker_0': {
+                'file': r'E:\PodcastRoom\Cursor\Inkhaven Thessaly\Input\Ben Close.mp4',
+                'offset': 0,
+            },
+            'speaker_1': {
+                'file': r'E:\PodcastRoom\Cursor\Inkhaven Thessaly\Input\Guest Close.mp4',
+                'offset': 0,
+            },
+            'wide': {
+                'file': r'E:\PodcastRoom\Cursor\Inkhaven Thessaly\Input\Interview Wide.mp4',
+                'offset': 0,
+            },
+        },
+        'transcript_file': r'E:\PodcastRoom\Cursor\Inkhaven Thessaly\Output\interview_transcript_simplified.json',
+    },
+    # Inkhaven Alec — paths absolute so project folder can live outside this repo
+    '12': {
+        'audio_file': r'E:\PodcastRoom\Cursor\Inkhaven Alec\Input\Audio.wav',
+        'audio_offset': 0,
+        'video_files': {
+            'speaker_0': {
+                'file': r'E:\PodcastRoom\Cursor\Inkhaven Alec\Input\Ben.mp4',
+                'offset': 0,
+            },
+            'speaker_1': {
+                'file': r'E:\PodcastRoom\Cursor\Inkhaven Alec\Input\Guest.mp4',
+                'offset': 0,
+            },
+            'wide': {
+                'file': r'E:\PodcastRoom\Cursor\Inkhaven Alec\Input\Wide.mp4',
+                'offset': 0,
+            },
+        },
+        'transcript_file': r'E:\PodcastRoom\Cursor\Inkhaven Alec\Output\interview_transcript_simplified.json',
+    },
+    # Inkhaven Nerst — paths absolute so project folder can live outside this repo
+    '13': {
+        'audio_file': r'E:\PodcastRoom\Cursor\Inkhaven Nerst\Input\Audio.wav',
+        'audio_offset': 0,
+        'video_files': {
+            'speaker_0': {
+                'file': r'E:\PodcastRoom\Cursor\Inkhaven Nerst\Input\Ben.mp4',
+                'offset': 0,
+            },
+            'speaker_1': {
+                'file': r'E:\PodcastRoom\Cursor\Inkhaven Nerst\Input\Guest.mp4',
+                'offset': 0,
+            },
+            'wide': {
+                'file': r'E:\PodcastRoom\Cursor\Inkhaven Nerst\Input\Wide.mp4',
+                'offset': 0,
+            },
+        },
+        'transcript_file': r'E:\PodcastRoom\Cursor\Inkhaven Nerst\Output\interview_transcript_simplified.json',
+    },
 }
 
 

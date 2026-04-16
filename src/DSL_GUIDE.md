@@ -135,18 +135,29 @@ python podcast_dsl.py ../outputs/segment_2_test.dsl --output my_edit.mp4
 
 ### Auto-generate camera cuts based on speaker
 
-Use `--auto-cuts` to automatically insert camera commands based on speaker heuristics:
+Use `--auto-cuts` to insert `!camera` commands automatically (default algorithm):
 
 ```bash
 python podcast_dsl.py ../outputs/segment_2_full.dsl --auto-cuts -o output.mp4
 ```
 
-**Heuristics:**
-- Always shows the person who is speaking
-- Randomly switches between solo shot (speaker_0/speaker_1) and wide shot
-- Doesn't make clips less than 5 seconds (cuts only on speaker changes or after 5s minimum)
-- Only cuts between segments (respects the DSL structure)
-- Manual camera commands in the DSL override auto-generated cuts
+**Default (`--auto-cuts`) heuristics** (see `src/auto_cuts.py` for exact patterns and maintainer note):
+
+- Opens on **Ben’s close-up** (`speaker_0` when Ben’s transcript `speaker_id` is `0`).
+- **Does not** drop or shorten clips: every `$segment…` line is kept.
+- **Guest intro:** the **first** Ben **transcript row** matching phrases like *“my guest is”* uses **wide** for that whole row and the **next** row (forced wide **immediately**, even if the current shot is under 5 seconds). Rows longer than `INTRO_WIDE_MAX_ROW_DURATION_SEC` in `auto_cuts.py` skip this rule so a long monologue is not treated as one sentence — use **shorter rows** (sentence-level JSON) for correct “two sentences wide” behavior.
+- **Crosstalk:** if any **6-second** window (anchored at an utterance start) has enough **Ben ↔ guest** back-and-forth, the edit stays **wide** for every utterance in that window that overlaps the interval (merged across windows; also immediate).
+- **Otherwise** (same as the original auto-cuts pacing): hold the current camera through utterances **under 1 second**; allow cuts on **speaker change** (once a speaker is established), or after **5 seconds** on the current angle, or when no camera is set; when choosing a new angle after a cut, **1/8** chance of **wide**, else the active speaker’s close-up.
+
+Transcript `speaker_id` values **0** and **1** are treated as Ben and guest for intro/crosstalk rules. Manual `!camera` lines in the DSL still set camera state before the next auto decision.
+
+**Legacy-only mode** (no Ben open, intro, or crosstalk — just random wide + 5 s minimum + &lt;1 s hold):
+
+```bash
+python podcast_dsl.py ../outputs/segment_2_full.dsl --auto-cuts-legacy -o output.mp4
+```
+
+Do not pass `--auto-cuts` and `--auto-cuts-legacy` together.
 
 **Example:**
 ```bash
@@ -162,10 +173,7 @@ EOF
 # Auto-generate cuts
 python podcast_dsl.py test.dsl --auto-cuts -o output.mp4
 
-# Result: Camera commands automatically inserted based on speaker changes
-# - speaker_0 or wide for Ryan's lines
-# - speaker_1 or wide for Buck's lines
-# - 1/8 chance of a wide shot, otherwise the active speaker shot
+# Result: Camera commands follow the default rules above (pacing + intro/crosstalk wide).
 ```
 
 ### Dry run (calculate duration without rendering)
@@ -268,12 +276,28 @@ This creates `segment_2_speaker_cuts.dsl` with:
 - All 202 sentences from segment 2
 - Full transcript text as comments
 
+#### Dense cuts → force wide (core rule)
+
+When generating speaker-based camera cuts for new projects, apply this rule by default:
+
+- **Trigger**: If there would be **more than one camera cut** within **any rolling 5-second window**
+  (i.e. at least **two** `speaker_0 ↔ speaker_1` switches less than **5 seconds** apart).
+- **Action**: Replace that region with a **single** `!camera wide` span.
+- **Duration**: The wide span must last **at least 5 seconds**.
+- **Alignment**: Wide spans are **sentence-aligned** (start/end only at sentence boundaries).
+- **Return**: When the wide span ends, return to the intended camera for the **first sentence after** the span.
+- **Extension exception**: If there will be another cut within **5 seconds** of the wide span ending, extend the wide span until that cut boundary (and repeat until no such cut exists).
+
+The recommended generator that implements this rule is `generate_dsl_with_wide_rule.py`.
+
 ## How It Works
 
 1. **Parsing**: The DSL parser reads the file line by line
 2. **Camera State**: Maintains current camera selection
-3. **Clip Extraction**: For each segment command, extracts the video from the current camera
+3. **Clip Extraction**: For each transcript command, extracts video/audio from the current camera using transcript times
 4. **Concatenation**: Combines all clips into the final output
+
+**Timeline (full renders):** When `--skip` is 0, the **first** extraction group starts at **program time 0** (master audio/video from the beginning of the files through the end of that group), so leading silence before the first transcript line is kept. Consecutive transcript indices should all appear in the DSL (use `convert_transcript_json.py`, which expands zero-length sentences to a tiny positive duration) so gaps are not lost between groups.
 
 ## Segment IDs
 
