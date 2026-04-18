@@ -245,6 +245,90 @@ SEGMENT_CONFIG = {
         },
         'transcript_file': r'E:\PodcastRoom\Cursor\Inkhaven Nerst\Output\interview_transcript_simplified.json',
     },
+    # Inkhaven Drew (reading) — Front/Side cameras (mapped as speaker_0/speaker_1
+    # so that the wide-referenced auto color match in video_renderer applies),
+    # Wide.mp4 is NOT used in any shot but is the color-correction reference.
+    '14': {
+        'audio_file': r'D:\PodcastRoom\Cursor\Inkhaven Drew\Input\Reading Audio.wav',
+        'audio_offset': 0,
+        'video_files': {
+            'speaker_0': {
+                'file': r'D:\PodcastRoom\Cursor\Inkhaven Drew\Input\Reading Front.mp4',
+                'offset': 0,
+            },
+            'speaker_1': {
+                'file': r'D:\PodcastRoom\Cursor\Inkhaven Drew\Input\Reading Side.mp4',
+                'offset': 0,
+            },
+            'wide': {
+                'file': r'D:\PodcastRoom\Cursor\Inkhaven Drew\Input\Wide.mp4',
+                'offset': 0,
+            },
+        },
+        'transcript_file': r'D:\PodcastRoom\Cursor\Inkhaven Drew\Output\reading_transcript_simplified.json',
+    },
+    # Inkhaven Drew — interview (Ben/Guest/Wide); paths absolute
+    '15': {
+        'audio_file': r'D:\PodcastRoom\Cursor\Inkhaven Drew\Input\Audio.wav',
+        'audio_offset': 0,
+        'video_files': {
+            'speaker_0': {
+                'file': r'D:\PodcastRoom\Cursor\Inkhaven Drew\Input\Ben.mp4',
+                'offset': 0,
+            },
+            'speaker_1': {
+                'file': r'D:\PodcastRoom\Cursor\Inkhaven Drew\Input\Guest.mp4',
+                'offset': 0,
+            },
+            'wide': {
+                'file': r'D:\PodcastRoom\Cursor\Inkhaven Drew\Input\Wide.mp4',
+                'offset': 0,
+            },
+        },
+        'transcript_file': r'D:\PodcastRoom\Cursor\Inkhaven Drew\Output\interview_transcript_simplified.json',
+    },
+    # Inkhaven Decker (reading) — Front/Side cameras plus Wide reference for color match.
+    '16': {
+        'audio_file': r'E:\PodcastRoom\Cursor\Inkhaven Decker\clean Decker Reading Audio.wav',
+        'audio_offset': 0,
+        'enable_color_match': True,
+        'video_files': {
+            'speaker_0': {
+                'file': r'E:\PodcastRoom\Cursor\Inkhaven Decker\Decker Reading Front Vid.mp4',
+                'offset': 0,
+            },
+            'speaker_1': {
+                'file': r'E:\PodcastRoom\Cursor\Inkhaven Decker\Decker Reading Side Vid.mp4',
+                'offset': 0,
+            },
+            'wide': {
+                'file': r'E:\PodcastRoom\Cursor\Inkhaven Decker\Decker Wide.mp4',
+                'offset': 0,
+            },
+        },
+        'transcript_file': r'E:\PodcastRoom\Cursor\Inkhaven Decker\Output\reading_transcript_simplified.json',
+    },
+    # Inkhaven Decker — interview (Ben/Guest/Wide); paths absolute
+    '17': {
+        'audio_file': r'E:\PodcastRoom\Cursor\Inkhaven Decker\Input\Audio.wav',
+        'audio_offset': 0,
+        'enable_color_match': True,
+        'video_files': {
+            'speaker_0': {
+                'file': r'E:\PodcastRoom\Cursor\Inkhaven Decker\Input\Ben.mp4',
+                'offset': 0,
+            },
+            'speaker_1': {
+                'file': r'E:\PodcastRoom\Cursor\Inkhaven Decker\Input\Guest.mp4',
+                'offset': 0,
+            },
+            'wide': {
+                'file': r'E:\PodcastRoom\Cursor\Inkhaven Decker\Input\Wide.mp4',
+                'offset': 0,
+            },
+        },
+        'transcript_file': r'E:\PodcastRoom\Cursor\Inkhaven Decker\Output\interview_transcript_simplified.json',
+    },
 }
 
 

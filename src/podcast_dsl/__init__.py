@@ -13,6 +13,7 @@ from .commands import (
     DSLCommand,
     CameraCommand,
     CutCommand,
+    OpeningPrerollCommand,
     FadeToBlackCommand,
     FadeFromBlackCommand,
     BlackCommand,
@@ -37,6 +38,11 @@ from .video_renderer import (
     extract_clip_group,
     render_dsl
 )
+from .color_match import (
+    build_color_match_vf,
+    build_color_match_vf_from_yavg,
+    probe_mean_yavg,
+)
 
 __all__ = [
     # Config
@@ -46,6 +52,7 @@ __all__ = [
     'DSLCommand',
     'CameraCommand',
     'CutCommand',
+    'OpeningPrerollCommand',
     'FadeToBlackCommand',
     'FadeFromBlackCommand',
     'BlackCommand',
@@ -66,4 +73,9 @@ __all__ = [
     'generate_black_clip',
     'extract_clip_group',
     'render_dsl',
+
+    # Color match
+    'build_color_match_vf',
+    'build_color_match_vf_from_yavg',
+    'probe_mean_yavg',
 ]

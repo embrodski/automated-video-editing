@@ -13,11 +13,9 @@ import json
 from typing import List, Dict, Tuple, Optional
 from multiprocessing import Pool, cpu_count
 from functools import lru_cache
-import re
-import math
-
 from .config import SEGMENT_CONFIG
 from .clip_processing import get_clip_info, parse_segment_id, load_transcript
+from .color_match import build_color_match_vf
 
 
 # Cache directory for intermediate results
@@ -25,11 +23,194 @@ CACHE_DIR = os.path.expanduser('~/.cache/podcast_dsl')
 CACHE_DB = os.path.join(CACHE_DIR, 'cache.db')
 OUTPUT_FPS = 24000 / 1001
 OUTPUT_FPS_STR = '24000/1001'
+VIDEO_ENCODER_ENV = 'PODCAST_DSL_VIDEO_ENCODER'
+VIDEO_PRESET_ENV = 'PODCAST_DSL_VIDEO_PRESET'
+VIDEO_DOWNSCALE_4K_ENV = 'PODCAST_DSL_DOWNSCALE_4K_TO_1080P'
+DEFAULT_VIDEO_ENCODER = 'auto'
+AUTO_HARDWARE_ENCODERS = ('h264_nvenc', 'h264_qsv', 'h264_amf')
+ENCODER_TEST_WIDTH = 1280
+ENCODER_TEST_HEIGHT = 720
+DOWNSCALE_WIDTH_1080P = 1920
+DOWNSCALE_HEIGHT_1080P = 1080
 
 
 def _ffmpeg_cmd_base() -> List[str]:
     """Build a low-noise FFmpeg command prefix."""
     return ['ffmpeg', '-hide_banner', '-nostats', '-loglevel', 'error', '-y']
+
+
+def _sanity_sidecar_path(dsl_file: str) -> Optional[str]:
+    if not dsl_file or dsl_file == "-":
+        return None
+    return f"{dsl_file}.sanity.json"
+
+
+def _run_dsl_sanity_check(dsl_file: str) -> None:
+    sanity_path = _sanity_sidecar_path(dsl_file)
+    if not sanity_path or not os.path.exists(sanity_path):
+        return
+
+    with open(sanity_path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    warnings = data.get("warnings", [])
+    issues = data.get("blocking_issues", [])
+    notes = data.get("selection_notes", [])
+
+    if notes:
+        print("Reading sanity notes:")
+        for note in notes:
+            print(f"  - {note}")
+        print()
+
+    if warnings:
+        print("Reading sanity warnings:")
+        for warning in warnings[:10]:
+            print(f"  - [{warning.get('idx')}] {warning.get('text', '')}")
+        if len(warnings) > 10:
+            print(f"  ... and {len(warnings) - 10} more")
+        print()
+
+    if issues:
+        details = "\n".join(
+            f"  - [{issue.get('idx')}] {issue.get('text', '')}"
+            for issue in issues[:10]
+        )
+        more = ""
+        if len(issues) > 10:
+            more = f"\n  ... and {len(issues) - 10} more"
+        raise ValueError(
+            "Reading sanity check failed: obvious dropped article lines were detected "
+            f"before render.\nDSL: {dsl_file}\nSanity report: {sanity_path}\n{details}{more}"
+        )
+
+
+def _map_encoder_preset(video_encoder: str, preset: str) -> str:
+    preset = (preset or 'fast').lower()
+    if video_encoder == 'libx264':
+        return preset
+    if video_encoder == 'h264_nvenc':
+        return {
+            'ultrafast': 'p1',
+            'superfast': 'p2',
+            'veryfast': 'p2',
+            'faster': 'p3',
+            'fast': 'fast',
+            'medium': 'medium',
+            'slow': 'slow',
+            'slower': 'p6',
+            'veryslow': 'p7',
+        }.get(preset, preset)
+    if video_encoder == 'h264_qsv':
+        return {
+            'ultrafast': 'veryfast',
+            'superfast': 'veryfast',
+            'veryfast': 'veryfast',
+            'faster': 'faster',
+            'fast': 'fast',
+            'medium': 'medium',
+            'slow': 'slow',
+            'slower': 'slower',
+            'veryslow': 'veryslow',
+        }.get(preset, preset)
+    if video_encoder == 'h264_amf':
+        return {
+            'ultrafast': 'speed',
+            'superfast': 'speed',
+            'veryfast': 'speed',
+            'faster': 'speed',
+            'fast': 'speed',
+            'medium': 'balanced',
+            'slow': 'quality',
+            'slower': 'quality',
+            'veryslow': 'quality',
+        }.get(preset, preset)
+    raise ValueError(f"Unsupported video encoder: {video_encoder}")
+
+
+def _append_video_encoder_args(cmd: List[str], video_encoder: str, preset: str, quality_level: int) -> None:
+    mapped_preset = _map_encoder_preset(video_encoder, preset)
+    if video_encoder == 'libx264':
+        cmd.extend([
+            '-c:v', 'libx264',
+            '-preset', mapped_preset,
+            '-crf', str(quality_level),
+        ])
+        return
+    if video_encoder == 'h264_nvenc':
+        cmd.extend([
+            '-c:v', 'h264_nvenc',
+            '-preset', mapped_preset,
+            '-tune', 'hq',
+            '-rc', 'vbr',
+            '-cq', str(quality_level),
+            '-b:v', '0',
+        ])
+        return
+    if video_encoder == 'h264_qsv':
+        cmd.extend([
+            '-c:v', 'h264_qsv',
+            '-preset', mapped_preset,
+            '-global_quality', str(quality_level),
+        ])
+        return
+    if video_encoder == 'h264_amf':
+        cmd.extend([
+            '-c:v', 'h264_amf',
+            '-preset', mapped_preset,
+            '-rc', 'qvbr',
+            '-qvbr_quality_level', str(quality_level),
+        ])
+        return
+    raise ValueError(f"Unsupported video encoder: {video_encoder}")
+
+
+def _encoder_test_command(output_path: str, video_encoder: str, preset: str) -> List[str]:
+    cmd = _ffmpeg_cmd_base() + [
+        '-f', 'lavfi',
+        '-i', f'color=c=black:s={ENCODER_TEST_WIDTH}x{ENCODER_TEST_HEIGHT}:r=24000/1001:d=0.1',
+        '-frames:v', '1',
+    ]
+    _append_video_encoder_args(cmd, video_encoder, preset, quality_level=23)
+    cmd.extend([
+        '-pix_fmt', 'yuv420p',
+        '-profile:v', 'high',
+        '-an',
+        output_path,
+    ])
+    return cmd
+
+
+@lru_cache(maxsize=None)
+def _encoder_is_usable(video_encoder: str, preset: str) -> bool:
+    temp_path = None
+    try:
+        with tempfile.NamedTemporaryFile(suffix='.mp4', delete=False) as tmp:
+            temp_path = tmp.name
+        os.unlink(temp_path)
+        cmd = _encoder_test_command(temp_path, video_encoder, preset)
+        result = subprocess.run(cmd, check=False, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
+        return result.returncode == 0 and os.path.exists(temp_path) and os.path.getsize(temp_path) > 0
+    finally:
+        if temp_path and os.path.exists(temp_path):
+            os.unlink(temp_path)
+
+
+@lru_cache(maxsize=None)
+def _resolved_video_encoder(stage_default_preset: str) -> str:
+    requested = os.environ.get(VIDEO_ENCODER_ENV, DEFAULT_VIDEO_ENCODER).strip().lower()
+    if requested and requested != 'auto':
+        return requested
+
+    requested_preset = os.environ.get(VIDEO_PRESET_ENV, '').strip() or stage_default_preset
+    for candidate in AUTO_HARDWARE_ENCODERS:
+        if _encoder_is_usable(candidate, requested_preset):
+            return candidate
+    return 'libx264'
+
+
+def _requested_video_preset(stage_default_preset: str) -> str:
+    return os.environ.get(VIDEO_PRESET_ENV, '').strip() or stage_default_preset
 
 
 @lru_cache(maxsize=None)
@@ -65,45 +246,10 @@ def _get_segment_target_resolution(segment_num: str) -> Tuple[int, int]:
     ]
     target_width = max(width for width, _ in dimensions)
     target_height = max(height for _, height in dimensions)
+    if os.environ.get(VIDEO_DOWNSCALE_4K_ENV, '').strip().lower() in {'1', 'true', 'yes', 'on'}:
+        if target_width > DOWNSCALE_WIDTH_1080P or target_height > DOWNSCALE_HEIGHT_1080P:
+            return DOWNSCALE_WIDTH_1080P, DOWNSCALE_HEIGHT_1080P
     return target_width, target_height
-
-
-@lru_cache(maxsize=None)
-def _probe_mean_yavg(video_file: str, *, sample_seconds: float = 8.0, max_frames: int = 240) -> float:
-    """
-    Estimate mean luma (YAVG) for a video using ffmpeg signalstats on a short sample.
-
-    This is used to auto-match close cameras to the wide camera for a segment.
-    """
-    # Crop to central region before measuring luma so letterboxing / framing differences
-    # don't dominate the statistic.
-    vf = "crop=iw*0.6:ih*0.6:(iw-ow)/2:(ih-oh)/2,signalstats,metadata=print:file=-"
-    cmd = _ffmpeg_cmd_base() + [
-        '-i', video_file,
-        '-t', str(sample_seconds),
-        '-vf', vf,
-        '-frames:v', str(max_frames),
-        '-f', 'null',
-        '-',
-    ]
-    p = subprocess.run(cmd, capture_output=True, text=True)
-    if p.returncode != 0:
-        raise RuntimeError(f"ffmpeg signalstats failed for {video_file}:\n{p.stderr.strip()}")
-
-    y_vals: List[float] = []
-    for line in p.stdout.splitlines():
-        # ffmpeg metadata lines look like: lavfi.signalstats.YAVG=123.45
-        m = re.search(r'(?:^|\b)YAVG=(\d+(?:\.\d+)?)\b', line, flags=re.IGNORECASE)
-        if not m:
-            # Alternate formatting seen in some builds
-            m = re.search(r'\byavg:(\d+(?:\.\d+)?)\b', line, flags=re.IGNORECASE)
-        if m:
-            y_vals.append(float(m.group(1)))
-
-    if not y_vals:
-        raise RuntimeError(f"No YAVG values parsed for {video_file}")
-
-    return sum(y_vals) / len(y_vals)
 
 
 @lru_cache(maxsize=None)
@@ -118,6 +264,8 @@ def _segment_color_match_eq(segment_num: str, camera: str) -> str:
         return ''
 
     config = SEGMENT_CONFIG[segment_num]
+    if not config.get('enable_color_match', True):
+        return ''
     cam_cfg = config['video_files'].get(camera, {})
 
     vf = cam_cfg.get('color_match_vf')
@@ -132,62 +280,7 @@ def _segment_color_match_eq(segment_num: str, camera: str) -> str:
     if camera not in ('speaker_0', 'speaker_1'):
         return ''
 
-    y_wide = _probe_mean_yavg(cams['wide']['file'])
-    y_src = _probe_mean_yavg(cams[camera]['file'])
-
-    # Avoid divide-by-zero / nonsense
-    if y_wide <= 1.0 or y_src <= 1.0:
-        return ''
-
-    # Map average luma ratio into a bounded gamma tweak on luma (Y).
-    # This is a pragmatic match (not a full grade), but stabilizes cross-angle brightness.
-    # Match close cameras toward wide without the "flat/washed" look that a big additive
-    # brightness lift tends to produce. Prefer a mild gamma lift plus a small saturation bump.
-    #
-    # `d` is a normalized luma gap in ~[0, 1] when shots are very different.
-    d = (y_wide - y_src) / 255.0
-    d = max(-0.35, min(0.35, d))
-
-    # If we're extremely close, skip filtering entirely.
-    if abs(d) < 0.004:
-        return ''
-
-    # Smooth aggressiveness: big mismatches still cap out (tanh), small mismatches are subtle.
-    x = d * 6.0
-    t = math.tanh(x)  # in (-1, 1)
-
-    # Gamma > 1 brightens midtones more than highlights (less "milky" than big brightness).
-    # Keep this fairly gentle; heavy gamma reads as "washed" once mids get lifted.
-    gamma = 1.0 + 0.12 * t
-    gamma = max(0.95, min(1.14, gamma))
-
-    # Keep a *small* brightness component for very dark closeups, but clamp it hard.
-    brightness = 0.35 * d
-    brightness = max(-0.04, min(0.06, brightness))
-
-    # `eq` saturation is global; pair it with `vibrance` which tends to boost muted colors
-    # more than already-saturated areas (helps avoid chalky skin when lifting exposure).
-    sat_k = 0.28 if d > 0 else 0.22
-    saturation = 1.0 + sat_k * max(0.0, d) * 2.0
-    saturation = max(0.95, min(1.18, saturation))
-
-    vibrance = 0.22 * max(0.0, t)
-    vibrance = max(0.0, min(0.45, vibrance))
-
-    # Mild sharpening helps restore perceived contrast after lifts (keep subtle).
-    unsharp = ""
-    if d > 0.02:
-        unsharp = "unsharp=5:5:0.65:3:3:0.0"
-
-    parts = [
-        f"eq=gamma={gamma:.6f}:brightness={brightness:.6f}:saturation={saturation:.6f}",
-    ]
-    if vibrance > 0:
-        parts.append(f"vibrance={vibrance:.6f}")
-    if unsharp:
-        parts.append(unsharp)
-
-    return ",".join(parts)
+    return build_color_match_vf(cams['wide']['file'], cams[camera]['file'])
 
 
 def _append_vf_snippet(video_filter_chain: List[str], snippet: str) -> None:
@@ -361,14 +454,19 @@ def _concatenate_clips_reencode(clip_files: List[str], output_file: str):
         '-filter_complex', filter_complex,
         '-map', '[v]',
         '-map', '[a]',
-        '-c:v', 'libx264',
-        '-preset', 'ultrafast',
-        '-crf', '23',
         '-r', '24000/1001',
+        '-pix_fmt', 'yuv420p',
+        '-profile:v', 'high',
         '-c:a', 'aac', '-b:a', '320k',
         '-compression_level', '5',  # Good balance of speed and compression
-        output_file
     ])
+    _append_video_encoder_args(
+        cmd,
+        _resolved_video_encoder('ultrafast'),
+        _requested_video_preset('ultrafast'),
+        quality_level=23,
+    )
+    cmd.append(output_file)
 
     # Suppress FFmpeg output
     subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -518,14 +616,19 @@ def apply_volume_adjustments(video_file: str, output_file: str, volume_timeline:
         '-filter_complex', filter_complex,
         '-map', '[outv]',
         '-map', '[outa]',
-        '-c:v', 'libx264',
-        '-preset', 'ultrafast',
-        '-crf', '23',
+        '-pix_fmt', 'yuv420p',
+        '-profile:v', 'high',
         '-c:a', 'aac',
         '-b:a', '320k',  # Higher bitrate for better quality
         '-aac_coder', 'twoloop',  # Better quality AAC encoding
-        output_file
     ]
+    _append_video_encoder_args(
+        cmd,
+        _resolved_video_encoder('ultrafast'),
+        _requested_video_preset('ultrafast'),
+        quality_level=23,
+    )
+    cmd.append(output_file)
 
     # Suppress FFmpeg output
     subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -651,14 +754,19 @@ def generate_black_clip(duration_ms: float, output_file: str):
     cmd = _ffmpeg_cmd_base() + [
         '-f', 'lavfi', '-i', f'color=c=black:s=640x360:r=24000/1001:d={duration_sec}',
         '-f', 'lavfi', '-i', f'anullsrc=r=48000:cl=stereo:d={duration_sec}',
-        '-c:v', 'libx264',
-        '-preset', 'ultrafast',
-        '-crf', '23',
+        '-pix_fmt', 'yuv420p',
+        '-profile:v', 'high',
         '-c:a', 'aac', '-b:a', '320k',
         '-compression_level', '5',  # Good balance of speed and compression
         '-shortest',
-        output_file
     ]
+    _append_video_encoder_args(
+        cmd,
+        _resolved_video_encoder('ultrafast'),
+        _requested_video_preset('ultrafast'),
+        quality_level=23,
+    )
+    cmd.append(output_file)
 
     # Check cache first
     cache_cmd = cmd[:-1]  # Command without output_file
@@ -677,7 +785,8 @@ def generate_black_clip(duration_ms: float, output_file: str):
 
 def extract_clip_group(group: List[Tuple[str, str, str, float, float, Optional[float], Optional[float], Optional[float], Optional[float], float]],
                        output_file: str, margin: float = 0.0,
-                       episode_starts_at_timeline_zero: bool = False):
+                       episode_starts_at_timeline_zero: bool = False,
+                       opening_preroll_sec: Optional[float] = None):
     """
     Extract a group of clips as a single continuous clip with continuous audio.
     Renders video and audio together in a single FFmpeg call for perfect sync.
@@ -717,12 +826,14 @@ def extract_clip_group(group: List[Tuple[str, str, str, float, float, Optional[f
             segment_ids, clips_info, camera, output_file,
             before_padding_ms, after_padding_ms, fade_in_ms, fade_out_ms, volume,
             episode_starts_at_timeline_zero=episode_starts_at_timeline_zero,
+            opening_preroll_sec=opening_preroll_sec,
         )
     else:
         # Complex case: camera changes within group - extract audio once, video separately
         return _extract_multi_camera_group(
             group, output_file, margin,
             episode_starts_at_timeline_zero=episode_starts_at_timeline_zero,
+            opening_preroll_sec=opening_preroll_sec,
         )
 
 
@@ -731,7 +842,8 @@ def _extract_single_camera_group(segment_ids: List[str], clips_info: List[Dict],
                                  before_padding_ms: float, after_padding_ms: float,
                                  fade_in_ms: Optional[float], fade_out_ms: Optional[float],
                                  volume: float = 1.0,
-                                 episode_starts_at_timeline_zero: bool = False):
+                                 episode_starts_at_timeline_zero: bool = False,
+                                 opening_preroll_sec: Optional[float] = None):
     """
     Extract group where all clips use the same camera.
     Renders video and audio together in a single FFmpeg call for perfect sync.
@@ -753,8 +865,13 @@ def _extract_single_camera_group(segment_ids: List[str], clips_info: List[Dict],
     after_padding = after_padding_ms / 1000.0
 
     # Extract from start of first clip to end of last clip (including gaps and padding).
-    # Full-episode opening: include master media from timeline 0 through first utterance.
-    if episode_starts_at_timeline_zero:
+    # Full-episode opening: include master media from timeline 0 through first utterance,
+    # unless the DSL explicitly requests a preroll relative to the first spoken clip.
+    if opening_preroll_sec is not None:
+        opening_lead_in = max(before_padding, opening_preroll_sec)
+        audio_start = max(0, first_clip['audio_start'] - opening_lead_in + audio_offset_in_file)
+        video_start = max(0, first_clip['video_start'] - opening_lead_in)
+    elif episode_starts_at_timeline_zero:
         audio_start = audio_offset_in_file
         video_start = max(0.0, first_clip['video_start'] - first_clip['audio_start'])
     else:
@@ -819,15 +936,20 @@ def _extract_single_camera_group(segment_ids: List[str], clips_info: List[Dict],
     # Encoding parameters
     # Use AAC for audio in intermediate segments (MP4 compatible)
     cmd.extend([
-        '-c:v', 'libx264',
-        '-preset', 'ultrafast',
-        '-crf', '23',
         '-r', '24000/1001',  # Preserve source frame rate
+        '-pix_fmt', 'yuv420p',
+        '-profile:v', 'high',
         '-c:a', 'aac', '-b:a', '320k',
         '-compression_level', '5',  # Good balance of speed and compression
         '-shortest',
-        output_file
     ])
+    _append_video_encoder_args(
+        cmd,
+        _resolved_video_encoder('ultrafast'),
+        _requested_video_preset('ultrafast'),
+        quality_level=23,
+    )
+    cmd.append(output_file)
 
     # Check cache first (before adding output_file to command for hash)
     cache_cmd = cmd[:-1]  # Command without output_file
@@ -975,14 +1097,19 @@ def _extract_camera_segment(args):
 
     # Encoding parameters
     cmd.extend([
-        '-c:v', 'libx264',
-        '-preset', 'ultrafast',
-        '-crf', '23',
         '-r', OUTPUT_FPS_STR,  # Preserve source frame rate
+        '-pix_fmt', 'yuv420p',
+        '-profile:v', 'high',
         '-frames:v', str(frame_count),
         '-an',
-        temp_path
     ])
+    _append_video_encoder_args(
+        cmd,
+        _resolved_video_encoder('ultrafast'),
+        _requested_video_preset('ultrafast'),
+        quality_level=23,
+    )
+    cmd.append(temp_path)
 
     # Check cache first
     cache_cmd = cmd[:-1]  # Command without output file
@@ -1015,7 +1142,8 @@ def _extract_camera_segment(args):
 
 def _extract_multi_camera_group(group: List[Tuple[str, str, str, float, float, Optional[float], Optional[float], Optional[float], Optional[float], float]],
                                 output_file: str, margin: float = 0.0,
-                                episode_starts_at_timeline_zero: bool = False):
+                                episode_starts_at_timeline_zero: bool = False,
+                                opening_preroll_sec: Optional[float] = None):
     """
     Extract group with camera changes, using a continuous group audio timeline.
 
@@ -1051,7 +1179,10 @@ def _extract_multi_camera_group(group: List[Tuple[str, str, str, float, float, O
     # Calculate the continuous group audio range.
     first_clip = get_clip_info(segment_ids[0], cameras[0], slice_starts[0], slice_ends[0], margin)
     last_clip = get_clip_info(segment_ids[-1], cameras[-1], slice_starts[-1], slice_ends[-1], margin)
-    if episode_starts_at_timeline_zero:
+    if opening_preroll_sec is not None:
+        opening_lead_in = max(before_padding, opening_preroll_sec)
+        group_audio_start = max(0, first_clip['audio_start'] - opening_lead_in)
+    elif episode_starts_at_timeline_zero:
         group_audio_start = 0.0
     else:
         group_audio_start = max(0, first_clip['audio_start'] - before_padding)
@@ -1122,7 +1253,7 @@ def _extract_multi_camera_group(group: List[Tuple[str, str, str, float, float, O
 
 def _render_segment_wrapper(args):
     """Wrapper function for parallel segment rendering"""
-    group, output_file, group_idx, total_groups, margin, skip_clips = args
+    group, output_file, group_idx, total_groups, margin, skip_clips, opening_preroll_sec = args
 
     # Check if this is a black clip (special segment)
     segment_id = group[0][0]
@@ -1157,10 +1288,12 @@ def _render_segment_wrapper(args):
     # Use .mp4 extension for AAC audio (all intermediate files)
 
     # Extract clip (volume is applied during extraction now)
-    episode_starts_at_timeline_zero = skip_clips == 0 and group_idx == 0
+    use_opening_preroll = skip_clips == 0 and group_idx == 0 and opening_preroll_sec is not None
+    episode_starts_at_timeline_zero = skip_clips == 0 and group_idx == 0 and not use_opening_preroll
     duration = extract_clip_group(
         group, output_file, margin,
         episode_starts_at_timeline_zero=episode_starts_at_timeline_zero,
+        opening_preroll_sec=opening_preroll_sec if use_opening_preroll else None,
     )
 
     # Get fade and cut info for display
@@ -1215,6 +1348,7 @@ def render_all_cams(dsl_file: str, output_file: str, dry_run: bool = False,
     print("Parsing DSL file...")
     commands = parse_dsl_file(dsl_file)
     print(f"Found {len(commands)} commands\n")
+    _run_dsl_sanity_check(dsl_file)
 
     # Extract all segment IDs to determine available cameras
     segment_ids = []
@@ -1299,6 +1433,7 @@ def render_dsl(dsl_file: str, output_file: str, dry_run: bool = False, auto_cuts
     print("Parsing DSL file...")
     commands = parse_dsl_file(dsl_file)
     print(f"Found {len(commands)} commands\n")
+    _run_dsl_sanity_check(dsl_file)
 
     # Apply auto-cuts if requested
     if auto_cuts:
@@ -1362,6 +1497,7 @@ def _render_dsl_from_commands(commands: List, output_file: str, dsl_file: str = 
     current_cut_before = 50.0  # Default 50ms before
     current_cut_after = 50.0   # Default 50ms after
     current_volume = 1.0  # Default volume (1.0 = 100%)
+    opening_preroll_ms = None  # Optional preroll for the first content clip/group
     pending_fade_in = None  # Fade in duration for next clip
     clips_to_render = []  # Each item: (segment_id, camera, comment, cut_before, cut_after, fade_in_ms, fade_out_ms, slice_start, slice_end, volume)
     audio_overlays = []  # Each item: (clip_index, audio_file, volume, speed)
@@ -1373,6 +1509,8 @@ def _render_dsl_from_commands(commands: List, output_file: str, dsl_file: str = 
         elif cmd_type == 'CutCommand':
             current_cut_before = cmd.before_ms
             current_cut_after = cmd.after_ms
+        elif cmd_type == 'OpeningPrerollCommand':
+            opening_preroll_ms = cmd.preroll_ms
         elif cmd_type == 'VolumeCommand':
             if cmd.volume != 1.0:
                 raise NotImplementedError(
@@ -1437,7 +1575,11 @@ def _render_dsl_from_commands(commands: List, output_file: str, dsl_file: str = 
             before_padding = cut_before / 1000.0
             after_padding = cut_after / 1000.0
 
-            if skip_clips == 0 and clip_idx == 0:
+            use_opening_preroll = skip_clips == 0 and clip_idx == 0 and opening_preroll_ms is not None
+            if use_opening_preroll:
+                opening_lead_in = max(before_padding, opening_preroll_ms / 1000.0)
+                audio_start = max(0, info['audio_start'] - opening_lead_in)
+            elif skip_clips == 0 and clip_idx == 0:
                 audio_start = 0.0
             else:
                 audio_start = max(0, info['audio_start'] - before_padding)
@@ -1520,8 +1662,12 @@ def _render_dsl_from_commands(commands: List, output_file: str, dsl_file: str = 
             before_padding = cut_before / 1000.0
             after_padding = cut_after / 1000.0
 
-            episode_starts_at_timeline_zero = skip_clips == 0 and i == 0
-            if episode_starts_at_timeline_zero:
+            use_opening_preroll = skip_clips == 0 and i == 0 and opening_preroll_ms is not None
+            episode_starts_at_timeline_zero = skip_clips == 0 and i == 0 and not use_opening_preroll
+            if use_opening_preroll:
+                opening_lead_in = max(before_padding, opening_preroll_ms / 1000.0)
+                audio_start = max(0, first_clip['audio_start'] - opening_lead_in)
+            elif episode_starts_at_timeline_zero:
                 audio_start = 0.0
             else:
                 audio_start = max(0, first_clip['audio_start'] - before_padding)
@@ -1566,7 +1712,15 @@ def _render_dsl_from_commands(commands: List, output_file: str, dsl_file: str = 
         render_args = []
         for group, segment_file, original_idx, size in groups_with_metadata:
             render_args.append(
-                (group, segment_file, original_idx, len(clip_groups), margin, skip_clips),
+                (
+                    group,
+                    segment_file,
+                    original_idx,
+                    len(clip_groups),
+                    margin,
+                    skip_clips,
+                    opening_preroll_ms / 1000.0 if opening_preroll_ms is not None else None,
+                ),
             )
 
         # Render segments in parallel
@@ -1684,17 +1838,20 @@ def _render_dsl_from_commands(commands: List, output_file: str, dsl_file: str = 
             '-i', intermediate_file,
             # Intermediates may be H.264 4:4:4 / yuv444p depending on source filters.
             # Re-encode here for broad player compatibility (Windows Movies & TV, etc.).
-            '-c:v', 'libx264',
-            '-preset', 'fast',
-            '-crf', '18',
             '-profile:v', 'high',
             '-pix_fmt', 'yuv420p',
             '-movflags', '+faststart',
             '-c:a', 'aac',
             '-b:a', '320k',  # High bitrate for quality
             '-aac_coder', 'twoloop',  # Better quality AAC encoding
-            output_file
         ]
+        _append_video_encoder_args(
+            cmd,
+            _resolved_video_encoder('fast'),
+            _requested_video_preset('fast'),
+            quality_level=18,
+        )
+        cmd.append(output_file)
         subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
         # Clean up intermediate file

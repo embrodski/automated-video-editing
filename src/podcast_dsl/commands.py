@@ -27,6 +27,16 @@ class CutCommand(DSLCommand):
         return f"CutCommand(before={self.before_ms}ms, after={self.after_ms}ms)"
 
 
+class OpeningPrerollCommand(DSLCommand):
+    """Episode opening preroll configuration for the first content clip/group."""
+
+    def __init__(self, preroll_ms: float):
+        self.preroll_ms = preroll_ms
+
+    def __repr__(self):
+        return f"OpeningPrerollCommand(preroll={self.preroll_ms}ms)"
+
+
 class FadeToBlackCommand(DSLCommand):
     """Fade to black command - affects the previous clip"""
     def __init__(self, duration_ms: float = 100):
@@ -59,7 +69,7 @@ class SegmentCommand(DSLCommand):
     def __init__(self, segment_id: str, comment: str = "", slice_start: float = None, slice_end: float = None):
         self.segment_id = segment_id
         self.comment = comment
-        self.slice_start = slice_start  # Start offset in seconds (can be negative for offset from end)
+        self.slice_start = slice_start  # Seconds relative to sentence start (negative = lead-in)
         self.slice_end = slice_end      # End offset in seconds (can be negative for offset from end)
 
     def __repr__(self):

@@ -5,6 +5,7 @@ Format:
   $segment2/0                     // Play this segment
   !camera wide                    // Switch to this camera
   !cut 50 50                      // Set padding before/after cuts
+  !opening 1000                   // Start first content clip/group this many ms early
   !volume 1.2                     // Set main audio volume (1.0 = 100%)
   !fade to black 100              // Fade to black
   !fade from black 100            // Fade from black
@@ -25,6 +26,7 @@ from .commands import (
     DSLCommand,
     CameraCommand,
     CutCommand,
+    OpeningPrerollCommand,
     FadeToBlackCommand,
     FadeFromBlackCommand,
     BlackCommand,
@@ -118,6 +120,17 @@ def parse_dsl_line(line: str) -> Optional[DSLCommand]:
                     raise ValueError(f"Cut command expects numeric values: {line}")
             else:
                 raise ValueError(f"Cut command format: '!cut 50 50' or '!cut before 50 after 50': {line}")
+
+        elif command_type == 'opening':
+            if len(parts) != 2:
+                raise ValueError(f"Opening command requires exactly one argument: {line}")
+            try:
+                preroll_ms = float(parts[1])
+            except ValueError:
+                raise ValueError(f"Opening preroll must be a number: {line}")
+            if preroll_ms < 0:
+                raise ValueError(f"Opening preroll must be non-negative: {line}")
+            return OpeningPrerollCommand(preroll_ms)
 
         elif command_type == 'fade':
             # Support: !fade to black [duration]  OR  !fade from black [duration]
