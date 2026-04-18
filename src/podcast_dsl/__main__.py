@@ -4,7 +4,14 @@ CLI entry point for podcast DSL renderer.
 """
 
 import argparse
-from .video_renderer import render_dsl
+import os
+from .video_renderer import (
+    DEFAULT_VIDEO_ENCODER,
+    VIDEO_DOWNSCALE_4K_ENV,
+    VIDEO_ENCODER_ENV,
+    VIDEO_PRESET_ENV,
+    render_dsl,
+)
 
 
 def main():
@@ -54,11 +61,37 @@ Examples:
                         help='Render separate output files for each camera feed instead of cutting between cameras')
     parser.add_argument('--margin', type=float, default=0.0,
                         help='Extra margin in seconds to add when slicing clips (default: 0.0)')
+    parser.add_argument(
+        '--video-encoder',
+        choices=['auto', 'libx264', 'h264_nvenc', 'h264_qsv', 'h264_amf'],
+        default=DEFAULT_VIDEO_ENCODER,
+        help='Video encoder for re-encoded stages. Defaults to auto hardware detection with libx264 fallback.',
+    )
+    parser.add_argument(
+        '--video-preset',
+        default=None,
+        help='Optional preset override for the selected video encoder.',
+    )
+    parser.add_argument(
+        '--downscale-4k-to-1080p',
+        action='store_true',
+        help='Downscale targets above 1080p to 1920x1080 for faster renders.',
+    )
 
     args = parser.parse_args()
 
     if args.auto_cuts and args.auto_cuts_legacy:
         parser.error('Use only one of --auto-cuts and --auto-cuts-legacy')
+
+    os.environ[VIDEO_ENCODER_ENV] = args.video_encoder
+    if args.video_preset:
+        os.environ[VIDEO_PRESET_ENV] = args.video_preset
+    else:
+        os.environ.pop(VIDEO_PRESET_ENV, None)
+    if args.downscale_4k_to_1080p:
+        os.environ[VIDEO_DOWNSCALE_4K_ENV] = '1'
+    else:
+        os.environ.pop(VIDEO_DOWNSCALE_4K_ENV, None)
 
     # Render all cams mode takes precedence
     if args.render_all_cams:

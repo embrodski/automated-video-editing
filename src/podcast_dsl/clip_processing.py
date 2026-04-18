@@ -44,7 +44,8 @@ def get_clip_info(segment_id: str, camera_name: str, slice_start: float = None, 
     Args:
         segment_id: Segment identifier (e.g., "segment2/0")
         camera_name: Camera name
-        slice_start: Optional start offset in seconds (negative values count from end)
+        slice_start: Optional start offset in seconds relative to the sentence start
+            (negative values begin before the listed transcript start, clamped to t>=0)
         slice_end: Optional end offset in seconds (negative values count from end)
         margin: Extra margin in seconds to add when slicing (extends the slice on both ends)
 
@@ -74,10 +75,9 @@ def get_clip_info(segment_id: str, camera_name: str, slice_start: float = None, 
         # Calculate actual start and end based on slice parameters
         if slice_start is not None:
             if slice_start < 0:
-                # Negative: offset from end
-                audio_start = original_end + slice_start
+                # Negative: offset from sentence start (lead-in before listed start)
+                audio_start = max(0.0, original_start + slice_start)
             else:
-                # Positive: offset from start
                 audio_start = original_start + slice_start
 
         if slice_end is not None:

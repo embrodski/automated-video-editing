@@ -213,7 +213,21 @@ def words_to_sentence_rows(
         end = float(substantive[-1]["end_time"])
         if end <= start:
             end = start + MIN_UTTERANCE_DURATION_SEC
-        row: Dict = {"start": start, "end": end, "text": text}
+        # Preserve word-level timestamps so downstream logic can snap cuts to
+        # true word boundaries (comma / sentence end) rather than char-to-time heuristics.
+        words_out: List[Dict] = []
+        for w in substantive:
+            w_text = (w.get("text") or "")
+            try:
+                w_start = float(w["start_time"])
+                w_end = float(w["end_time"])
+            except Exception:
+                continue
+            if w_end <= w_start:
+                w_end = w_start + MIN_UTTERANCE_DURATION_SEC
+            words_out.append({"text": w_text, "start": w_start, "end": w_end})
+
+        row: Dict = {"start": start, "end": end, "text": text, "words": words_out}
         if speaker_id is not None:
             row["speaker_id"] = speaker_id
         if speaker_name:
@@ -290,6 +304,8 @@ def convert_segments(
                     "end": re_,
                     "text": normalize_text(st),
                 }
+                if row.get("words"):
+                    output[str(output_index)]["words"] = row["words"]
                 if "speaker_id" in row:
                     output[str(output_index)]["speaker_id"] = row["speaker_id"]
                 if row.get("speaker_name"):

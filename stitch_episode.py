@@ -15,6 +15,8 @@ Processing:
 
 Output:
   - Complete Episode.mp4 in the same output dir
+  - After success, four lines: fade-in start time (mm:ss) + label for Intro / Reading /
+    Interview / Sponsor (closing), derived from source durations and black gaps.
 """
 
 from __future__ import annotations
@@ -26,6 +28,18 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+REPO_ROOT = Path(__file__).resolve().parent
+SRC_DIR = REPO_ROOT / "src"
+if str(SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(SRC_DIR))
+
+from podcast_dsl.video_renderer import (
+    DEFAULT_VIDEO_ENCODER,
+    _append_video_encoder_args,
+    _requested_video_preset,
+    _resolved_video_encoder,
+)
+
 
 REQUIRED_FILES = [
     "Intro.mp4",
@@ -33,6 +47,11 @@ REQUIRED_FILES = [
     "Edited Interview.mp4",
     "Inkhaven Presents Closing.mp4",
 ]
+
+# One-word labels for stdout markers (closing segment = Sponsor).
+FADE_IN_MARKER_LABELS = ("Intro", "Reading", "Interview", "Sponsor")
+VIDEO_ENCODER_CHOICES = ("auto", "libx264", "h264_nvenc", "h264_qsv", "h264_amf")
+DEFAULT_STITCH_VIDEO_PRESET = "fast"
 
 
 @dataclass(frozen=True)
@@ -104,7 +123,41 @@ def _get_media_info(path: Path) -> MediaInfo:
     )
 
 
-def stitch_episode(output_dir: Path, fade_s: float = 0.5, black_s: float = 0.25) -> Path:
+def _format_mmss_from_start(seconds: float) -> str:
+    """Whole seconds from timeline start, as mm:ss (minutes zero-padded to 2 if < 100)."""
+    s = max(0, int(round(seconds)))
+    m, sec = divmod(s, 60)
+    if m < 100:
+        return f"{m:02d}:{sec:02d}"
+    return f"{m}:{sec:02d}"
+
+
+def _fade_in_start_times_s(infos: list[MediaInfo], black_s: float) -> list[float]:
+    """Timeline position where each clip's fade-in begins (concat order, after black gaps)."""
+    out: list[float] = []
+    t = 0.0
+    for i, info in enumerate(infos):
+        out.append(t)
+        t += info.duration_s
+        if i < len(infos) - 1:
+            t += black_s
+    return out
+
+
+def _print_fade_in_marker_lines(infos: list[MediaInfo], black_s: float) -> None:
+    starts = _fade_in_start_times_s(infos, black_s)
+    for start_s, label in zip(starts, FADE_IN_MARKER_LABELS):
+        print(f"{_format_mmss_from_start(start_s)} {label}")
+
+
+def stitch_episode(
+    output_dir: Path,
+    fade_s: float = 0.5,
+    black_s: float = 0.25,
+    *,
+    video_encoder: str,
+    video_preset: str,
+) -> Path:
     missing = [name for name in REQUIRED_FILES if not (output_dir / name).exists()]
     if missing:
         missing_list = "\n".join(f"- {m}" for m in missing)
@@ -157,6 +210,7 @@ def stitch_episode(output_dir: Path, fade_s: float = 0.5, black_s: float = 0.25)
         a_chain = (
             f"[{i}:a]"
             f"aresample={out_sr},"
+            f"loudnorm=I=-16:LRA=11:TP=-1.5,"
             f"afade=t=in:st=0:d={fade_s},"
             f"afade=t=out:st={fade_out_starts[i]}:d={fade_s}"
             f"[{a_out}]"
@@ -185,8 +239,11 @@ def stitch_episode(output_dir: Path, fade_s: float = 0.5, black_s: float = 0.25)
 
     output_path = output_dir / "Complete Episode.mp4"
     tmp_out = output_dir / "Complete Episode._tmp.mp4"
+    resolved_video_encoder = _resolved_video_encoder(video_preset)
 
-    cmd = ["ffmpeg", "-hide_banner", "-nostats", "-loglevel", "error", "-y"]
+    # Default to showing progress so long stitches don't look "stuck".
+    # ffmpeg writes progress to stderr when `-stats` is enabled.
+    cmd = ["ffmpeg", "-hide_banner", "-stats", "-loglevel", "warning", "-y"]
     for p in inputs:
         cmd.extend(["-i", str(p)])
     cmd.extend(
@@ -197,23 +254,34 @@ def stitch_episode(output_dir: Path, fade_s: float = 0.5, black_s: float = 0.25)
             "[v]",
             "-map",
             "[a]",
-            "-c:v",
-            "libx264",
-            "-preset",
-            "fast",
-            "-crf",
-            "18",
             "-c:a",
             "aac",
             "-b:a",
             "320k",
-            str(tmp_out),
         ]
     )
+    _append_video_encoder_args(cmd, resolved_video_encoder, video_preset, quality_level=18)
+    cmd.extend([
+        "-pix_fmt",
+        "yuv420p",
+        "-profile:v",
+        "high",
+        "-movflags",
+        "+faststart",
+        str(tmp_out),
+    ])
 
-    p = subprocess.run(cmd, capture_output=True, text=True)
+    print("Stitching episode parts with ffmpeg (this can take a while for long interviews)...")
+    print(f"Video encoder: {video_encoder}")
+    if video_encoder == "auto":
+        print(f"Resolved encoder: {resolved_video_encoder}")
+    print(f"Video preset: {video_preset}")
+    p = subprocess.run(cmd, text=True)
     if p.returncode != 0:
-        raise RuntimeError(f"ffmpeg failed:\n{p.stderr.strip()}")
+        raise RuntimeError(
+            "ffmpeg failed. Re-run and watch ffmpeg output above; if it flashes by, "
+            "re-run from a console with scrollback and capture the error details."
+        )
 
     # Atomic-ish replace
     if output_path.exists():
@@ -223,12 +291,25 @@ def stitch_episode(output_dir: Path, fade_s: float = 0.5, black_s: float = 0.25)
     if not output_path.exists() or output_path.stat().st_size <= 0:
         raise RuntimeError(f"Output was not created or is empty: {output_path}")
 
+    _print_fade_in_marker_lines(infos, black_s)
+
     return output_path
 
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="Stitch Inkhaven episode parts into Complete Episode.mp4")
     ap.add_argument("--output-dir", required=True, help="Output folder containing the four required MP4 parts")
+    ap.add_argument(
+        "--video-encoder",
+        choices=VIDEO_ENCODER_CHOICES,
+        default=DEFAULT_VIDEO_ENCODER,
+        help="Video encoder for the stitched output. Defaults to auto hardware detection with libx264 fallback.",
+    )
+    ap.add_argument(
+        "--video-preset",
+        default=DEFAULT_STITCH_VIDEO_PRESET,
+        help=f"Preset for the selected video encoder (default: {DEFAULT_STITCH_VIDEO_PRESET})",
+    )
     args = ap.parse_args()
 
     out_dir = Path(args.output_dir).expanduser().resolve()
@@ -236,8 +317,15 @@ def main() -> int:
         print(f"Error: output dir not found: {out_dir}", file=sys.stderr)
         return 2
 
+    os.environ["PODCAST_DSL_VIDEO_ENCODER"] = args.video_encoder
+    os.environ["PODCAST_DSL_VIDEO_PRESET"] = args.video_preset
+
     try:
-        out_file = stitch_episode(out_dir)
+        out_file = stitch_episode(
+            out_dir,
+            video_encoder=args.video_encoder,
+            video_preset=_requested_video_preset(DEFAULT_STITCH_VIDEO_PRESET),
+        )
     except FileNotFoundError as e:
         print(str(e), file=sys.stderr)
         return 2
