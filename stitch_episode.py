@@ -67,6 +67,15 @@ def _run(cmd: list[str]) -> subprocess.CompletedProcess:
     return subprocess.run(cmd, capture_output=True, text=True)
 
 
+def _summarize_stderr(stderr_text: str, max_lines: int = 20) -> str:
+    lines = [line.rstrip() for line in (stderr_text or "").splitlines() if line.strip()]
+    if not lines:
+        return "(no stderr output)"
+    if len(lines) <= max_lines:
+        return "\n".join(lines)
+    return "\n".join(lines[:max_lines] + ["...", f"[truncated {len(lines) - max_lines} more lines]"])
+
+
 def _ffprobe_json(path: Path) -> dict:
     cmd = [
         "ffprobe",
@@ -84,6 +93,62 @@ def _ffprobe_json(path: Path) -> dict:
     import json
 
     return json.loads(p.stdout)
+
+
+def _validate_video_output(path: Path) -> None:
+    if not path.exists():
+        raise RuntimeError(f"Expected output file was not created: {path}")
+    if path.stat().st_size <= 0:
+        raise RuntimeError(f"Output file is empty: {path}")
+
+    stream_info = _ffprobe_json(path)
+    video_streams = [s for s in stream_info.get("streams", []) if s.get("codec_type") == "video"]
+    if not video_streams:
+        raise RuntimeError(f"No video stream found in {path}")
+
+    pix_fmt_cmd = [
+        "ffprobe",
+        "-v",
+        "error",
+        "-select_streams",
+        "v:0",
+        "-show_entries",
+        "stream=pix_fmt",
+        "-of",
+        "default=noprint_wrappers=1:nokey=1",
+        str(path),
+    ]
+    pix_fmt_result = _run(pix_fmt_cmd)
+    if pix_fmt_result.returncode != 0:
+        raise RuntimeError(
+            f"ffprobe could not inspect pixel format for {path}:\n"
+            f"{_summarize_stderr(pix_fmt_result.stderr)}"
+        )
+
+    pix_fmt = pix_fmt_result.stdout.strip().lower()
+    if not pix_fmt or pix_fmt == "unknown":
+        raise RuntimeError(f"Video stream in {path} has an invalid pixel format: {pix_fmt_result.stdout.strip()!r}")
+
+    decode_cmd = [
+        "ffmpeg",
+        "-v",
+        "error",
+        "-i",
+        str(path),
+        "-map",
+        "0:v:0",
+        "-frames:v",
+        "1",
+        "-f",
+        "null",
+        "-",
+    ]
+    decode_result = _run(decode_cmd)
+    if decode_result.returncode != 0:
+        raise RuntimeError(
+            f"Video stream decode validation failed for {path}:\n"
+            f"{_summarize_stderr(decode_result.stderr)}"
+        )
 
 
 def _get_media_info(path: Path) -> MediaInfo:
@@ -282,6 +347,8 @@ def stitch_episode(
             "ffmpeg failed. Re-run and watch ffmpeg output above; if it flashes by, "
             "re-run from a console with scrollback and capture the error details."
         )
+
+    _validate_video_output(tmp_out)
 
     # Atomic-ish replace
     if output_path.exists():

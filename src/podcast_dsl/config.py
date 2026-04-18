@@ -329,6 +329,27 @@ SEGMENT_CONFIG = {
         },
         'transcript_file': r'E:\PodcastRoom\Cursor\Inkhaven Decker\Output\interview_transcript_simplified.json',
     },
+    # Inkhaven Rusty — interview (Ben/Guest/Wide); paths absolute
+    '18': {
+        'audio_file': r'E:\PodcastRoom\Cursor\Inkhaven Rusty\Input\Audio.wav',
+        'audio_offset': 0,
+        'enable_color_match': False,
+        'video_files': {
+            'speaker_0': {
+                'file': r'E:\PodcastRoom\Cursor\Inkhaven Rusty\Input\Ben.mp4',
+                'offset': 0,
+            },
+            'speaker_1': {
+                'file': r'E:\PodcastRoom\Cursor\Inkhaven Rusty\Input\Guest.mp4',
+                'offset': 0,
+            },
+            'wide': {
+                'file': r'E:\PodcastRoom\Cursor\Inkhaven Rusty\Input\Wide.mp4',
+                'offset': 0,
+            },
+        },
+        'transcript_file': r'E:\PodcastRoom\Cursor\Inkhaven Rusty\output\interview_transcript_simplified.json',
+    },
 }
 
 

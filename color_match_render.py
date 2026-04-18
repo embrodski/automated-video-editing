@@ -163,6 +163,73 @@ def validate_inputs(reference: Path, targets: list[Path], output_dir: Path) -> N
     output_dir.mkdir(parents=True, exist_ok=True)
 
 
+def _summarize_stderr(stderr_text: str, max_lines: int = 20) -> str:
+    lines = [line.rstrip() for line in (stderr_text or "").splitlines() if line.strip()]
+    if not lines:
+        return "(no stderr output)"
+    if len(lines) <= max_lines:
+        return "\n".join(lines)
+    return "\n".join(lines[:max_lines] + ["...", f"[truncated {len(lines) - max_lines} more lines]"])
+
+
+def _validate_video_output(output_path: Path) -> None:
+    if not output_path.exists():
+        raise RuntimeError(f"Expected output file was not created: {output_path}")
+    if output_path.stat().st_size <= 0:
+        raise RuntimeError(f"Output file is empty: {output_path}")
+
+    probe_cmd = [
+        "ffprobe",
+        "-v",
+        "error",
+        "-select_streams",
+        "v:0",
+        "-show_entries",
+        "stream=codec_name,pix_fmt,width,height",
+        "-of",
+        "json",
+        str(output_path),
+    ]
+    probe_result = subprocess.run(probe_cmd, check=False, text=True, capture_output=True)
+    if probe_result.returncode != 0:
+        raise RuntimeError(
+            f"ffprobe could not inspect video stream for {output_path}:\n"
+            f"{_summarize_stderr(probe_result.stderr)}"
+        )
+
+    info = json.loads(probe_result.stdout or "{}")
+    streams = info.get("streams", [])
+    if not streams:
+        raise RuntimeError(f"No video stream found in {output_path}")
+
+    pix_fmt = str(streams[0].get("pix_fmt") or "").strip().lower()
+    if not pix_fmt or pix_fmt == "unknown":
+        raise RuntimeError(
+            f"Video stream in {output_path} has an invalid pixel format: {streams[0].get('pix_fmt')!r}"
+        )
+
+    decode_cmd = [
+        "ffmpeg",
+        "-v",
+        "error",
+        "-i",
+        str(output_path),
+        "-map",
+        "0:v:0",
+        "-frames:v",
+        "1",
+        "-f",
+        "null",
+        "-",
+    ]
+    decode_result = subprocess.run(decode_cmd, check=False, text=True, capture_output=True)
+    if decode_result.returncode != 0:
+        raise RuntimeError(
+            f"Video stream decode validation failed for {output_path}:\n"
+            f"{_summarize_stderr(decode_result.stderr)}"
+        )
+
+
 def _normalized_selector(value: str) -> str:
     return value.strip().lower()
 
@@ -394,6 +461,10 @@ def render_target(
     video_preset: str,
     apply_1080p_downscale: bool,
 ) -> None:
+    temp_output_path = output_path.with_name(f"{output_path.stem}._tmp{output_path.suffix}")
+    if temp_output_path.exists():
+        temp_output_path.unlink()
+
     cmd = ffmpeg_cmd_base() + ['-i', str(target)]
     if vf:
         output_filter = _build_output_filter(
@@ -426,13 +497,13 @@ def render_target(
             value = video_settings.get(probe_key)
             if value and value != 'unknown':
                 cmd.extend([ffmpeg_key, value])
-        cmd.append(str(output_path))
+        cmd.append(str(temp_output_path))
     else:
         cmd.extend([
             '-map', '0:v:0',
             '-map', '0:a?',
             '-c', 'copy',
-            str(output_path),
+            str(temp_output_path),
         ])
 
     result = subprocess.run(cmd, check=False, text=True, capture_output=True)
@@ -440,6 +511,15 @@ def render_target(
         raise RuntimeError(
             f"ffmpeg failed for {target} -> {output_path}:\n{result.stderr.strip()}"
         )
+
+    try:
+        _validate_video_output(temp_output_path)
+        if output_path.exists():
+            output_path.unlink()
+        temp_output_path.replace(output_path)
+    finally:
+        if temp_output_path.exists():
+            temp_output_path.unlink()
 
 
 def main() -> None:

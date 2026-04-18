@@ -84,6 +84,13 @@ def parse_args() -> argparse.Namespace:
         default=5.0,
         help="Minimum wide span duration in seconds (default: 5.0)",
     )
+    parser.add_argument(
+        "--final-shot-tail-sec",
+        type=float,
+        default=2.0,
+        help="Extend the final shot this many seconds past the last word if possible "
+             "(default: 2.0). If media ends sooner, the renderer will naturally stop at EOF.",
+    )
     return parser.parse_args()
 
 
@@ -187,6 +194,32 @@ def _spans_to_override_map(spans: List[Tuple[int, int]]) -> Dict[int, int]:
     return m
 
 
+def _row_comment(row: Row, *, include_fallback_speaker: bool) -> str:
+    text = row.text.strip().replace("\n", " ")
+    if row.speaker_name:
+        return f"{row.speaker_name}: {text}"
+    if include_fallback_speaker:
+        fallback = "Speaker 0" if row.speaker_id == 0 else "Speaker 1"
+        return f"{fallback}: {text}"
+    return text
+
+
+def _row_segment_line(
+    row: Row,
+    segment_num: str,
+    *,
+    include_fallback_speaker: bool,
+    is_last: bool,
+    final_shot_tail_sec: float,
+) -> str:
+    segment_ref = f"$segment{segment_num}/{row.idx}"
+    if is_last and final_shot_tail_sec > 0:
+        slice_end = (row.end - row.start) + final_shot_tail_sec
+        segment_ref = f"{segment_ref} slice(:{slice_end:.3f})"
+    comment = _row_comment(row, include_fallback_speaker=include_fallback_speaker)
+    return f"{segment_ref} // {comment}"
+
+
 def main() -> int:
     args = parse_args()
 
@@ -203,11 +236,17 @@ def main() -> int:
     lines: List[str] = []
 
     if args.no_cameras:
-        for r in rows:
-            text = r.text.strip().replace("\n", " ")
-            speaker_name = r.speaker_name
-            comment = f" // {speaker_name}: {text}" if speaker_name else f" // {text}"
-            lines.append(f"$segment{segment_num}/{r.idx}{comment}")
+        last_idx = len(rows) - 1
+        for idx, r in enumerate(rows):
+            lines.append(
+                _row_segment_line(
+                    r,
+                    segment_num,
+                    include_fallback_speaker=False,
+                    is_last=idx == last_idx,
+                    final_shot_tail_sec=float(args.final_shot_tail_sec),
+                )
+            )
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
         print(f"Wrote {len(lines)} DSL lines to {output_path}")
@@ -231,6 +270,7 @@ def main() -> int:
     lines.append("")
 
     current_cam: Optional[str] = None
+    last_idx = len(rows) - 1
     i = 0
     while i < len(rows):
         r = rows[i]
@@ -242,10 +282,15 @@ def main() -> int:
 
             for j in range(i, end_i):
                 rr = rows[j]
-                speaker_name = rr.speaker_name
-                who = speaker_name if speaker_name else ("Speaker 0" if rr.speaker_id == 0 else "Speaker 1")
-                text = rr.text.strip().replace("\n", " ")
-                lines.append(f"$segment{segment_num}/{rr.idx} // {who}: {text}")
+                lines.append(
+                    _row_segment_line(
+                        rr,
+                        segment_num,
+                        include_fallback_speaker=True,
+                        is_last=j == last_idx,
+                        final_shot_tail_sec=float(args.final_shot_tail_sec),
+                    )
+                )
 
             # Return to intended camera for the first sentence after the wide span.
             i = end_i
@@ -261,10 +306,15 @@ def main() -> int:
             lines.append(f"!camera {intended}")
             current_cam = intended
 
-        speaker_name = r.speaker_name
-        who = speaker_name if speaker_name else ("Speaker 0" if r.speaker_id == 0 else "Speaker 1")
-        text = r.text.strip().replace("\n", " ")
-        lines.append(f"$segment{segment_num}/{r.idx} // {who}: {text}")
+        lines.append(
+            _row_segment_line(
+                r,
+                segment_num,
+                include_fallback_speaker=True,
+                is_last=i == last_idx,
+                final_shot_tail_sec=float(args.final_shot_tail_sec),
+            )
+        )
         i += 1
 
     output_path.parent.mkdir(parents=True, exist_ok=True)

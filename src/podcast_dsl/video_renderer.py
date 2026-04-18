@@ -232,6 +232,78 @@ def _get_video_dimensions(video_file: str) -> Tuple[int, int]:
     return int(stream['width']), int(stream['height'])
 
 
+def _summarize_stderr(stderr_text: str, max_lines: int = 20) -> str:
+    lines = [line.rstrip() for line in (stderr_text or "").splitlines() if line.strip()]
+    if not lines:
+        return "(no stderr output)"
+    if len(lines) <= max_lines:
+        return "\n".join(lines)
+    return "\n".join(lines[:max_lines] + ["...", f"[truncated {len(lines) - max_lines} more lines]"])
+
+
+def _validate_video_stream(video_file: str) -> None:
+    if not os.path.exists(video_file):
+        raise RuntimeError(f"Expected output file was not created: {video_file}")
+    if os.path.getsize(video_file) <= 0:
+        raise RuntimeError(f"Output file is empty: {video_file}")
+
+    probe_cmd = [
+        'ffprobe', '-v', 'error',
+        '-select_streams', 'v:0',
+        '-show_entries', 'stream=codec_name,pix_fmt,width,height',
+        '-of', 'json',
+        video_file,
+    ]
+    probe_result = subprocess.run(
+        probe_cmd,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if probe_result.returncode != 0:
+        raise RuntimeError(
+            f"ffprobe could not inspect video stream for {video_file}:\n"
+            f"{_summarize_stderr(probe_result.stderr)}"
+        )
+
+    try:
+        probe_info = json.loads(probe_result.stdout or "{}")
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"ffprobe returned invalid JSON for {video_file}: {exc}") from exc
+
+    streams = probe_info.get('streams', [])
+    if not streams:
+        raise RuntimeError(f"No video stream found in {video_file}")
+
+    stream = streams[0]
+    pix_fmt = str(stream.get('pix_fmt') or '').strip().lower()
+    if not pix_fmt or pix_fmt == 'unknown':
+        raise RuntimeError(
+            f"Video stream in {video_file} has an invalid pixel format: {stream.get('pix_fmt')!r}"
+        )
+
+    decode_cmd = [
+        'ffmpeg', '-v', 'error',
+        '-i', video_file,
+        '-map', '0:v:0',
+        '-frames:v', '1',
+        '-f', 'null',
+        '-',
+    ]
+    decode_result = subprocess.run(
+        decode_cmd,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+        text=True,
+        check=False,
+    )
+    if decode_result.returncode != 0:
+        raise RuntimeError(
+            f"Video stream decode validation failed for {video_file}:\n"
+            f"{_summarize_stderr(decode_result.stderr)}"
+        )
+
+
 @lru_cache(maxsize=None)
 def _get_segment_target_resolution(segment_num: str) -> Tuple[int, int]:
     """
@@ -1834,8 +1906,15 @@ def _render_dsl_from_commands(commands: List, output_file: str, dsl_file: str = 
 
         # Final conversion to AAC/MP4
         print(f"\nConverting to final AAC/MP4 format...")
+        final_output_tmp = output_file + '.finalizing.mp4'
+        if os.path.exists(final_output_tmp):
+            os.unlink(final_output_tmp)
         cmd = _ffmpeg_cmd_base() + [
             '-i', intermediate_file,
+            '-map', '0:v:0',
+            '-map', '0:a:0?',
+            '-dn',
+            '-sn',
             # Intermediates may be H.264 4:4:4 / yuv444p depending on source filters.
             # Re-encode here for broad player compatibility (Windows Movies & TV, etc.).
             '-profile:v', 'high',
@@ -1851,8 +1930,36 @@ def _render_dsl_from_commands(commands: List, output_file: str, dsl_file: str = 
             _requested_video_preset('fast'),
             quality_level=18,
         )
-        cmd.append(output_file)
-        subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        cmd.append(final_output_tmp)
+        result = subprocess.run(cmd, check=False, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
+
+        if result.returncode != 0:
+            raise RuntimeError(
+                "Final AAC/MP4 conversion failed.\n"
+                f"Input: {intermediate_file}\n"
+                f"Output: {final_output_tmp}\n"
+                f"{_summarize_stderr(result.stderr)}"
+            )
+
+        try:
+            _validate_video_stream(final_output_tmp)
+        except Exception as final_exc:
+            print(
+                "Warning: final compatibility transcode produced an invalid video stream; "
+                "falling back to the validated intermediate file.",
+                file=sys.stderr,
+            )
+            _validate_video_stream(intermediate_file)
+            if os.path.exists(output_file):
+                os.unlink(output_file)
+            shutil.copy2(intermediate_file, output_file)
+        else:
+            if os.path.exists(output_file):
+                os.unlink(output_file)
+            shutil.move(final_output_tmp, output_file)
+        finally:
+            if os.path.exists(final_output_tmp):
+                os.unlink(final_output_tmp)
 
         # Clean up intermediate file
         if os.path.exists(intermediate_file):
