@@ -6,7 +6,7 @@ Inputs (must exist in output dir):
   - Intro.mp4
   - Reading.mp4
   - Edited Interview.mp4
-  - Inkhaven Presents Closing.mp4
+  - Closing.mp4
 
 Processing:
   - 0.5s fade-in + 0.5s fade-out on EACH clip (video + audio)
@@ -45,13 +45,15 @@ REQUIRED_FILES = [
     "Intro.mp4",
     "Reading.mp4",
     "Edited Interview.mp4",
-    "Inkhaven Presents Closing.mp4",
+    "Closing.mp4",
 ]
 
 # One-word labels for stdout markers (closing segment = Sponsor).
 FADE_IN_MARKER_LABELS = ("Intro", "Reading", "Interview", "Sponsor")
 VIDEO_ENCODER_CHOICES = ("auto", "libx264", "h264_nvenc", "h264_qsv", "h264_amf")
-DEFAULT_STITCH_VIDEO_PRESET = "fast"
+# Match podcast_dsl clip-stage and color_match_render defaults.
+DEFAULT_STITCH_VIDEO_PRESET = "ultrafast"
+DEFAULT_STITCH_VIDEO_QUALITY = 23
 
 
 @dataclass(frozen=True)
@@ -222,6 +224,7 @@ def stitch_episode(
     *,
     video_encoder: str,
     video_preset: str,
+    video_quality: int,
 ) -> Path:
     missing = [name for name in REQUIRED_FILES if not (output_dir / name).exists()]
     if missing:
@@ -325,7 +328,9 @@ def stitch_episode(
             "320k",
         ]
     )
-    _append_video_encoder_args(cmd, resolved_video_encoder, video_preset, quality_level=18)
+    _append_video_encoder_args(
+        cmd, resolved_video_encoder, video_preset, quality_level=video_quality
+    )
     cmd.extend([
         "-pix_fmt",
         "yuv420p",
@@ -341,6 +346,7 @@ def stitch_episode(
     if video_encoder == "auto":
         print(f"Resolved encoder: {resolved_video_encoder}")
     print(f"Video preset: {video_preset}")
+    print(f"Video quality: {video_quality}")
     p = subprocess.run(cmd, text=True)
     if p.returncode != 0:
         raise RuntimeError(
@@ -375,7 +381,20 @@ def main() -> int:
     ap.add_argument(
         "--video-preset",
         default=DEFAULT_STITCH_VIDEO_PRESET,
-        help=f"Preset for the selected video encoder (default: {DEFAULT_STITCH_VIDEO_PRESET})",
+        help=(
+            "Preset for the selected video encoder; maps like podcast_dsl "
+            f"(default: {DEFAULT_STITCH_VIDEO_PRESET})"
+        ),
+    )
+    ap.add_argument(
+        "--video-quality",
+        type=int,
+        default=DEFAULT_STITCH_VIDEO_QUALITY,
+        metavar="N",
+        help=(
+            "libx264 CRF / NVENC CQ / QSV global_quality / AMF qvbr_quality_level "
+            f"(default: {DEFAULT_STITCH_VIDEO_QUALITY})"
+        ),
     )
     args = ap.parse_args()
 
@@ -391,7 +410,8 @@ def main() -> int:
         out_file = stitch_episode(
             out_dir,
             video_encoder=args.video_encoder,
-            video_preset=_requested_video_preset(DEFAULT_STITCH_VIDEO_PRESET),
+            video_preset=_requested_video_preset(args.video_preset),
+            video_quality=args.video_quality,
         )
     except FileNotFoundError as e:
         print(str(e), file=sys.stderr)

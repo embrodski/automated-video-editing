@@ -4,11 +4,11 @@ Generate a podcast_dsl timeline from a simplified transcript JSON.
 
 Adds an optional "dense cuts -> wide" rule:
 - Define "cut" as a camera change (speaker_0 <-> speaker_1) at a sentence boundary.
-- If there would be >1 cut within any rolling 5-second window (i.e. at least two cuts less
-  than 5 seconds apart), replace that region with a single wide shot.
-- Wide spans are sentence-aligned and must last at least 5 seconds.
+- If there would be >1 cut within any rolling 3-second window (i.e. at least two cuts less
+  than 3 seconds apart), replace that region with a single wide shot.
+- Wide spans are sentence-aligned and must last at least 3 seconds.
 - After wide ends, return to the intended camera of the first sentence after the span.
-- Exception: if there's another cut within 5 seconds of the wide span end, extend the wide
+- Exception: if there's another cut within 3 seconds of the wide span end, extend the wide
   to that cut boundary; repeat until no such cut exists.
 """
 
@@ -76,8 +76,8 @@ def _camera_cut_boundaries(rows: List[Row], cams: List[str]) -> List[Tuple[float
 def _find_wide_spans(
     rows: List[Row],
     cams: List[str],
-    window_sec: float = 5.0,
-    min_wide_sec: float = 5.0,
+    window_sec: float = 3.0,
+    min_wide_sec: float = 3.0,
 ) -> List[Tuple[int, int]]:
     """
     Compute sentence-aligned wide spans as (start_sentence_index, end_sentence_index),
@@ -236,8 +236,8 @@ def parse_args() -> argparse.Namespace:
 
     p.add_argument("--wide-on-dense-cuts", action="store_true", help="Enable dense-cut wide rule")
     p.add_argument("--wide-camera", default="wide", help="Camera name to use for forced wide (default: wide)")
-    p.add_argument("--cut-window-sec", type=float, default=5.0, help="Rolling window size in seconds (default: 5)")
-    p.add_argument("--min-wide-sec", type=float, default=5.0, help="Minimum wide duration in seconds (default: 5)")
+    p.add_argument("--cut-window-sec", type=float, default=3.0, help="Rolling window size in seconds (default: 3)")
+    p.add_argument("--min-wide-sec", type=float, default=3.0, help="Minimum wide duration in seconds (default: 3)")
     return p.parse_args()
 
 

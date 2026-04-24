@@ -5,6 +5,12 @@ CLI entry point for podcast DSL renderer.
 
 import argparse
 import os
+import subprocess
+import sys
+import time
+from pathlib import Path
+from typing import List
+
 from .video_renderer import (
     DEFAULT_VIDEO_ENCODER,
     VIDEO_DOWNSCALE_4K_ENV,
@@ -35,6 +41,9 @@ Examples:
 
   # Test rendering from middle (skip 10 clips, render next 5 clips)
   python -m podcast_dsl segment_2_test.dsl --skip 10 --limit 5 -o test.mp4
+
+  # After a full render, also produce Ben/Guest/Wide single-camera variants (sequential)
+  python -m podcast_dsl interview.dsl -o outputs/Full Interview.mp4 --massive
         """
     )
     parser.add_argument('dsl_file', nargs='?', default='-',
@@ -77,11 +86,33 @@ Examples:
         action='store_true',
         help='Downscale targets above 1080p to 1920x1080 for faster renders.',
     )
+    parser.add_argument(
+        '--massive',
+        action='store_true',
+        help=(
+            'After this render completes, run massive_renderer.py: write Ben Render.dsl/mp4, '
+            'Guest Render.dsl/mp4, and Wide Render.dsl/mp4 (same timeline, single camera each) '
+            'sequentially (Ben, then Guest, then Wide) into the same directory as -o. '
+            'Requires a real DSL file path; not compatible with stdin, --render-all-cams, or '
+            '--skip/--limit/--max-seconds.'
+        ),
+    )
 
     args = parser.parse_args()
 
     if args.auto_cuts and args.auto_cuts_legacy:
         parser.error('Use only one of --auto-cuts and --auto-cuts-legacy')
+
+    if args.massive:
+        if args.dsl_file == '-':
+            parser.error('--massive requires a DSL file path (stdin is not supported)')
+        if args.render_all_cams:
+            parser.error('--massive is not compatible with --render-all-cams')
+        if args.skip > 0 or args.limit is not None or args.max_seconds is not None:
+            parser.error(
+                '--massive is not compatible with --skip, --limit, or --max-seconds '
+                '(variants always use the full DSL on disk; run massive_renderer.py separately for partial tests)'
+            )
 
     os.environ[VIDEO_ENCODER_ENV] = args.video_encoder
     if args.video_preset:
@@ -100,19 +131,93 @@ Examples:
                        skip_clips=args.skip, limit_clips=args.limit, max_seconds=args.max_seconds, debug=args.debug,
                        num_workers=args.workers, margin=args.margin)
     else:
-        render_dsl(
-            args.dsl_file,
-            args.output,
-            dry_run=args.dry_run,
-            auto_cuts=args.auto_cuts or args.auto_cuts_legacy,
-            auto_cuts_legacy=args.auto_cuts_legacy,
-            skip_clips=args.skip,
-            limit_clips=args.limit,
-            max_seconds=args.max_seconds,
-            debug=args.debug,
-            num_workers=args.workers,
-            margin=args.margin,
+        def _do_render():
+            render_dsl(
+                args.dsl_file,
+                args.output,
+                dry_run=args.dry_run,
+                auto_cuts=args.auto_cuts or args.auto_cuts_legacy,
+                auto_cuts_legacy=args.auto_cuts_legacy,
+                skip_clips=args.skip,
+                limit_clips=args.limit,
+                max_seconds=args.max_seconds,
+                debug=args.debug,
+                num_workers=args.workers,
+                margin=args.margin,
+            )
+
+        try:
+            _do_render()
+        except BaseException as exc:
+            # Default behavior: loudly surface crashes, then try one clean rerender from scratch.
+            #
+            # This is intentionally conservative (only one retry) to avoid infinite loops for
+            # deterministic failures (bad input media, bad DSL, etc.).
+            print(
+                "\nERROR: Render crashed.\n"
+                f"  Output target: {args.output}\n"
+                f"  Exception: {type(exc).__name__}: {exc}\n"
+                "\nRetrying once from scratch (this is automatic default behavior).\n",
+                file=sys.stderr,
+            )
+
+            if not args.dry_run:
+                out_path = Path(args.output)
+                # Try to remove partial outputs so the retry is a true from-scratch render.
+                for suffix in ('.finalizing.mp4', '.intermediate.mp4', '.concat.mp4'):
+                    try:
+                        p = Path(str(out_path) + suffix)
+                        if p.exists():
+                            p.unlink()
+                    except Exception:
+                        pass
+                try:
+                    if out_path.exists():
+                        out_path.unlink()
+                except Exception:
+                    pass
+
+            time.sleep(2.0)
+            _do_render()
+
+    if args.massive:
+        repo_root = Path(__file__).resolve().parents[2]
+        massive_script = repo_root / 'massive_renderer.py'
+        if not massive_script.is_file():
+            print(f'Error: {massive_script} not found; cannot run --massive.', file=sys.stderr)
+            raise SystemExit(2)
+
+        dsl_path = Path(args.dsl_file).resolve()
+        out_path = Path(args.output).resolve()
+        out_dir = out_path.parent
+
+        cmd: List[str] = [
+            sys.executable,
+            str(massive_script),
+            str(dsl_path),
+            '--output-dir',
+            str(out_dir),
+            '--repo-src',
+            str(repo_root / 'src'),
+            '--workers',
+            str(args.workers),
+        ]
+        if args.downscale_4k_to_1080p:
+            cmd.append('--downscale-4k-to-1080p')
+        if args.video_encoder:
+            cmd.extend(['--video-encoder', args.video_encoder])
+        if args.video_preset:
+            cmd.extend(['--video-preset', args.video_preset])
+        if args.dry_run:
+            cmd.append('--dry-run')
+
+        print(
+            '\n--massive: generating Ben/Guest/Wide single-camera DSLs and '
+            'rendering sequentially (Ben -> Guest -> Wide)...\n'
         )
+        result = subprocess.run(cmd, cwd=str(repo_root), check=False)
+        if result.returncode != 0:
+            raise SystemExit(result.returncode)
 
 
 if __name__ == '__main__':

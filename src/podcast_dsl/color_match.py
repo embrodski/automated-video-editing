@@ -35,14 +35,19 @@ def probe_mean_signalstats_at_offset(
     start_seconds: float = 0.0,
     sample_seconds: float = 8.0,
     max_frames: int = 240,
+    vf_prefix: str = "",
 ) -> Tuple[float, float, float]:
     """
     Estimate mean Y/U/V averages for a video using ffmpeg signalstats on a short sample.
 
     The sample is measured on the center crop so framing differences and
     letterboxing do not dominate the statistic.
+
+    Optional ``vf_prefix`` is prepended before the crop (e.g. scale-to-1080p so
+    analysis matches a downscale-first render pipeline).
     """
-    vf = "crop=iw*0.6:ih*0.6:(iw-ow)/2:(ih-oh)/2,signalstats,metadata=print:file=-"
+    crop_chain = "crop=iw*0.6:ih*0.6:(iw-ow)/2:(ih-oh)/2,signalstats,metadata=print:file=-"
+    vf = f"{vf_prefix},{crop_chain}" if vf_prefix else crop_chain
     cmd = ffmpeg_cmd_base() + [
         '-ss', str(max(0.0, start_seconds)),
         '-i', video_file,
@@ -93,6 +98,7 @@ def probe_mean_yavg_at_offset(
     start_seconds: float = 0.0,
     sample_seconds: float = 8.0,
     max_frames: int = 240,
+    vf_prefix: str = "",
 ) -> float:
     """
     Estimate mean luma (YAVG) for a video using ffmpeg signalstats on a short sample.
@@ -102,12 +108,19 @@ def probe_mean_yavg_at_offset(
         start_seconds=start_seconds,
         sample_seconds=sample_seconds,
         max_frames=max_frames,
+        vf_prefix=vf_prefix,
     )
     return yavg
 
 
 @lru_cache(maxsize=None)
-def probe_mean_yavg(video_file: str, *, sample_seconds: float = 8.0, max_frames: int = 240) -> float:
+def probe_mean_yavg(
+    video_file: str,
+    *,
+    sample_seconds: float = 8.0,
+    max_frames: int = 240,
+    vf_prefix: str = "",
+) -> float:
     """
     Estimate mean luma (YAVG) for a video using the start of the file.
 
@@ -118,6 +131,7 @@ def probe_mean_yavg(video_file: str, *, sample_seconds: float = 8.0, max_frames:
         start_seconds=0.0,
         sample_seconds=sample_seconds,
         max_frames=max_frames,
+        vf_prefix=vf_prefix,
     )
 
 
@@ -128,6 +142,7 @@ def probe_mean_signalstats_multi(
     sample_seconds: float = 8.0,
     max_frames: int = 240,
     sample_offsets: Tuple[float, ...] = (0.0, 1 / 3, 2 / 3),
+    vf_prefix: str = "",
 ) -> Tuple[float, float, float]:
     """
     Estimate mean Y/U/V across multiple windows distributed through the file.
@@ -150,6 +165,7 @@ def probe_mean_signalstats_multi(
             start_seconds=start,
             sample_seconds=sample_seconds,
             max_frames=max_frames,
+            vf_prefix=vf_prefix,
         )
         for start in starts
     ]
@@ -168,6 +184,7 @@ def probe_mean_yavg_multi(
     sample_seconds: float = 8.0,
     max_frames: int = 240,
     sample_offsets: Tuple[float, ...] = (0.0, 1 / 3, 2 / 3),
+    vf_prefix: str = "",
 ) -> float:
     """
     Estimate mean luma across multiple windows distributed through the file.
@@ -179,6 +196,7 @@ def probe_mean_yavg_multi(
         sample_seconds=sample_seconds,
         max_frames=max_frames,
         sample_offsets=sample_offsets,
+        vf_prefix=vf_prefix,
     )
     return yavg
 
@@ -288,6 +306,7 @@ def build_color_match_vf(
     sample_seconds: float = 8.0,
     max_frames: int = 240,
     sample_offsets: Optional[Tuple[float, ...]] = None,
+    analysis_vf_prefix: str = "",
     strength: float = 1.0,
     gamma_scale: float = 1.0,
     brightness_scale: float = 1.0,
@@ -305,17 +324,24 @@ def build_color_match_vf(
     saturation_max: float = 1.18,
     vibrance_max: float = 0.45,
 ) -> str:
-    """Probe both files and build a filter snippet for the target."""
+    """
+    Probe both files and build a filter snippet for the target.
+
+    When rendering with a downscale-first pipeline, pass the same leading scale/pad
+    chain used at encode time as ``analysis_vf_prefix`` so probes match geometry.
+    """
     if sample_offsets is None:
         reference_yavg = probe_mean_yavg(
             reference_file,
             sample_seconds=sample_seconds,
             max_frames=max_frames,
+            vf_prefix=analysis_vf_prefix,
         )
         target_yavg = probe_mean_yavg(
             target_file,
             sample_seconds=sample_seconds,
             max_frames=max_frames,
+            vf_prefix=analysis_vf_prefix,
         )
         reference_uavg = target_uavg = reference_vavg = target_vavg = None
     else:
@@ -324,12 +350,14 @@ def build_color_match_vf(
             sample_seconds=sample_seconds,
             max_frames=max_frames,
             sample_offsets=sample_offsets,
+            vf_prefix=analysis_vf_prefix,
         )
         target_yavg, target_uavg, target_vavg = probe_mean_signalstats_multi(
             target_file,
             sample_seconds=sample_seconds,
             max_frames=max_frames,
             sample_offsets=sample_offsets,
+            vf_prefix=analysis_vf_prefix,
         )
     return build_color_match_vf_from_yavg(
         reference_yavg,

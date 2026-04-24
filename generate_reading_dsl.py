@@ -94,6 +94,30 @@ class RowMatch:
     a_end: Optional[int]
     similarity: float
     off_script: bool = False
+    keep_anyway: bool = False
+
+
+_VISUAL_CALLOUT_RE = re.compile(
+    r"\b("
+    r"here(?:'s| is)|there(?:'s| is)|this is|you can see|as you can see|"
+    r"on (?:the )?screen|on (?:the )?page|in (?:the )?article"
+    r")\b.*\b("
+    r"diagram|chart|graph|figure|map|photo|image|picture|table|video|clip"
+    r")\b",
+    re.I,
+)
+
+
+def is_visual_callout_sentence(text: str) -> bool:
+    """Return True if the sentence is a likely 'visual callout' the reader says while reading.
+
+    These are not always present in the canonical article text (often they refer to a figure
+    embedded in the page), but we still want to keep them in the reading cut.
+    """
+    t = (text or "").strip()
+    if not t:
+        return False
+    return bool(_VISUAL_CALLOUT_RE.search(t))
 
 
 @dataclass
@@ -309,6 +333,27 @@ def align_rows(
             matches.append(RowMatch(row=row, a_start=None, a_end=None, similarity=0.0, off_script=True))
             continue
 
+        # Reading exception: keep "visual callout" sentences even if they are not
+        # part of the canonical article text.
+        if (
+            row.speaker_id == reader_speaker_id
+            and row.idx not in force_drop
+            and row.idx not in force_keep
+            and is_visual_callout_sentence(row.text)
+        ):
+            matches.append(RowMatch(
+                row=row,
+                a_start=None,
+                a_end=None,
+                similarity=0.0,
+                off_script=False,
+                keep_anyway=True,
+            ))
+            continue
+
+        # First try a windowed search around the last good match to avoid spurious
+        # far-away matches. Only fall back to a full search if the hint search
+        # fails to produce any match at all.
         a_start, a_end, score = best_multi_match(
             row, article, max_span=max_span, start_hint=last_good_a_start,
         )
@@ -475,6 +520,12 @@ def select_kept(
     kept_reversed: List[RowMatch] = []
     selection_notes: List[str] = []
     for m in reversed(matches):
+        if m.keep_anyway or m.row.idx in force_keep:
+            # Keep forced/exception rows in transcript order without affecting
+            # the article-coverage rewind logic.
+            if not m.off_script:
+                kept_reversed.append(m)
+            continue
         if m.a_start is None:
             continue
         if m.a_start < last_a_start:
@@ -852,21 +903,16 @@ def build_sanity_report(
         "article_chunks": len(article),
         "covered_chunks": covered_chunks,
         "selection_notes": selection_notes,
-        "blocking_issues": [
-            {
-                "kind": "internal_missing_chunk",
-                "idx": idx,
-                "text": article[idx].text,
-            }
-            for idx in internal_missing
-        ],
+        # Missing chunks are allowed: the reader may skip sentences (including captions),
+        # and the canonical article text may contain lines that were not spoken aloud.
+        "blocking_issues": [],
         "warnings": [
             {
-                "kind": "trailing_missing_chunk",
+                "kind": "missing_chunk",
                 "idx": idx,
                 "text": article[idx].text,
             }
-            for idx in trailing_missing
+            for idx in missing
         ],
         "summary": {
             "covered_count": len(covered_chunks),

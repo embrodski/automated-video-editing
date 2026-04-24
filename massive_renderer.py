@@ -1,0 +1,233 @@
+#!/usr/bin/env python3
+"""
+Generate and render single-camera variants of an existing Podcast DSL.
+
+This is meant for one-off experiments where you want the *exact same timeline*
+as an existing DSL, but with all camera cuts forced to a single camera.
+
+By default the three derived encodes (Ben / Guest / Wide) run **sequentially**
+to keep CPU/GPU and disk load predictable; order is Ben, then Guest, then Wide.
+"""
+
+from __future__ import annotations
+
+import argparse
+import subprocess
+import sys
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Iterable, List, Optional, Tuple
+
+
+CAMERAS = ("speaker_0", "speaker_1", "wide")
+
+
+def _strip_inline_comment(line: str) -> str:
+    if "//" not in line:
+        return line
+    return line.split("//", 1)[0]
+
+
+def force_single_camera_dsl_text(dsl_text: str, camera: str) -> str:
+    """
+    Remove all '!camera ...' commands and insert a single '!camera {camera}'.
+    Keeps everything else identical (segment commands, fades, cut padding, audio overlays, black clips, comments).
+    """
+    if camera not in CAMERAS:
+        raise ValueError(f"Unsupported camera {camera!r}. Expected one of {', '.join(CAMERAS)}.")
+
+    lines = dsl_text.splitlines(keepends=False)
+
+    # Remove camera commands (respect leading whitespace; ignore trailing comments).
+    kept: List[str] = []
+    for raw in lines:
+        stripped = _strip_inline_comment(raw).strip()
+        if stripped.startswith("!camera "):
+            continue
+        kept.append(raw)
+
+    # Insert forced camera after any leading blank/comment-only lines for readability.
+    insert_at = 0
+    for i, raw in enumerate(kept):
+        s = raw.strip()
+        if not s:
+            continue
+        if s.startswith("//"):
+            continue
+        insert_at = i
+        break
+    else:
+        insert_at = len(kept)
+
+    kept.insert(insert_at, f"!camera {camera}")
+    # Always end with newline for nicer diffs/tooling.
+    return "\n".join(kept).rstrip("\n") + "\n"
+
+
+def _read_text(path: Path) -> str:
+    return path.read_text(encoding="utf-8")
+
+
+def _write_text(path: Path, text: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
+
+
+@dataclass(frozen=True)
+class RenderJob:
+    name: str
+    camera: str
+    dsl_path: Path
+    out_path: Path
+
+
+def _run_render_job(
+    job: RenderJob,
+    *,
+    repo_src_dir: Path,
+    workers: int,
+    video_encoder: Optional[str],
+    video_preset: Optional[str],
+    downscale_4k_to_1080p: bool,
+    dry_run: bool,
+) -> Tuple[RenderJob, int]:
+    """
+    Run: python -m podcast_dsl <dsl> -o <out> --workers N [encoder flags]
+    """
+    cmd: List[str] = [
+        sys.executable,
+        "-m",
+        "podcast_dsl",
+        str(job.dsl_path),
+        "-o",
+        str(job.out_path),
+        "--workers",
+        str(workers),
+    ]
+    if dry_run:
+        cmd.append("--dry-run")
+    if downscale_4k_to_1080p:
+        cmd.append("--downscale-4k-to-1080p")
+    if video_encoder:
+        cmd.extend(["--video-encoder", video_encoder])
+    if video_preset:
+        cmd.extend(["--video-preset", video_preset])
+
+    proc = subprocess.run(cmd, cwd=str(repo_src_dir), check=False)
+    return job, int(proc.returncode)
+
+
+def _parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
+    p = argparse.ArgumentParser(
+        description=(
+            "Create 3 single-camera DSL variants (speaker_0 / speaker_1 / wide) "
+            "from a base DSL and render them sequentially: Ben, then Guest, then Wide."
+        )
+    )
+    p.add_argument("base_dsl", help="Path to the base DSL (the normal multi-cam episode DSL).")
+    p.add_argument(
+        "--output-dir",
+        required=True,
+        help="Folder to write the 3 derived DSL files and the 3 MP4 outputs.",
+    )
+    p.add_argument(
+        "--repo-src",
+        default=str(Path(__file__).resolve().parent / "src"),
+        help='Path to the repo "src" folder (default: <repo>/src).',
+    )
+    p.add_argument("--workers", type=int, default=6, help="Workers per render (default: 6).")
+    p.add_argument(
+        "--video-encoder",
+        choices=["auto", "libx264", "h264_nvenc", "h264_qsv", "h264_amf"],
+        default=None,
+        help="Optional encoder override (defaults to podcast_dsl default).",
+    )
+    p.add_argument("--video-preset", default=None, help="Optional encoder preset override.")
+    p.add_argument(
+        "--downscale-4k-to-1080p",
+        action="store_true",
+        help="Downscale sources above 1080p to 1080p for faster renders.",
+    )
+    p.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Pass --dry-run through to podcast_dsl (no video output).",
+    )
+    p.add_argument(
+        "--ben-name",
+        default="Ben Render",
+        help='Output base name for the speaker_0 render (default: "Ben Render").',
+    )
+    p.add_argument(
+        "--guest-name",
+        default="Guest Render",
+        help='Output base name for the speaker_1 render (default: "Guest Render").',
+    )
+    p.add_argument(
+        "--wide-name",
+        default="Wide Render",
+        help='Output base name for the wide render (default: "Wide Render").',
+    )
+    return p.parse_args(list(argv) if argv is not None else None)
+
+
+def main(argv: Optional[Iterable[str]] = None) -> int:
+    args = _parse_args(argv)
+
+    base_dsl = Path(args.base_dsl).resolve()
+    output_dir = Path(args.output_dir).resolve()
+    repo_src_dir = Path(args.repo_src).resolve()
+
+    if not base_dsl.exists():
+        print(f"Error: base DSL does not exist: {base_dsl}", file=sys.stderr)
+        return 2
+    if not repo_src_dir.exists():
+        print(f"Error: repo src dir does not exist: {repo_src_dir}", file=sys.stderr)
+        return 2
+
+    base_text = _read_text(base_dsl)
+
+    jobs: List[RenderJob] = []
+    for name, camera in (
+        (str(args.ben_name), "speaker_0"),
+        (str(args.guest_name), "speaker_1"),
+        (str(args.wide_name), "wide"),
+    ):
+        dsl_out = output_dir / f"{name}.dsl"
+        mp4_out = output_dir / f"{name}.mp4"
+        derived = force_single_camera_dsl_text(base_text, camera=camera)
+        _write_text(dsl_out, derived)
+        jobs.append(RenderJob(name=name, camera=camera, dsl_path=dsl_out, out_path=mp4_out))
+
+    # Sequential encodes: three full-timeline renders at once overloads many machines.
+    failures: List[Tuple[RenderJob, int]] = []
+    print(
+        "Massive: rendering Ben, then Guest, then Wide (one encode at a time)...",
+        flush=True,
+    )
+    for job in jobs:
+        print(f"Massive: starting {job.name} ({job.camera})...", flush=True)
+        _, code = _run_render_job(
+            job,
+            repo_src_dir=repo_src_dir,
+            workers=int(args.workers),
+            video_encoder=args.video_encoder,
+            video_preset=args.video_preset,
+            downscale_4k_to_1080p=bool(args.downscale_4k_to_1080p),
+            dry_run=bool(args.dry_run),
+        )
+        if code != 0:
+            failures.append((job, code))
+
+    if failures:
+        print("\nOne or more renders failed:", file=sys.stderr)
+        for job, code in failures:
+            print(f"  - {job.name} ({job.camera}) exit code {code}", file=sys.stderr)
+        return 1
+
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+

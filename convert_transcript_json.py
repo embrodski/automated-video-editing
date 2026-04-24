@@ -63,6 +63,11 @@ _ABBREV_ENDINGS = frozenset(
 # gets a positive duration (preserves consecutive grouping / timeline gaps).
 MIN_UTTERANCE_DURATION_SEC = 0.02
 
+# If ASR word-level punctuation is weak/missing, we fall back to splitting on pauses.
+# This dramatically increases "true sentence-level" rows, which improves cut opportunities.
+PAUSE_SPLIT_GAP_SEC = 0.65
+PAUSE_SPLIT_MIN_WORDS = 6
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
@@ -97,6 +102,18 @@ def parse_args() -> argparse.Namespace:
         "--no-split-sentences",
         action="store_true",
         help="One simplified row per input segment only (ignore word-level sentence splits).",
+    )
+    parser.add_argument(
+        "--pause-split-gap-sec",
+        type=float,
+        default=PAUSE_SPLIT_GAP_SEC,
+        help=f"Pause gap (seconds) that triggers a sentence split when punctuation is missing (default: {PAUSE_SPLIT_GAP_SEC}).",
+    )
+    parser.add_argument(
+        "--pause-split-min-words",
+        type=int,
+        default=PAUSE_SPLIT_MIN_WORDS,
+        help=f"Minimum buffered word tokens before pause-based split is allowed (default: {PAUSE_SPLIT_MIN_WORDS}).",
     )
     return parser.parse_args()
 
@@ -172,8 +189,9 @@ def is_sentence_terminal_token(text: str) -> bool:
         return False
     if t.lower() in _ABBREV_ENDINGS:
         return False
+    # Treat ellipses as terminal; many ASR outputs use "..." where a sentence boundary exists.
     if t.endswith("...") or t.endswith("…"):
-        return False
+        return True
     if t.endswith("?") or t.endswith("!"):
         return True
     if t.endswith("."):
@@ -187,6 +205,9 @@ def words_to_sentence_rows(
     segment: Dict,
     speaker_id: Optional[int],
     speaker_name: Optional[str],
+    *,
+    pause_split_gap_sec: float,
+    pause_split_min_words: int,
 ) -> Optional[List[Dict]]:
     """
     Split segment.words into sentence-sized rows with start/end from first/last word.
@@ -235,14 +256,32 @@ def words_to_sentence_rows(
         rows.append(row)
         buf = []
 
-    for w in words:
+    # Iterate with lookahead so we can split on pauses (word timing gaps).
+    for wi, w in enumerate(words):
         if not isinstance(w, dict):
             continue
         if "start_time" not in w or "end_time" not in w:
             return None
         buf.append(w)
         piece = (w.get("text") or "").strip()
-        if piece and is_sentence_terminal_token(w.get("text") or ""):
+        if not piece:
+            continue
+
+        terminal = is_sentence_terminal_token(w.get("text") or "")
+        pause_split = False
+        if not terminal and wi < (len(words) - 1):
+            nxt = words[wi + 1]
+            if isinstance(nxt, dict) and "start_time" in nxt:
+                try:
+                    gap = float(nxt["start_time"]) - float(w["end_time"])
+                except Exception:
+                    gap = 0.0
+                if gap >= pause_split_gap_sec:
+                    substantive_ct = sum(1 for ww in buf if (ww.get("text") or "").strip())
+                    if substantive_ct >= pause_split_min_words:
+                        pause_split = True
+
+        if terminal or pause_split:
             flush()
 
     flush()
@@ -268,6 +307,9 @@ def convert_segments(
     keep_empty: bool,
     speaker_source: str,
     split_sentences: bool,
+    *,
+    pause_split_gap_sec: float = PAUSE_SPLIT_GAP_SEC,
+    pause_split_min_words: int = PAUSE_SPLIT_MIN_WORDS,
 ) -> Tuple[Dict[str, Dict], Dict[str, int]]:
     output: Dict[str, Dict] = {}
     speaker_map: Dict[str, int] = {}
@@ -287,7 +329,13 @@ def convert_segments(
 
         sentence_rows: Optional[List[Dict]] = None
         if split_sentences:
-            sentence_rows = words_to_sentence_rows(segment, speaker_id, speaker_name)
+            sentence_rows = words_to_sentence_rows(
+                segment,
+                speaker_id,
+                speaker_name,
+                pause_split_gap_sec=pause_split_gap_sec,
+                pause_split_min_words=pause_split_min_words,
+            )
 
         if sentence_rows:
             for row in sentence_rows:
@@ -349,6 +397,8 @@ def main() -> int:
         keep_empty=args.keep_empty,
         speaker_source=args.speaker_source,
         split_sentences=split_sentences,
+        pause_split_gap_sec=float(args.pause_split_gap_sec),
+        pause_split_min_words=int(args.pause_split_min_words),
     )
 
     with open(output_path, "w", encoding="utf-8") as f:

@@ -350,6 +350,128 @@ SEGMENT_CONFIG = {
         },
         'transcript_file': r'E:\PodcastRoom\Cursor\Inkhaven Rusty\output\interview_transcript_simplified.json',
     },
+    # Inkhaven Georgia — interview (Ben/Guest/Wide); paths absolute
+    '19': {
+        'audio_file': r'E:\PodcastRoom\Cursor\Inkhaven Georgia\Input\Audio.wav',
+        'audio_offset': 0,
+        'enable_color_match': False,
+        'video_files': {
+            'speaker_0': {
+                'file': r'E:\PodcastRoom\Cursor\Inkhaven Georgia\Input\Ben.mp4',
+                'offset': 0,
+            },
+            'speaker_1': {
+                'file': r'E:\PodcastRoom\Cursor\Inkhaven Georgia\Input\Guest.mp4',
+                'offset': 0,
+            },
+            'wide': {
+                'file': r'E:\PodcastRoom\Cursor\Inkhaven Georgia\Input\Wide.mp4',
+                'offset': 0,
+            },
+        },
+        'transcript_file': r'E:\PodcastRoom\Cursor\Inkhaven Georgia\Output\interview_transcript_simplified.json',
+    },
+    # Inkhaven Alice (reading) — Front/Side cameras mapped as speaker_0/speaker_1.
+    '20': {
+        'audio_file': r'E:\PodcastRoom\Cursor\Inkhaven Alice\Input\Reading Audio.wav',
+        'audio_offset': 0,
+        'enable_color_match': False,
+        'video_files': {
+            'speaker_0': {
+                'file': r'E:\PodcastRoom\Cursor\Inkhaven Alice\Input\Reading Front.mp4',
+                'offset': 0,
+            },
+            'speaker_1': {
+                'file': r'E:\PodcastRoom\Cursor\Inkhaven Alice\Input\Reading Side.mp4',
+                'offset': 0,
+            },
+        },
+        'transcript_file': r'E:\PodcastRoom\Cursor\Inkhaven Alice\Output\reading_transcript_simplified.json',
+    },
+    # Inkhaven Alice — interview (Ben/Guest/Wide); paths absolute
+    '21': {
+        'audio_file': r'E:\PodcastRoom\Cursor\Inkhaven Alice\Input\Audio.wav',
+        'audio_offset': 0,
+        'enable_color_match': False,
+        'video_files': {
+            'speaker_0': {
+                'file': r'E:\PodcastRoom\Cursor\Inkhaven Alice\Input\Ben.mp4',
+                'offset': 0,
+            },
+            'speaker_1': {
+                'file': r'E:\PodcastRoom\Cursor\Inkhaven Alice\Input\Guest.mp4',
+                'offset': 0,
+            },
+            'wide': {
+                'file': r'E:\PodcastRoom\Cursor\Inkhaven Alice\Input\Wide.mp4',
+                'offset': 0,
+            },
+        },
+        'transcript_file': r'E:\PodcastRoom\Cursor\Inkhaven Alice\Output\interview_transcript_simplified.json',
+    },
+    # Inkhaven Alice — interview (Massive Test) — paths absolute
+    '22': {
+        'audio_file': r'E:\PodcastRoom\Cursor\Inkhaven Alice\Input\Audio.wav',
+        'audio_offset': 0,
+        'enable_color_match': False,
+        'video_files': {
+            'speaker_0': {
+                'file': r'E:\PodcastRoom\Cursor\Inkhaven Alice\Input\Ben.mp4',
+                'offset': 0,
+            },
+            'speaker_1': {
+                'file': r'E:\PodcastRoom\Cursor\Inkhaven Alice\Input\Guest.mp4',
+                'offset': 0,
+            },
+            'wide': {
+                'file': r'E:\PodcastRoom\Cursor\Inkhaven Alice\Input\Wide.mp4',
+                'offset': 0,
+            },
+        },
+        'transcript_file': r'E:\PodcastRoom\Cursor\Inkhaven Alice\Massive Test\interview_transcript_simplified.json',
+    },
+    # Inkhaven Scott — interview (Ben/Guest/Wide); paths absolute
+    '23': {
+        'audio_file': r'E:\PodcastRoom\Cursor\Inkhaven Scott\Input\Audio.wav',
+        'audio_offset': 0,
+        'enable_color_match': False,
+        'video_files': {
+            'speaker_0': {
+                'file': r'E:\PodcastRoom\Cursor\Inkhaven Scott\Input\Ben.mp4',
+                'offset': 0,
+            },
+            'speaker_1': {
+                'file': r'E:\PodcastRoom\Cursor\Inkhaven Scott\Input\Guest.mp4',
+                'offset': 0,
+            },
+            'wide': {
+                'file': r'E:\PodcastRoom\Cursor\Inkhaven Scott\Input\Wide.mp4',
+                'offset': 0,
+            },
+        },
+        'transcript_file': r'E:\PodcastRoom\Cursor\Inkhaven Scott\Output\interview_transcript_simplified.json',
+    },
+    # Inkhaven Scott — Intro episode; paths absolute
+    '24': {
+        'audio_file': r'E:\PodcastRoom\Cursor\Inkhaven Scott\Intro\Input\Audio.wav',
+        'audio_offset': 0,
+        'enable_color_match': False,
+        'video_files': {
+            'speaker_0': {
+                'file': r'E:\PodcastRoom\Cursor\Inkhaven Scott\Intro\Input\Ben.mp4',
+                'offset': 0,
+            },
+            'speaker_1': {
+                'file': r'E:\PodcastRoom\Cursor\Inkhaven Scott\Intro\Input\Guest.mp4',
+                'offset': 0,
+            },
+            'wide': {
+                'file': r'E:\PodcastRoom\Cursor\Inkhaven Scott\Intro\Input\Wide.mp4',
+                'offset': 0,
+            },
+        },
+        'transcript_file': r'E:\PodcastRoom\Cursor\Inkhaven Scott\Intro\Output\interview_transcript_simplified.json',
+    },
 }
 
 

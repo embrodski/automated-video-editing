@@ -65,8 +65,8 @@ class GenerateFullDslTests(unittest.TestCase):
         spans = _find_wide_spans(
             rows,
             _intended_camera(rows),
-            window_sec=5.0,
-            min_wide_sec=5.0,
+            window_sec=3.0,
+            min_wide_sec=3.0,
         )
 
         self.assertEqual(spans, [(1, 3)])

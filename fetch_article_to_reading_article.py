@@ -306,12 +306,24 @@ def split_article_line(line: str) -> list[str]:
         current.append(w)
         if not w:
             continue
+        # Treat sentence terminals normally (".", "?", "!", etc), and also
+        # footnote-style terminals like "ship.1" or "ship.1)" which are common
+        # in blog posts.
+        is_terminal = False
         last = w[-1]
-        if last not in SENTENCE_TERMINALS:
+        if last in SENTENCE_TERMINALS:
+            is_terminal = True
+        else:
+            # e.g. "ship.1", "ship.12)", "ship.3”"
+            if re.search(r"[.?!][0-9]+[)\]\"'”’`]*$", w):
+                is_terminal = True
+        if not is_terminal:
             continue
         if w.endswith("..."):
             continue
-        stripped = w.rstrip(SENTENCE_TERMINALS + ",\"'`)")
+
+        stripped = re.sub(r"[0-9]+[)\]\"'”’`]*$", "", w)
+        stripped = stripped.rstrip(SENTENCE_TERMINALS + ",\"'`)")
         stripped_low = stripped.lower().rstrip(".")
         if stripped_low in ABBREVIATIONS:
             continue
@@ -362,7 +374,6 @@ _TRAILING_STOP_RE = re.compile(
     re.I,
 )
 _COMMENTS_RE = re.compile(r"^\d+\s+thoughts on\b", re.I)
-
 
 def is_junk_line(line: str) -> bool:
     s = line.strip()

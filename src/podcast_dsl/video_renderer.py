@@ -1908,7 +1908,13 @@ def _render_dsl_from_commands(commands: List, output_file: str, dsl_file: str = 
         print(f"\nConverting to final AAC/MP4 format...")
         final_output_tmp = output_file + '.finalizing.mp4'
         if os.path.exists(final_output_tmp):
-            os.unlink(final_output_tmp)
+            try:
+                os.unlink(final_output_tmp)
+            except PermissionError:
+                print(
+                    f"Warning: could not delete existing temp file (in use): {final_output_tmp}",
+                    file=sys.stderr,
+                )
         cmd = _ffmpeg_cmd_base() + [
             '-i', intermediate_file,
             '-map', '0:v:0',
@@ -1959,7 +1965,13 @@ def _render_dsl_from_commands(commands: List, output_file: str, dsl_file: str = 
             shutil.move(final_output_tmp, output_file)
         finally:
             if os.path.exists(final_output_tmp):
-                os.unlink(final_output_tmp)
+                try:
+                    os.unlink(final_output_tmp)
+                except PermissionError:
+                    print(
+                        f"Warning: could not delete temp file (in use): {final_output_tmp}",
+                        file=sys.stderr,
+                    )
 
         # Clean up intermediate file
         if os.path.exists(intermediate_file):
