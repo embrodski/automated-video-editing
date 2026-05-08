@@ -56,3 +56,9 @@ Thumbs.db
 # Cursor rules (track these in git)
 !.cursor/rules/
 !.cursor/rules/**
+
+# Secrets / API keys (never commit)
+*Key.txt
+*Key*.txt
+*api_key*
+*API_KEY*

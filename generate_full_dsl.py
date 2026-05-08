@@ -32,7 +32,7 @@ import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Mapping, Optional, Tuple
 
 
 CAM_BY_SPEAKER_ID = {
@@ -115,6 +115,15 @@ def parse_args() -> argparse.Namespace:
         help="Minimum wide span duration in seconds (default: 3.0)",
     )
     parser.add_argument(
+        "--camera-switch-offset-ms",
+        type=float,
+        default=0.0,
+        help="Shift ALL camera switch boundaries by this many milliseconds. "
+             "Negative = switch earlier, positive = switch later. Implemented by splitting "
+             "the adjacent transcript row and assigning the moved slice to the other camera "
+             "(sentence-aligned overall order is preserved). Default: 0.",
+    )
+    parser.add_argument(
         "--final-shot-tail-sec",
         type=float,
         default=2.0,
@@ -135,6 +144,12 @@ def parse_args() -> argparse.Namespace:
         help="Force speaker_0 for rows overlapping the last this many seconds of the "
              "timeline (uses --final-shot-tail-sec for end time). Default: 4.0. Set to 0 "
              "to disable.",
+    )
+    parser.add_argument(
+        "--speaker-3-to-wide",
+        action="store_true",
+        help="Map speaker_id 3 to the wide camera (--wide-camera, default wide). "
+             "Off by default for normal two-speaker interviews.",
     )
     return parser.parse_args()
 
@@ -185,15 +200,19 @@ def _is_brief_interjection_row(r: Row) -> bool:
     return t in _INTERJECTION_CANONICAL
 
 
-def _intended_camera(rows: List[Row]) -> List[str]:
+def _intended_camera(
+    rows: List[Row],
+    cam_by_speaker: Optional[Mapping[int, str]] = None,
+) -> List[str]:
     """
     Camera selection per transcript row.
 
     Rule tweak: a *single* very brief interjection (e.g. "Mm-hmm.", "Yeah.") should not
     flip the camera on its own. Two consecutive interjections, or any longer utterance,
-    can still flip as normal.
+    can still flip as normal. Interjection suppression applies only to speaker_id 0/1.
     """
-    base = [CAM_BY_SPEAKER_ID.get(r.speaker_id, "speaker_0") for r in rows]
+    mapping: Mapping[int, str] = cam_by_speaker or CAM_BY_SPEAKER_ID
+    base = [mapping.get(r.speaker_id, "speaker_0") for r in rows]
     if not rows:
         return []
 
@@ -203,6 +222,12 @@ def _intended_camera(rows: List[Row]) -> List[str]:
 
     for r, cam in zip(rows, base):
         if last_cam is None:
+            effective.append(cam)
+            last_cam = cam
+            pending_other_cam = None
+            continue
+
+        if r.speaker_id not in (0, 1):
             effective.append(cam)
             last_cam = cam
             pending_other_cam = None
@@ -402,7 +427,12 @@ def _row_comment(row: Row, *, include_fallback_speaker: bool) -> str:
     if row.speaker_name:
         return f"{row.speaker_name}: {text}"
     if include_fallback_speaker:
-        fallback = "Speaker 0" if row.speaker_id == 0 else "Speaker 1"
+        if row.speaker_id == 0:
+            fallback = "Speaker 0"
+        elif row.speaker_id == 1:
+            fallback = "Speaker 1"
+        else:
+            fallback = f"Speaker {row.speaker_id}"
         return f"{fallback}: {text}"
     return text
 
@@ -414,13 +444,61 @@ def _row_segment_line(
     include_fallback_speaker: bool,
     is_last: bool,
     final_shot_tail_sec: float,
+    slice_start: Optional[float] = None,
+    slice_end: Optional[float] = None,
 ) -> str:
     segment_ref = f"$segment{segment_num}/{row.idx}"
     if is_last and final_shot_tail_sec > 0:
-        slice_end = (row.end - row.start) + final_shot_tail_sec
-        segment_ref = f"{segment_ref} slice(:{slice_end:.3f})"
+        # Extend the final row's extracted clip.
+        base_end = (row.end - row.start) + final_shot_tail_sec
+        slice_end = base_end if slice_end is None else max(float(slice_end), float(base_end))
+
+    if slice_start is not None or slice_end is not None:
+        start_s = "" if slice_start is None else f"{float(slice_start):.3f}"
+        end_s = "" if slice_end is None else f"{float(slice_end):.3f}"
+        segment_ref = f"{segment_ref} slice({start_s}:{end_s})"
     comment = _row_comment(row, include_fallback_speaker=include_fallback_speaker)
     return f"{segment_ref} // {comment}"
+
+
+def _apply_camera_switch_offset(
+    rows: List[Row],
+    events: List[dict],
+    *,
+    offset_sec: float,
+) -> List[dict]:
+    """
+    Shift camera switch boundaries earlier by pulling the next camera earlier with slice(negative_start:).
+
+    events: list of {"cam": str, "row_i": int, "slice_start": Optional[float], "slice_end": Optional[float]}
+    """
+    if not events or abs(float(offset_sec)) < 1e-9:
+        return events
+    if offset_sec > 0:
+        raise ValueError(
+            "--camera-switch-offset-ms currently supports only negative values "
+            "(switch earlier). Positive offsets would require splitting transcript rows, "
+            "which interacts badly with gap-preservation and clip padding."
+        )
+
+    # For each camera change A -> B, pull B earlier by setting a negative slice_start.
+    # This moves the visual cut earlier relative to the row boundary (row start time),
+    # which matches user expectations even when there is a pause/gap between rows.
+    shift = float(offset_sec)  # negative
+    out = [dict(e) for e in events]
+    for i in range(1, len(out)):
+        prev = out[i - 1]
+        cur = out[i]
+        if prev["cam"] == cur["cam"]:
+            continue
+        # Apply to the *first* row under the new camera.
+        existing = cur.get("slice_start")
+        existing = float(existing) if existing is not None else 0.0
+        # Take the earlier (more negative) of existing vs shift.
+        cur["slice_start"] = min(existing, shift)
+        out[i] = cur
+
+    return out
 
 
 def main() -> int:
@@ -455,7 +533,11 @@ def main() -> int:
         print(f"Wrote {len(lines)} DSL lines to {output_path}")
         return 0
 
-    cams = _intended_camera(rows)
+    cam_by_speaker: Dict[int, str] = dict(CAM_BY_SPEAKER_ID)
+    if args.speaker_3_to_wide:
+        cam_by_speaker[3] = str(args.wide_camera)
+
+    cams = _intended_camera(rows, cam_by_speaker)
     _apply_open_ben_lock(rows, cams, float(args.open_ben_sec))
     _apply_tail_ben_lock(rows, cams, float(args.tail_ben_sec), float(args.final_shot_tail_sec))
     spans = _find_wide_spans(
@@ -474,7 +556,10 @@ def main() -> int:
     override_map = _spans_to_override_map(spans)
 
     lines.append("// Generated DSL")
-    lines.append(f"// segment{segment_num} | Speaker 0 -> speaker_0, Speaker 1 -> speaker_1")
+    spk_hdr = "Speaker 0 -> speaker_0, Speaker 1 -> speaker_1"
+    if args.speaker_3_to_wide:
+        spk_hdr += f", Speaker 3 -> {args.wide_camera}"
+    lines.append(f"// segment{segment_num} | {spk_hdr}")
     lines.append(
         f"// Open: first {float(args.open_ben_sec):.1f}s on speaker_0 (no cuts off Ben before then); "
         f"tail: last {float(args.tail_ben_sec):.1f}s on speaker_0 (timeline includes "
@@ -484,55 +569,55 @@ def main() -> int:
         f"// Wide rule: if >1 camera cut in {float(args.cut_window_sec):.1f}s, force !camera {args.wide_camera} "
         f"for >= {float(args.min_wide_sec):.1f}s (sentence-aligned), extend if another cut within {float(args.cut_window_sec):.1f}s"
     )
+    if float(args.camera_switch_offset_ms) != 0.0:
+        # When pulling camera switches earlier via slice(negative_start:), the renderer's default
+        # clip padding can cause visible "replay" overlaps. Make this deterministic by disabling
+        # padding for the whole render when a global switch offset is requested.
+        lines.append(f"// camera-switch-offset-ms={float(args.camera_switch_offset_ms):.1f}; disabling cut padding to avoid overlap artifacts")
+        lines.append("!cut 0 0")
     lines.append("")
 
     current_cam: Optional[str] = None
     last_idx = len(rows) - 1
+    events: List[dict] = []
     i = 0
     while i < len(rows):
-        r = rows[i]
         if i in override_map:
             end_i = override_map[i]
-            if current_cam != args.wide_camera:
-                lines.append(f"!camera {args.wide_camera}")
-                current_cam = args.wide_camera
-
             for j in range(i, end_i):
-                rr = rows[j]
-                lines.append(
-                    _row_segment_line(
-                        rr,
-                        segment_num,
-                        include_fallback_speaker=True,
-                        is_last=j == last_idx,
-                        final_shot_tail_sec=float(args.final_shot_tail_sec),
-                    )
-                )
-
-            # Return to intended camera for the first sentence after the wide span.
+                events.append({"cam": str(args.wide_camera), "row_i": j, "slice_start": None, "slice_end": None})
             i = end_i
-            if i < len(rows):
-                next_cam = cams[i]
-                if current_cam != next_cam:
-                    lines.append(f"!camera {next_cam}")
-                    current_cam = next_cam
             continue
 
-        intended = cams[i]
-        if current_cam != intended:
-            lines.append(f"!camera {intended}")
-            current_cam = intended
+        events.append({"cam": str(cams[i]), "row_i": i, "slice_start": None, "slice_end": None})
+        i += 1
 
+    events = _apply_camera_switch_offset(
+        rows,
+        events,
+        offset_sec=float(args.camera_switch_offset_ms) / 1000.0,
+    )
+
+    # Emit !camera lines + segment refs.
+    for ev_i, ev in enumerate(events):
+        cam = ev["cam"]
+        if current_cam != cam:
+            lines.append(f"!camera {cam}")
+            current_cam = cam
+
+        row_i = int(ev["row_i"])
+        r = rows[row_i]
         lines.append(
             _row_segment_line(
                 r,
                 segment_num,
                 include_fallback_speaker=True,
-                is_last=i == last_idx,
+                is_last=ev_i == (len(events) - 1) and row_i == last_idx,
                 final_shot_tail_sec=float(args.final_shot_tail_sec),
+                slice_start=ev.get("slice_start"),
+                slice_end=ev.get("slice_end"),
             )
         )
-        i += 1
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")

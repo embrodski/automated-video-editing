@@ -15,6 +15,7 @@ from .video_renderer import (
     DEFAULT_VIDEO_ENCODER,
     VIDEO_DOWNSCALE_4K_ENV,
     VIDEO_ENCODER_ENV,
+    VIDEO_HARDWARE_ENCODE_ENV,
     VIDEO_PRESET_ENV,
     render_dsl,
 )
@@ -42,7 +43,9 @@ Examples:
   # Test rendering from middle (skip 10 clips, render next 5 clips)
   python -m podcast_dsl segment_2_test.dsl --skip 10 --limit 5 -o test.mp4
 
-  # After a full render, also produce Ben/Guest/Wide single-camera variants (sequential)
+  # After a full render, also produce single-camera variants (sequential)
+  # - interview DSLs: Ben/Guest/Wide
+  # - reading DSLs: Front/Side
   python -m podcast_dsl interview.dsl -o outputs/Full Interview.mp4 --massive
         """
     )
@@ -74,7 +77,21 @@ Examples:
         '--video-encoder',
         choices=['auto', 'libx264', 'h264_nvenc', 'h264_qsv', 'h264_amf'],
         default=DEFAULT_VIDEO_ENCODER,
-        help='Video encoder for re-encoded stages. Defaults to auto hardware detection with libx264 fallback.',
+        help=(
+            'Video encoder for re-encoded stages (default: libx264). '
+            'Use --hardware-encode to auto-pick a working hardware encoder with libx264 fallback. '
+            '"auto" is legacy: same hardware auto-selection as --hardware-encode.'
+        ),
+    )
+    parser.add_argument(
+        '--hardware-encode',
+        action='store_true',
+        help=(
+            'When --video-encoder is the default libx264, try NVENC / QSV / AMF in order first, '
+            'falling back to libx264 if none work or if a hardware encode fails mid-render. '
+            'Does not change the first encoder when you already pass a hardware --video-encoder, '
+            'but libx264 fallback still runs if that hardware encode fails.'
+        ),
     )
     parser.add_argument(
         '--video-preset',
@@ -90,9 +107,9 @@ Examples:
         '--massive',
         action='store_true',
         help=(
-            'After this render completes, run massive_renderer.py: write Ben Render.dsl/mp4, '
-            'Guest Render.dsl/mp4, and Wide Render.dsl/mp4 (same timeline, single camera each) '
-            'sequentially (Ben, then Guest, then Wide) into the same directory as -o. '
+            'After this render completes, run massive_renderer.py to write same-timeline '
+            'single-camera variants into the same directory as -o. Interview DSLs produce '
+            'Ben/Guest/Wide renders; reading DSLs produce Front/Side renders. '
             'Requires a real DSL file path; not compatible with stdin, --render-all-cams, or '
             '--skip/--limit/--max-seconds.'
         ),
@@ -115,6 +132,10 @@ Examples:
             )
 
     os.environ[VIDEO_ENCODER_ENV] = args.video_encoder
+    if args.hardware_encode:
+        os.environ[VIDEO_HARDWARE_ENCODE_ENV] = '1'
+    else:
+        os.environ.pop(VIDEO_HARDWARE_ENCODE_ENV, None)
     if args.video_preset:
         os.environ[VIDEO_PRESET_ENV] = args.video_preset
     else:
@@ -206,14 +227,16 @@ Examples:
             cmd.append('--downscale-4k-to-1080p')
         if args.video_encoder:
             cmd.extend(['--video-encoder', args.video_encoder])
+        if args.hardware_encode:
+            cmd.append('--hardware-encode')
         if args.video_preset:
             cmd.extend(['--video-preset', args.video_preset])
         if args.dry_run:
             cmd.append('--dry-run')
 
         print(
-            '\n--massive: generating Ben/Guest/Wide single-camera DSLs and '
-            'rendering sequentially (Ben -> Guest -> Wide)...\n'
+            '\n--massive: generating single-camera DSLs and rendering sequentially '
+            '(interview: Ben/Guest/Wide; reading: Front/Side)...\n'
         )
         result = subprocess.run(cmd, cwd=str(repo_root), check=False)
         if result.returncode != 0:

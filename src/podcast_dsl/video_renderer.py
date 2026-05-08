@@ -25,9 +25,12 @@ OUTPUT_FPS = 24000 / 1001
 OUTPUT_FPS_STR = '24000/1001'
 VIDEO_ENCODER_ENV = 'PODCAST_DSL_VIDEO_ENCODER'
 VIDEO_PRESET_ENV = 'PODCAST_DSL_VIDEO_PRESET'
+VIDEO_HARDWARE_ENCODE_ENV = 'PODCAST_DSL_HARDWARE_ENCODE'
 VIDEO_DOWNSCALE_4K_ENV = 'PODCAST_DSL_DOWNSCALE_4K_TO_1080P'
-DEFAULT_VIDEO_ENCODER = 'auto'
+DEFAULT_VIDEO_ENCODER = 'libx264'
 AUTO_HARDWARE_ENCODERS = ('h264_nvenc', 'h264_qsv', 'h264_amf')
+# (stage_default_preset, encoder_env, hardware_encode_flag, preset_env_raw) -> resolved name
+_resolved_encoder_memo: Dict[Tuple[str, str, bool, str], str] = {}
 ENCODER_TEST_WIDTH = 1280
 ENCODER_TEST_HEIGHT = 720
 DOWNSCALE_WIDTH_1080P = 1920
@@ -196,17 +199,116 @@ def _encoder_is_usable(video_encoder: str, preset: str) -> bool:
             os.unlink(temp_path)
 
 
-@lru_cache(maxsize=None)
-def _resolved_video_encoder(stage_default_preset: str) -> str:
-    requested = os.environ.get(VIDEO_ENCODER_ENV, DEFAULT_VIDEO_ENCODER).strip().lower()
-    if requested and requested != 'auto':
-        return requested
-
+def _pick_auto_hardware_encoder(stage_default_preset: str) -> str:
     requested_preset = os.environ.get(VIDEO_PRESET_ENV, '').strip() or stage_default_preset
     for candidate in AUTO_HARDWARE_ENCODERS:
         if _encoder_is_usable(candidate, requested_preset):
             return candidate
     return 'libx264'
+
+
+def _resolved_video_encoder(stage_default_preset: str) -> str:
+    """
+    Resolve which H.264 encoder FFmpeg should use for a pipeline stage.
+
+    Default is libx264. Auto hardware probing runs only when the
+    ``PODCAST_DSL_HARDWARE_ENCODE`` environment variable is set (CLI: ``--hardware-encode``)
+    or when the user passes ``--video-encoder auto`` (legacy alias for that path).
+    Explicit h264_nvenc / h264_qsv / h264_amf are returned as-is (with runtime libx264
+    fallback in _run_ffmpeg_h264_encode_with_fallback when those fail mid-render).
+    """
+    raw = (os.environ.get(VIDEO_ENCODER_ENV) or DEFAULT_VIDEO_ENCODER).strip()
+    enc_env = raw.lower()
+    hw_flag = os.environ.get(VIDEO_HARDWARE_ENCODE_ENV, '').strip().lower() in (
+        '1',
+        'true',
+        'yes',
+    )
+    preset_raw = os.environ.get(VIDEO_PRESET_ENV, '').strip()
+    key = (stage_default_preset, enc_env, hw_flag, preset_raw)
+    if key in _resolved_encoder_memo:
+        return _resolved_encoder_memo[key]
+
+    if enc_env in ('h264_nvenc', 'h264_qsv', 'h264_amf'):
+        out = enc_env
+    elif enc_env == 'auto':
+        out = _pick_auto_hardware_encoder(stage_default_preset)
+    elif hw_flag:
+        out = _pick_auto_hardware_encoder(stage_default_preset)
+    else:
+        out = 'libx264'
+
+    _resolved_encoder_memo[key] = out
+    return out
+
+
+def _is_hardware_video_encoder(enc: str) -> bool:
+    return enc in AUTO_HARDWARE_ENCODERS
+
+
+def _encoder_attempt_chain(primary_encoder: str) -> List[str]:
+    p = (primary_encoder or 'libx264').strip().lower()
+    if _is_hardware_video_encoder(p):
+        return [p, 'libx264']
+    return [p]
+
+
+def _run_ffmpeg_h264_encode_with_fallback(
+    cmd_prefix: List[str],
+    output_path: str,
+    *,
+    stage_default_preset: str,
+    quality_level: int,
+    use_cache: bool,
+    err_context: str,
+    cache_extension: str = '.mp4',
+) -> None:
+    """
+    Append H.264 encoder args and output_path, run FFmpeg; if a hardware encoder fails,
+    retry once with libx264 (separate cache key when caching is enabled).
+    """
+    preset = _requested_video_preset(stage_default_preset)
+    primary = _resolved_video_encoder(stage_default_preset)
+    last_stderr = ''
+
+    for attempt_idx, enc in enumerate(_encoder_attempt_chain(primary)):
+        cmd = list(cmd_prefix)
+        _append_video_encoder_args(cmd, enc, preset, quality_level)
+        cmd.append(output_path)
+
+        if attempt_idx > 0:
+            print(
+                f'Note: falling back to libx264 after hardware encoder ({primary}) failed '
+                f'({err_context}).',
+                file=sys.stderr,
+            )
+
+        cache_cmd = cmd[:-1] if use_cache else None
+        if use_cache and cache_cmd:
+            cached_file = _get_cached_file(cache_cmd, extension=cache_extension)
+            if cached_file:
+                shutil.copy2(cached_file, output_path)
+                return
+
+        result = subprocess.run(
+            cmd, check=False, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True
+        )
+        ok = (
+            result.returncode == 0
+            and os.path.exists(output_path)
+            and os.path.getsize(output_path) > 0
+        )
+        if ok:
+            if use_cache and cache_cmd:
+                _cache_file(cache_cmd, output_path, extension=cache_extension)
+            return
+
+        last_stderr = result.stderr or ''
+
+    print(f'\nError: FFmpeg failed ({err_context}): {output_path}', file=sys.stderr)
+    if last_stderr.strip():
+        print(last_stderr, file=sys.stderr)
+    raise RuntimeError(f'FFmpeg failed ({err_context}): {output_path}')
 
 
 def _requested_video_preset(stage_default_preset: str) -> str:
@@ -532,16 +634,14 @@ def _concatenate_clips_reencode(clip_files: List[str], output_file: str):
         '-c:a', 'aac', '-b:a', '320k',
         '-compression_level', '5',  # Good balance of speed and compression
     ])
-    _append_video_encoder_args(
+    _run_ffmpeg_h264_encode_with_fallback(
         cmd,
-        _resolved_video_encoder('ultrafast'),
-        _requested_video_preset('ultrafast'),
+        output_file,
+        stage_default_preset='ultrafast',
         quality_level=23,
+        use_cache=False,
+        err_context='concat reencode',
     )
-    cmd.append(output_file)
-
-    # Suppress FFmpeg output
-    subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
 def _concatenate_clips_demuxer(clip_files: List[str], output_file: str):
@@ -694,16 +794,14 @@ def apply_volume_adjustments(video_file: str, output_file: str, volume_timeline:
         '-b:a', '320k',  # Higher bitrate for better quality
         '-aac_coder', 'twoloop',  # Better quality AAC encoding
     ]
-    _append_video_encoder_args(
+    _run_ffmpeg_h264_encode_with_fallback(
         cmd,
-        _resolved_video_encoder('ultrafast'),
-        _requested_video_preset('ultrafast'),
+        output_file,
+        stage_default_preset='ultrafast',
         quality_level=23,
+        use_cache=False,
+        err_context='volume adjustments',
     )
-    cmd.append(output_file)
-
-    # Suppress FFmpeg output
-    subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     print(f"Volume adjustments applied successfully!\n")
 
@@ -832,25 +930,14 @@ def generate_black_clip(duration_ms: float, output_file: str):
         '-compression_level', '5',  # Good balance of speed and compression
         '-shortest',
     ]
-    _append_video_encoder_args(
+    _run_ffmpeg_h264_encode_with_fallback(
         cmd,
-        _resolved_video_encoder('ultrafast'),
-        _requested_video_preset('ultrafast'),
+        output_file,
+        stage_default_preset='ultrafast',
         quality_level=23,
+        use_cache=True,
+        err_context='black clip',
     )
-    cmd.append(output_file)
-
-    # Check cache first
-    cache_cmd = cmd[:-1]  # Command without output_file
-    cached_file = _get_cached_file(cache_cmd, extension='.mp4')
-
-    if cached_file:
-        # Use cached result
-        shutil.copy2(cached_file, output_file)
-    else:
-        # Generate and cache
-        subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        _cache_file(cache_cmd, output_file, extension='.mp4')
 
     return duration_sec
 
@@ -863,8 +950,11 @@ def extract_clip_group(group: List[Tuple[str, str, str, float, float, Optional[f
     Extract a group of clips as a single continuous clip with continuous audio.
     Renders video and audio together in a single FFmpeg call for perfect sync.
 
-    Handles camera changes within the group by extracting audio once continuously,
-    then extracting and concatenating video segments for each camera.
+    When the segment uses ``use_video_embedded_audio`` in ``SEGMENT_CONFIG``, audio is
+    taken from each camera MP4 instead of the segment ``audio_file``.
+
+    Otherwise, for mixed-camera groups: extract audio once continuously from ``audio_file``,
+    then extract and concatenate video segments for each camera.
 
     Args:
         group: List of (segment_id, camera, comment, cut_before, cut_after, fade_in_ms, fade_out_ms, slice_start, slice_end, volume) tuples
@@ -951,7 +1041,11 @@ def _extract_single_camera_group(segment_ids: List[str], clips_info: List[Dict],
         video_start = max(0, first_clip['video_start'] - before_padding)
     audio_end = last_clip['audio_end'] + after_padding + audio_offset_in_file
     video_end = last_clip['video_end'] + after_padding
-    duration = audio_end - audio_start
+    use_video_embedded_audio = bool(config.get('use_video_embedded_audio'))
+    if use_video_embedded_audio:
+        duration = max(0.0, video_end - video_start)
+    else:
+        duration = audio_end - audio_start
 
     # Build filter_complex for scaling + optional wide-referenced color match + fades
     filter_parts = []
@@ -980,30 +1074,29 @@ def _extract_single_camera_group(segment_ids: List[str], clips_info: List[Dict],
         filter_parts.append(f"[0:v]{','.join(video_filter_chain)}[vout]")
 
     # Single FFmpeg call to extract and combine video + audio for perfect sync
-    # Using -ss BEFORE -i for fast seeking to the right position
-    # NOTE: Using -ss after -i for audio accuracy (slower but works)
     cmd = _ffmpeg_cmd_base()
 
-    # Video: use fast seek (-ss before -i)
-    cmd.extend(['-ss', str(video_start), '-i', first_clip['video_file']])
-
-    # Audio: use fast seek
-    cmd.extend(['-ss', str(audio_start), '-i', main_audio_file])
-
-    cmd.extend(['-t', str(duration)])
-
-    # Add filter_complex if we have any filters
-    if filter_parts:
-        cmd.extend(['-filter_complex', ';'.join(filter_parts)])
-        # When filter_parts exist, video is always coming from the filtered output.
-        cmd.extend(['-map', '[vout]'])
-        cmd.extend(['-map', '1:a'])
+    if use_video_embedded_audio:
+        # One seek on the camera file keeps A/V aligned (no separate master WAV).
+        cmd.extend(['-ss', str(video_start), '-i', first_clip['video_file']])
+        cmd.extend(['-t', str(duration)])
+        if filter_parts:
+            cmd.extend(['-filter_complex', ';'.join(filter_parts)])
+            cmd.extend(['-map', '[vout]'])
+            cmd.extend(['-map', '0:a'])
+        else:
+            cmd.extend(['-map', '0:v', '-map', '0:a'])
     else:
-        # No filters, map streams directly
-        cmd.extend([
-            '-map', '0:v',
-            '-map', '1:a',
-        ])
+        # Using -ss BEFORE -i for fast seeking; second input is master audio.
+        cmd.extend(['-ss', str(video_start), '-i', first_clip['video_file']])
+        cmd.extend(['-ss', str(audio_start), '-i', main_audio_file])
+        cmd.extend(['-t', str(duration)])
+        if filter_parts:
+            cmd.extend(['-filter_complex', ';'.join(filter_parts)])
+            cmd.extend(['-map', '[vout]'])
+            cmd.extend(['-map', '1:a'])
+        else:
+            cmd.extend(['-map', '0:v', '-map', '1:a'])
 
     # Encoding parameters
     # Use AAC for audio in intermediate segments (MP4 compatible)
@@ -1015,25 +1108,14 @@ def _extract_single_camera_group(segment_ids: List[str], clips_info: List[Dict],
         '-compression_level', '5',  # Good balance of speed and compression
         '-shortest',
     ])
-    _append_video_encoder_args(
+    _run_ffmpeg_h264_encode_with_fallback(
         cmd,
-        _resolved_video_encoder('ultrafast'),
-        _requested_video_preset('ultrafast'),
+        output_file,
+        stage_default_preset='ultrafast',
         quality_level=23,
+        use_cache=True,
+        err_context='single-camera extract',
     )
-    cmd.append(output_file)
-
-    # Check cache first (before adding output_file to command for hash)
-    cache_cmd = cmd[:-1]  # Command without output_file
-    cached_file = _get_cached_file(cache_cmd, extension='.mp4')
-
-    if cached_file:
-        # Use cached result
-        shutil.copy2(cached_file, output_file)
-    else:
-        # Run FFmpeg and cache the result
-        subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        _cache_file(cache_cmd, output_file, extension='.mp4')
 
     return duration
 
@@ -1107,17 +1189,17 @@ def _build_camera_spans(group: List[Tuple[str, str, str, float, float, Optional[
 
 def _extract_camera_segment(args):
     """
-    Extract a single camera span as video-only media.
+    Extract a single camera span (video-only by default).
 
     Args:
         args: Tuple of (span, fade_in_ms, fade_out_ms, is_first, is_last,
-                       target_width, target_height)
+                       target_width, target_height, use_video_embedded_audio)
 
     Returns:
         Path to the temporary segment file
     """
     (span, fade_in_ms, fade_out_ms, is_first, is_last,
-     target_width, target_height) = args
+     target_width, target_height, use_video_embedded_audio) = args
 
     video_file = span['video_file']
     video_start = span['video_start']
@@ -1126,8 +1208,9 @@ def _extract_camera_segment(args):
     segment_num = span['segment_num']
     camera = span['camera']
 
-    # Create temp file for this video+audio segment
-    # Use .mp4 throughout, but strip audio here to keep the group audio continuous.
+    # Create temp file for this segment. By default strip audio so one master WAV
+    # can be muxed after concatenation; with use_video_embedded_audio, keep each
+    # camera's embedded track for concat + final output.
     temp_fd, temp_path = tempfile.mkstemp(suffix='.mp4')
     os.close(temp_fd)  # Close the file descriptor
     os.unlink(temp_path)  # Delete the empty file - FFmpeg will create it
@@ -1167,47 +1250,33 @@ def _extract_camera_segment(args):
     else:
         cmd.extend(['-map', '0:v'])
 
+    if use_video_embedded_audio:
+        cmd.extend(['-map', '0:a'])
+
     # Encoding parameters
-    cmd.extend([
+    enc_tail = [
         '-r', OUTPUT_FPS_STR,  # Preserve source frame rate
         '-pix_fmt', 'yuv420p',
         '-profile:v', 'high',
         '-frames:v', str(frame_count),
-        '-an',
-    ])
-    _append_video_encoder_args(
-        cmd,
-        _resolved_video_encoder('ultrafast'),
-        _requested_video_preset('ultrafast'),
-        quality_level=23,
-    )
-    cmd.append(temp_path)
-
-    # Check cache first
-    cache_cmd = cmd[:-1]  # Command without output file
-    cached_file = _get_cached_file(cache_cmd, extension='.mp4')
-
-    if cached_file:
-        # Use cached result
-        shutil.copy2(cached_file, temp_path)
+    ]
+    cmd.extend(enc_tail)
+    if use_video_embedded_audio:
+        cmd.extend(['-c:a', 'aac', '-b:a', '320k', '-compression_level', '5'])
     else:
-        # Don't suppress stderr so we can see ffmpeg errors
-        result = subprocess.run(cmd, check=False, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
-
-        # Validate the temp file was created successfully
-        if result.returncode != 0:
-            print(f"\nError: FFmpeg failed to create temp segment {temp_path}", file=sys.stderr)
-            print(f"FFmpeg exit code: {result.returncode}", file=sys.stderr)
-            print(f"FFmpeg stderr:", file=sys.stderr)
-            print(result.stderr, file=sys.stderr)
-            raise RuntimeError(f"Temp segment creation failed: {temp_path}")
-
-        if not os.path.exists(temp_path) or os.path.getsize(temp_path) == 0:
-            print(f"Error: Temp file exists but is empty: {temp_path}", file=sys.stderr)
-            raise RuntimeError(f"Temp segment creation failed: {temp_path}")
-
-        # Cache the result
-        _cache_file(cache_cmd, temp_path, extension='.mp4')
+        cmd.extend(['-an'])
+    try:
+        _run_ffmpeg_h264_encode_with_fallback(
+            cmd,
+            temp_path,
+            stage_default_preset='ultrafast',
+            quality_level=23,
+            use_cache=True,
+            err_context=f'temp segment ({temp_path})',
+        )
+    except RuntimeError as exc:
+        # Stable message for callers; FFmpeg details were already printed by the helper.
+        raise RuntimeError(f"Temp segment creation failed: {temp_path}") from exc
 
     return temp_path
 
@@ -1219,13 +1288,14 @@ def _extract_multi_camera_group(group: List[Tuple[str, str, str, float, float, O
     """
     Extract group with camera changes, using a continuous group audio timeline.
 
-    Strategy:
+    Strategy when ``use_video_embedded_audio`` is false (default):
     1. Build camera spans over the grouped timeline
     2. Render each camera span as video-only media
     3. Concatenate the video-only spans
-    4. Mux the concatenated video with one continuous audio extract
+    4. Mux the concatenated video with one continuous audio extract from ``audio_file``
 
-    This keeps the audio continuous across no-gap boundaries and camera changes.
+    When ``use_video_embedded_audio`` is true for the segment:
+    1–3 as above, but each span keeps embedded audio; concat (re-encoded) yields the final output.
     """
     segment_ids = [seg_id for seg_id, _, _, _, _, _, _, _, _, _ in group]
     cameras = [camera for _, camera, _, _, _, _, _, _, _, _ in group]
@@ -1246,6 +1316,7 @@ def _extract_multi_camera_group(group: List[Tuple[str, str, str, float, float, O
     config = SEGMENT_CONFIG[segment_num]
     main_audio_file = config['audio_file']
     audio_offset_in_file = config.get('audio_offset', 0)
+    use_video_embedded_audio = bool(config.get('use_video_embedded_audio'))
     target_width, target_height = _get_segment_target_resolution(segment_num)
 
     # Calculate the continuous group audio range.
@@ -1274,6 +1345,7 @@ def _extract_multi_camera_group(group: List[Tuple[str, str, str, float, float, O
             idx == len(camera_spans) - 1,
             target_width,
             target_height,
+            use_video_embedded_audio,
         )
         camera_segment_tasks.append(task)
     # Extract all camera segments in parallel.
@@ -1298,21 +1370,29 @@ def _extract_multi_camera_group(group: List[Tuple[str, str, str, float, float, O
         os.close(temp_fd)
         os.unlink(temp_video_path)
 
-        concatenate_clips(combined_segments, temp_video_path, use_reencode=False)
+        # Embedded-audio spans may differ slightly between cameras; re-encode concat is safer.
+        concatenate_clips(
+            combined_segments,
+            temp_video_path,
+            use_reencode=use_video_embedded_audio,
+        )
 
-        cmd = _ffmpeg_cmd_base() + [
-            '-i', temp_video_path,
-            '-ss', str(audio_start_in_main_file), '-i', main_audio_file,
-            '-t', str(group_duration),
-            '-map', '0:v',
-            '-map', '1:a',
-            '-c:v', 'copy',
-            '-c:a', 'aac', '-b:a', '320k',
-            '-compression_level', '5',
-            '-shortest',
-            output_file
-        ]
-        subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        if use_video_embedded_audio:
+            shutil.copy2(temp_video_path, output_file)
+        else:
+            cmd = _ffmpeg_cmd_base() + [
+                '-i', temp_video_path,
+                '-ss', str(audio_start_in_main_file), '-i', main_audio_file,
+                '-t', str(group_duration),
+                '-map', '0:v',
+                '-map', '1:a',
+                '-c:v', 'copy',
+                '-c:a', 'aac', '-b:a', '320k',
+                '-compression_level', '5',
+                '-shortest',
+                output_file,
+            ]
+            subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     finally:
         for seg in combined_segments:
             if os.path.exists(seg):
@@ -1930,22 +2010,21 @@ def _render_dsl_from_commands(commands: List, output_file: str, dsl_file: str = 
             '-b:a', '320k',  # High bitrate for quality
             '-aac_coder', 'twoloop',  # Better quality AAC encoding
         ]
-        _append_video_encoder_args(
-            cmd,
-            _resolved_video_encoder('fast'),
-            _requested_video_preset('fast'),
-            quality_level=18,
-        )
-        cmd.append(final_output_tmp)
-        result = subprocess.run(cmd, check=False, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
-
-        if result.returncode != 0:
-            raise RuntimeError(
-                "Final AAC/MP4 conversion failed.\n"
-                f"Input: {intermediate_file}\n"
-                f"Output: {final_output_tmp}\n"
-                f"{_summarize_stderr(result.stderr)}"
+        try:
+            _run_ffmpeg_h264_encode_with_fallback(
+                cmd,
+                final_output_tmp,
+                stage_default_preset='fast',
+                quality_level=18,
+                use_cache=False,
+                err_context='final AAC/MP4 conversion',
             )
+        except RuntimeError as exc:
+            raise RuntimeError(
+                'Final AAC/MP4 conversion failed.\n'
+                f'Input: {intermediate_file}\n'
+                f'Output: {final_output_tmp}'
+            ) from exc
 
         try:
             _validate_video_stream(final_output_tmp)

@@ -24,6 +24,10 @@ description: Automates the Inkhaven multi-cam podcast workflow: convert a detail
 - **Color correction request**: treat color correction as **off by default**. Only enable it if the user's initial run request explicitly says `Use Color Correct`, `Run Color Correct`, or equivalent phrasing.
 - **Encoder preference**: by default, let `podcast_dsl` use a working hardware H.264 encoder if available; otherwise it should fall back to `libx264`. Only override this if the user explicitly asks for a specific encoder.
 - **Downscale request**: if the user's initial run request says `Downscale 4K to 1080p` or equivalent phrasing, add `--downscale-4k-to-1080p` to the render command.
+- **Camera switch timing adjust (optional)**: if the user's initial request includes a phrase like **`Adjust -200 ms`** (or `Adjust -200ms`, case-insensitive), then when running **`generate_full_dsl.py`** add:
+  - `--camera-switch-offset-ms -200`
+  - **Default is no adjustment** (omit the flag entirely).
+  - Current implementation supports **negative values only** (switch earlier). Positive values intentionally error out.
 - **Massive renders**: if the user's initial run request includes `massive`, `--massive`, or equivalent (e.g. “run massive”, “massive test”), then when they agree to the **full episode** render, append **`--massive`** to that `python -m podcast_dsl` command (same flags otherwise). That produces **in the same folder as `-o`**: `Ben Render.mp4`, `Guest Render.mp4`, and `Wide Render.mp4` (plus matching `.dsl` files), each the same timeline as `interview.dsl` but forced to `speaker_0`, `speaker_1`, or `wide` respectively; `massive_renderer.py` runs those three encodes **one after another** (Ben, then Guest, then Wide) to avoid overloading the machine. Do **not** add `--massive` to 1-minute or 5-minute test commands (`--max-seconds` is incompatible with `--massive`).
 
 ## Core rules (must apply)
@@ -96,7 +100,13 @@ Use `generate_full_dsl.py` (now includes camera switching + wide rule by default
 Command template:
 
 ```bash
-python generate_full_dsl.py "<working folder>/Output/interview_transcript_simplified.json" --segment <SEGMENT_NUM> --output "<working folder>/Output/interview.dsl"
+python generate_full_dsl.py "<working folder>/Output/interview_transcript_simplified.json" --segment <SEGMENT_NUM> --output "<working folder>/Output/interview.dsl" [--camera-switch-offset-ms <NEGATIVE_MS>]
+```
+
+If the user requested an adjust like `Adjust -200 ms`, include it, e.g.:
+
+```bash
+python generate_full_dsl.py "<working folder>/Output/interview_transcript_simplified.json" --segment <SEGMENT_NUM> --output "<working folder>/Output/interview.dsl" --camera-switch-offset-ms -200
 ```
 
 ### 5) Render ONLY the 1-minute test from the full DSL (always redirect TEMP/TMP on Windows)

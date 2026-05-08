@@ -201,6 +201,23 @@ def is_sentence_terminal_token(text: str) -> bool:
     return False
 
 
+def _next_substantive_word_index(words: List[Dict], start_i: int) -> Optional[int]:
+    """Index of next word dict after ``start_i`` whose text is non-empty after strip.
+
+    Many ASR JSON dumps include whitespace-only ``"text": " "`` tokens between real
+    words. Pause-based splitting must measure gaps between **spoken** tokens, or a
+    real mid-sentence pause (e.g. before a restart) gets hidden behind a tiny
+    space-token gap and never triggers a row split.
+    """
+    for j in range(start_i + 1, len(words)):
+        wj = words[j]
+        if not isinstance(wj, dict):
+            continue
+        if (wj.get("text") or "").strip():
+            return j
+    return None
+
+
 def words_to_sentence_rows(
     segment: Dict,
     speaker_id: Optional[int],
@@ -269,17 +286,19 @@ def words_to_sentence_rows(
 
         terminal = is_sentence_terminal_token(w.get("text") or "")
         pause_split = False
-        if not terminal and wi < (len(words) - 1):
-            nxt = words[wi + 1]
-            if isinstance(nxt, dict) and "start_time" in nxt:
-                try:
-                    gap = float(nxt["start_time"]) - float(w["end_time"])
-                except Exception:
-                    gap = 0.0
-                if gap >= pause_split_gap_sec:
-                    substantive_ct = sum(1 for ww in buf if (ww.get("text") or "").strip())
-                    if substantive_ct >= pause_split_min_words:
-                        pause_split = True
+        if not terminal:
+            nxt_i = _next_substantive_word_index(words, wi)
+            if nxt_i is not None:
+                nxt = words[nxt_i]
+                if isinstance(nxt, dict) and "start_time" in nxt:
+                    try:
+                        gap = float(nxt["start_time"]) - float(w["end_time"])
+                    except Exception:
+                        gap = 0.0
+                    if gap >= pause_split_gap_sec:
+                        substantive_ct = sum(1 for ww in buf if (ww.get("text") or "").strip())
+                        if substantive_ct >= pause_split_min_words:
+                            pause_split = True
 
         if terminal or pause_split:
             flush()

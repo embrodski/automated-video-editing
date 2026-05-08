@@ -35,7 +35,9 @@ if str(SRC_DIR) not in sys.path:
 
 from podcast_dsl.video_renderer import (
     DEFAULT_VIDEO_ENCODER,
+    VIDEO_HARDWARE_ENCODE_ENV,
     _append_video_encoder_args,
+    _encoder_attempt_chain,
     _requested_video_preset,
     _resolved_video_encoder,
 )
@@ -307,14 +309,14 @@ def stitch_episode(
 
     output_path = output_dir / "Complete Episode.mp4"
     tmp_out = output_dir / "Complete Episode._tmp.mp4"
-    resolved_video_encoder = _resolved_video_encoder(video_preset)
+    primary = _resolved_video_encoder(video_preset)
 
     # Default to showing progress so long stitches don't look "stuck".
     # ffmpeg writes progress to stderr when `-stats` is enabled.
-    cmd = ["ffmpeg", "-hide_banner", "-stats", "-loglevel", "warning", "-y"]
+    cmd_prefix = ["ffmpeg", "-hide_banner", "-stats", "-loglevel", "warning", "-y"]
     for p in inputs:
-        cmd.extend(["-i", str(p)])
-    cmd.extend(
+        cmd_prefix.extend(["-i", str(p)])
+    cmd_prefix.extend(
         [
             "-filter_complex",
             filter_complex,
@@ -328,10 +330,7 @@ def stitch_episode(
             "320k",
         ]
     )
-    _append_video_encoder_args(
-        cmd, resolved_video_encoder, video_preset, quality_level=video_quality
-    )
-    cmd.extend([
+    cmd_tail = [
         "-pix_fmt",
         "yuv420p",
         "-profile:v",
@@ -339,16 +338,31 @@ def stitch_episode(
         "-movflags",
         "+faststart",
         str(tmp_out),
-    ])
+    ]
 
     print("Stitching episode parts with ffmpeg (this can take a while for long interviews)...")
-    print(f"Video encoder: {video_encoder}")
-    if video_encoder == "auto":
-        print(f"Resolved encoder: {resolved_video_encoder}")
+    print(f"Video encoder (requested): {video_encoder}")
+    if video_encoder == "auto" or os.environ.get(VIDEO_HARDWARE_ENCODE_ENV):
+        print(f"Resolved encoder: {primary}")
     print(f"Video preset: {video_preset}")
     print(f"Video quality: {video_quality}")
-    p = subprocess.run(cmd, text=True)
-    if p.returncode != 0:
+
+    last_rc = 1
+    for attempt_idx, enc in enumerate(_encoder_attempt_chain(primary)):
+        cmd = list(cmd_prefix)
+        _append_video_encoder_args(cmd, enc, video_preset, quality_level=video_quality)
+        cmd.extend(cmd_tail)
+        if attempt_idx > 0:
+            print(
+                f"Note: falling back to libx264 after hardware encoder ({primary}) failed (stitch).",
+                file=sys.stderr,
+            )
+        p = subprocess.run(cmd, text=True)
+        last_rc = p.returncode
+        if p.returncode == 0:
+            break
+
+    if last_rc != 0:
         raise RuntimeError(
             "ffmpeg failed. Re-run and watch ffmpeg output above; if it flashes by, "
             "re-run from a console with scrollback and capture the error details."
@@ -376,7 +390,15 @@ def main() -> int:
         "--video-encoder",
         choices=VIDEO_ENCODER_CHOICES,
         default=DEFAULT_VIDEO_ENCODER,
-        help="Video encoder for the stitched output. Defaults to auto hardware detection with libx264 fallback.",
+        help=(
+            "Video encoder for the stitched output (default: libx264). "
+            "Use --hardware-encode to auto-pick NVENC/QSV/AMF with libx264 fallback."
+        ),
+    )
+    ap.add_argument(
+        "--hardware-encode",
+        action="store_true",
+        help="Try hardware encoders (NVENC / QSV / AMF) with libx264 fallback, like podcast_dsl.",
     )
     ap.add_argument(
         "--video-preset",
@@ -404,6 +426,10 @@ def main() -> int:
         return 2
 
     os.environ["PODCAST_DSL_VIDEO_ENCODER"] = args.video_encoder
+    if args.hardware_encode:
+        os.environ[VIDEO_HARDWARE_ENCODE_ENV] = "1"
+    else:
+        os.environ.pop(VIDEO_HARDWARE_ENCODE_ENV, None)
     os.environ["PODCAST_DSL_VIDEO_PRESET"] = args.video_preset
 
     try:

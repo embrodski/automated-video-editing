@@ -472,6 +472,168 @@ SEGMENT_CONFIG = {
         },
         'transcript_file': r'E:\PodcastRoom\Cursor\Inkhaven Scott\Intro\Output\interview_transcript_simplified.json',
     },
+    # Inkhaven Georgia — reading (Bellingcat / van Ess); paths absolute
+    '25': {
+        'audio_file': r'E:\PodcastRoom\Cursor\Inkhaven Georgia\Input\Reading Audio.wav',
+        'audio_offset': 0,
+        'enable_color_match': False,
+        'video_files': {
+            'speaker_0': {
+                'file': r'E:\PodcastRoom\Cursor\Inkhaven Georgia\Input\Reading Front.mp4',
+                'offset': 0,
+            },
+            'speaker_1': {
+                'file': r'E:\PodcastRoom\Cursor\Inkhaven Georgia\Input\Reading Side.mp4',
+                'offset': 0,
+            },
+        },
+        'transcript_file': r'E:\PodcastRoom\Cursor\Inkhaven Georgia\Output\reading_transcript_simplified.json',
+    },
+    # Inkhaven Aria — reading (Part 1 of dispelling-beauty-lies); paths absolute
+    '26': {
+        'audio_file': r'E:\PodcastRoom\Cursor\Inkhaven Aria\Input\Reading Audio.wav',
+        'audio_offset': 0,
+        # Master WAV can drift vs camera MP4 clocks; use embedded AAC from each camera file.
+        'use_video_embedded_audio': True,
+        'enable_color_match': False,
+        'video_files': {
+            'speaker_0': {
+                'file': r'E:\PodcastRoom\Cursor\Inkhaven Aria\Input\Reading Front.mp4',
+                'offset': 0,
+            },
+            'speaker_1': {
+                'file': r'E:\PodcastRoom\Cursor\Inkhaven Aria\Input\Reading Side.mp4',
+                'offset': 0,
+            },
+        },
+        'transcript_file': r'E:\PodcastRoom\Cursor\Inkhaven Aria\Output\reading_transcript_simplified.json',
+    },
+    # Inkhaven Aria — intro episode; paths absolute
+    '27': {
+        'audio_file': r'E:\PodcastRoom\Cursor\Inkhaven Aria\Input\Intro Audio Final.wav',
+        'audio_offset': 0,
+        'enable_color_match': False,
+        'video_files': {
+            'speaker_0': {
+                'file': r'E:\PodcastRoom\Cursor\Inkhaven Aria\Input\Intro Ben Final.mp4',
+                'offset': 0,
+            },
+            'speaker_1': {
+                'file': r'E:\PodcastRoom\Cursor\Inkhaven Aria\Input\Intro Guest Final.mp4',
+                'offset': 0,
+            },
+            'wide': {
+                'file': r'E:\PodcastRoom\Cursor\Inkhaven Aria\Input\Intro Wide Final.mp4',
+                'offset': 0,
+            },
+        },
+        'transcript_file': r'E:\PodcastRoom\Cursor\Inkhaven Aria\Output\interview_transcript_simplified.json',
+    },
+    # Inkhaven Aria — interview (Ben/Guest/Wide); paths absolute
+    '28': {
+        'audio_file': r'E:\PodcastRoom\Cursor\Inkhaven Aria\Input\Audio.wav',
+        'audio_offset': 0,
+        'enable_color_match': False,
+        'video_files': {
+            'speaker_0': {
+                'file': r'E:\PodcastRoom\Cursor\Inkhaven Aria\Input\Guest.mp4',
+                'offset': 0,
+            },
+            'speaker_1': {
+                'file': r'E:\PodcastRoom\Cursor\Inkhaven Aria\Input\Ben.mp4',
+                'offset': 0,
+            },
+            'wide': {
+                'file': r'E:\PodcastRoom\Cursor\Inkhaven Aria\Input\Wide.mp4',
+                'offset': 0,
+            },
+        },
+        'transcript_file': r'E:\PodcastRoom\Cursor\Inkhaven Aria\Output\interview_transcript_simplified.json',
+    },
+    # Inkhaven Emmy — interview (Ben/Guest/Wide); paths absolute
+    '29': {
+        'audio_file': r'E:\Inkhaven Emmy\Input\Main Audio2.wav',
+        'audio_offset': 0,
+        'enable_color_match': False,
+        'video_files': {
+            'speaker_0': {
+                'file': r'E:\Inkhaven Emmy\Input\Ben Main.mp4',
+                'offset': 0,
+            },
+            'speaker_1': {
+                'file': r'E:\Inkhaven Emmy\Input\Guest Main.mp4',
+                'offset': 0,
+            },
+            'wide': {
+                'file': r'E:\Inkhaven Emmy\Input\Main Wide 2.mp4',
+                'offset': 0,
+            },
+        },
+        'transcript_file': r'E:\Inkhaven Emmy\Output\interview_transcript_simplified.json',
+    },
+    # Inkhaven Emmy — Play (Emmy / Zoe / Wide + narrator on wide); paths absolute
+    '30': {
+        'audio_file': r'E:\Inkhaven Emmy\Input\Play Audio.wav',
+        'audio_offset': 0,
+        'enable_color_match': False,
+        'video_files': {
+            'speaker_0': {
+                'file': r'E:\Inkhaven Emmy\Input\Play Emmy.mp4',
+                'offset': 0,
+            },
+            'speaker_1': {
+                'file': r'E:\Inkhaven Emmy\Input\Play Zoe.mp4',
+                'offset': 0,
+            },
+            'wide': {
+                'file': r'E:\Inkhaven Emmy\Input\Play Wide.mp4',
+                'offset': 0,
+            },
+        },
+        'transcript_file': r'E:\Inkhaven Emmy\Output\play_transcript_simplified.json',
+    },
+    # Inkhaven Sammy — intro (Ben/Guest/Wide); paths absolute
+    '31': {
+        'audio_file': r'E:\Inkhaven Sammy\Input\Intro Audio clean-prepped.wav',
+        'audio_offset': 0,
+        'enable_color_match': False,
+        'video_files': {
+            'speaker_0': {
+                'file': r'E:\Inkhaven Sammy\Input\Intro Ben vid-prepped.mp4',
+                'offset': 0,
+            },
+            'speaker_1': {
+                'file': r'E:\Inkhaven Sammy\Input\Intro Guest vid-prepped.mp4',
+                'offset': 0,
+            },
+            'wide': {
+                'file': r'E:\Inkhaven Sammy\Input\Intro Wide vid-prepped.mp4',
+                'offset': 0,
+            },
+        },
+        'transcript_file': r'E:\Inkhaven Sammy\Output\interview_transcript_simplified.json',
+    },
+    # Inkhaven Sammy — main (Ben/Guest/Wide); paths absolute
+    '32': {
+        'audio_file': r'E:\Inkhaven Sammy\Input\Main Audio clean-prepped.wav',
+        'audio_offset': 0,
+        'enable_color_match': False,
+        'video_files': {
+            'speaker_0': {
+                'file': r'E:\Inkhaven Sammy\Input\Main Ben vid-prepped.mp4',
+                'offset': 0,
+            },
+            'speaker_1': {
+                'file': r'E:\Inkhaven Sammy\Input\Main Guest vid-prepped.mp4',
+                'offset': 0,
+            },
+            'wide': {
+                'file': r'E:\Inkhaven Sammy\Input\Main Wide vid-prepped.mp4',
+                'offset': 0,
+            },
+        },
+        'transcript_file': r'E:\Inkhaven Sammy\Output\main_transcript_simplified.json',
+    },
 }
 
 
