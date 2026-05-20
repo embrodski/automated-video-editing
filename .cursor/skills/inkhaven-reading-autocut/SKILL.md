@@ -1,6 +1,6 @@
 ---
 name: inkhaven-reading-autocut
-description: Automates the Inkhaven single-speaker reading workflow: given front/side camera files, master audio, a detail transcript JSON, and the article URL being read, convert the transcript to per-sentence simplified JSON (with word timestamps), create a canonical article text file, register a new segment in src/podcast_dsl/config.py using the next unused integer key in SEGMENT_CONFIG (same as podcast autocut; front=speaker_0, side=speaker_1, use_video_embedded_audio True, optional wide=wide only when color correction is explicitly requested), generate reading.dsl using generate_reading_dsl.py (re-read/rewind handling + side-disfavored rule + gap-only lead-in + last-line-on-front + no cut padding). If the user's initial directions include **Shorten**, post-process the DSL with shorten_reading_dsl_silences.py (compress inter-word silence over 1.5s with mandatory camera flips and side→front re-application) before any render. Then render a 1-minute test MP4 and pause to ask before longer renders. By default (unless the user requests **--FastCut**), after the agreed full-reading render append `--massive` to `python -m podcast_dsl` so the same folder also gets Front Render and Side Render (single-camera variants, encoded sequentially: Front, then Side). Default to no color correction; enable it only if the user's initial request explicitly says "Use Color Correct", "Run Color Correct", or similar. Use when the user says “reading autocut”, “Inkhaven-Reading-Autocut”, “generate reading DSL”, or provides reading inputs (Front/Side plus optional Wide + Reading Audio + Reading Transcript + article link).
+description: Automates the Inkhaven single-speaker reading workflow: given front/side camera files, master audio, a detail transcript JSON, and the article URL being read, convert the transcript to per-sentence simplified JSON (with word timestamps), create a canonical article text file, register a new segment in src/podcast_dsl/config.py using the next unused integer key in SEGMENT_CONFIG (same as podcast autocut; front=speaker_0, side=speaker_1, use_video_embedded_audio True, optional wide=wide only when color correction is explicitly requested), generate reading.dsl using generate_reading_dsl.py (re-read/rewind handling + side-disfavored rule + gap-only lead-in + last-line-on-front + no cut padding). If the user's initial directions include **Shorten**, post-process the DSL with shorten_reading_dsl_silences.py (compress inter-word silence over 1.5s with mandatory camera flips and side→front re-application) before any render. Then render a 1-minute test MP4 and pause to ask before longer renders (multicam full render only; no default Front/Side single-camera variants). Default to no color correction; enable it only if the user's initial request explicitly says "Use Color Correct", "Run Color Correct", or similar. Use when the user says “reading autocut”, “Inkhaven-Reading-Autocut”, “generate reading DSL”, or provides reading inputs (Front/Side plus optional Wide + Reading Audio + Reading Transcript + article link).
 ---
 
 # Inkhaven Reading Autocut
@@ -50,8 +50,6 @@ In all commands below, substitute **`<input folder>`**, **`<output folder>`**, a
 - **Downscale request**: if the user's initial run request says `Downscale 4K to 1080p` or equivalent phrasing, add `--downscale-4k-to-1080p` to the render command.
 - **Original article URL** (the canonical script being read)
 - **Shorten**: if the user's initial directions include the word **Shorten** (e.g. “reading autocut, Shorten”), after `reading.dsl` is generated you must run the silence post-pass (see workflow step 6) **before** any `python -m podcast_dsl` render.
-- **FastCut**: if the user's initial run request includes **`--FastCut`** (case-insensitive; e.g. `--fastcut`, `--FASTCUT`), treat it as “skip massive variants”: render only the normal outputs (1-min test + optional 5-min test + optional full), and do **not** append `--massive` to the full render.
-- **Massive renders (default)**: unless `--FastCut` was requested in the user's initial run request, when they agree to the **full reading** render, append **`--massive`** to that `python -m podcast_dsl` command (same flags otherwise). That produces **in the same folder as `-o`**: `Front Render.mp4` and `Side Render.mp4` (plus matching `.dsl` files), each the same timeline as `reading.dsl` but forced to `speaker_0` or `speaker_1` respectively; `massive_renderer.py` runs those two encodes **one after another** (Front, then Side) to avoid overloading the machine. Do **not** add `--massive` to 1-minute or 5-minute test commands (`--max-seconds` is incompatible with `--massive`).
 - **Optional overrides**
   - Per-camera offsets (seconds; default 0)
   - Transcript rows to force-keep / force-drop (for rare visual or section-header callout exception cases)
@@ -205,17 +203,7 @@ python -m podcast_dsl "<output folder>\\reading.dsl" -o "<output folder>\\5 Min 
 python -m podcast_dsl "<output folder>\\reading.dsl" -o "<output folder>\\Full Reading.mp4" --workers 6
 ```
 
-Unless the user requested **`--FastCut`**, use the full render command with **`--massive`** appended (and keep any `--downscale-4k-to-1080p` / `--video-encoder` flags they requested):
-
-```powershell
-Set-Location "<repo>\\src"
-$env:TEMP = "<temp folder>"
-$env:TMP  = "<temp folder>"
-
-python -m podcast_dsl "<output folder>\\reading.dsl" -o "<output folder>\\Full Reading.mp4" --workers 6 --massive
-```
-
-After it finishes, confirm **`Front Render.mp4`** and **`Side Render.mp4`** (and optional `.dsl` siblings) exist beside **`Full Reading.mp4`**.
+Do **not** append **`--massive`** unless the user explicitly asks for single-camera **Front Render** / **Side Render** variants (same timeline forced to one camera each; incompatible with `--max-seconds`).
 
 ### 9) After render
 No thumbnail-text generation step is included in this pipeline.
@@ -236,5 +224,5 @@ Assistant:
 - Registers a new segment in `src/podcast_dsl/config.py` using the **next unused integer** key in `SEGMENT_CONFIG` (same rule as Inkhaven-Podcast-Autocut), with `use_video_embedded_audio: True` and `enable_color_match: False` unless the initial request explicitly asked for color correction
 - Generates `reading.dsl`
 - If the user included **Shorten**, runs `shorten_reading_dsl_silences.py` on `reading.dsl` before rendering
-- Renders `1 Min Test Reading.mp4` only, then asks before longer renders; unless the initial request included **`--FastCut`**, append `--massive` only to the agreed full-reading render
+- Renders `1 Min Test Reading.mp4` only, then asks before longer renders (full render is multicam only unless the user explicitly requests `--massive`)
 
