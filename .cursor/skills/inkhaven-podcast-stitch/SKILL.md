@@ -19,7 +19,7 @@ When the user asks to load this skill, do the following:
 Create `Complete Episode.mp4` by stitching four already-rendered MP4s in the **Output folder**:
 
 1) `Intro.mp4`  
-2) `Reading.mp4`  
+2) `Edited Reading.mp4`  
 3) `Edited Interview.mp4`  
 4) `Closing.mp4`
 

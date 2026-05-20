@@ -4,7 +4,7 @@ Stitch an Inkhaven episode from four pre-rendered parts in an Output folder.
 
 Inputs (must exist in output dir):
   - Intro.mp4
-  - Reading.mp4
+  - Edited Reading.mp4
   - Edited Interview.mp4
   - Closing.mp4
 
@@ -45,7 +45,7 @@ from podcast_dsl.video_renderer import (
 
 REQUIRED_FILES = [
     "Intro.mp4",
-    "Reading.mp4",
+    "Edited Reading.mp4",
     "Edited Interview.mp4",
     "Closing.mp4",
 ]

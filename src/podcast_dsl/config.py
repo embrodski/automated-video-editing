@@ -758,6 +758,24 @@ SEGMENT_CONFIG = {
         },
         'transcript_file': r'E:\Inkhaven Viv\Output\interview_transcript_simplified.json',
     },
+    # Inkhaven Nancy (reading) — Front/Side cameras mapped as speaker_0/speaker_1.
+    '38': {
+        'audio_file': r'E:\Inkhaven Nancy\Input\Reading audio-prepped.wav',
+        'audio_offset': 0,
+        'use_video_embedded_audio': True,
+        'enable_color_match': False,
+        'video_files': {
+            'speaker_0': {
+                'file': r'E:\Inkhaven Nancy\Input\Reading front-prepped.mp4',
+                'offset': 0,
+            },
+            'speaker_1': {
+                'file': r'E:\Inkhaven Nancy\Input\Reading side-prepped.mp4',
+                'offset': 0,
+            },
+        },
+        'transcript_file': r'E:\Inkhaven Nancy\Temp\reading_transcript_simplified.json',
+    },
 }
 
 
