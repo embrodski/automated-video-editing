@@ -776,6 +776,27 @@ SEGMENT_CONFIG = {
         },
         'transcript_file': r'E:\Inkhaven Nancy\Temp\reading_transcript_simplified.json',
     },
+    # Inkhaven Nancy — intro interview (Ben/Guest/Wide)
+    '39': {
+        'audio_file': r'E:\Inkhaven Nancy\Input\Intro Audio Clean-prepped.wav',
+        'audio_offset': 0,
+        'enable_color_match': False,
+        'video_files': {
+            'speaker_0': {
+                'file': r'E:\Inkhaven Nancy\Input\Intro Ben vid-prepped.mp4',
+                'offset': 0,
+            },
+            'speaker_1': {
+                'file': r'E:\Inkhaven Nancy\Input\Intro Guest vid-prepped.mp4',
+                'offset': 0,
+            },
+            'wide': {
+                'file': r'E:\Inkhaven Nancy\Input\Intro Wide vid-prepped.mp4',
+                'offset': 0,
+            },
+        },
+        'transcript_file': r'E:\Inkhaven Nancy\temp\interview_transcript_simplified.json',
+    },
 }
 
 

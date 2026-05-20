@@ -171,7 +171,12 @@ def _parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
     p.add_argument(
         "--output-dir",
         required=True,
-        help="Folder to write derived DSL files and MP4 outputs.",
+        help="Folder to write MP4 outputs.",
+    )
+    p.add_argument(
+        "--artifacts-dir",
+        default=None,
+        help="Folder for derived DSL files (default: same as --output-dir).",
     )
     p.add_argument(
         "--repo-src",
@@ -234,6 +239,7 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
 
     base_dsl = Path(args.base_dsl).resolve()
     output_dir = Path(args.output_dir).resolve()
+    artifacts_dir = Path(args.artifacts_dir or args.output_dir).resolve()
     repo_src_dir = Path(args.repo_src).resolve()
 
     if not base_dsl.exists():
@@ -256,7 +262,7 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
 
     jobs: List[RenderJob] = []
     for spec in specs:
-        dsl_out = output_dir / f"{spec.name}.dsl"
+        dsl_out = artifacts_dir / f"{spec.name}.dsl"
         mp4_out = output_dir / f"{spec.name}.mp4"
         derived = force_single_camera_dsl_text(base_text, camera=spec.camera)
         _write_text(dsl_out, derived)

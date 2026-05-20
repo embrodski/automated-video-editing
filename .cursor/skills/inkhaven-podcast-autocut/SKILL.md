@@ -1,6 +1,6 @@
 ---
 name: inkhaven-podcast-autocut
-description: Automates the Inkhaven multi-cam podcast workflow: convert a detail transcript JSON into per-sentence simplified JSON, register a new segment in src/podcast_dsl/config.py using provided input media paths, generate a full DSL with speaker-based camera cuts plus the dense-cuts→wide rule (default --camera-switch-offset-ms -250 on generate_full_dsl.py; user may say "adjust off" or "Adjust X ms"), then render ONLY the 1-minute test MP4 and pause to ask whether to continue (5-minute + full render are opt-in). If the user's initial request includes "massive" or `--massive`, after the agreed full-episode render add `--massive` to `python -m podcast_dsl` so the same folder also gets Ben Render, Guest Render, and Wide Render (single-camera variants, encoded sequentially: Ben, then Guest, then Wide). Default to no color correction; enable it only if the user's initial request explicitly says "Use Color Correct", "Run Color Correct", or similar. Use when the user says “Inkhaven”, “podcast autocut”, “generate DSL”, “render interview”, or provides input/output folders with Ben/Guest/Wide videos + WAV + transcript JSON.
+description: Automates the Inkhaven multi-cam podcast workflow: convert a detail transcript JSON into per-sentence simplified JSON (in Temp), register a new segment in src/podcast_dsl/config.py using provided input media paths, generate interview.dsl in Temp with speaker-based camera cuts plus the dense-cuts→wide rule (default --camera-switch-offset-ms -250 on generate_full_dsl.py; user may say "adjust off" or "Adjust X ms"), write MP4 renders to Output, then render ONLY the 1-minute test MP4 and pause to ask whether to continue (5-minute + full render are opt-in). If the user's initial request includes "massive" or `--massive`, after the agreed full-episode render add `--massive` to `python -m podcast_dsl` so the same folder also gets Ben Render, Guest Render, and Wide Render (single-camera variants, encoded sequentially: Ben, then Guest, then Wide). Default to no color correction; enable it only if the user's initial request explicitly says "Use Color Correct", "Run Color Correct", or similar. Use when the user says “Inkhaven”, “podcast autocut”, “generate DSL”, “render interview”, or provides input/output folders with Ben/Guest/Wide videos + WAV + transcript JSON.
 ---
 
 # Inkhaven Podcast Autocut
@@ -27,9 +27,9 @@ In all commands below, substitute **`<input folder>`**, **`<output folder>`**, a
 ## Inputs to collect
 
 - **Working folder path** (after [Working folder resolution](#working-folder-resolution))
-  - Input folder: resolved **Input folder** (source media + transcript live here)
-  - Output folder: resolved **Output folder** (simplified transcript JSON, DSL(s), MP4(s) written here)
-  - Temp folder: resolved **Temp folder** (temporary working files; on Windows redirect `TEMP`/`TMP` here before rendering)
+  - Input folder: resolved **Input folder** (source media + detail transcript live here)
+  - Output folder: resolved **Output folder** (**MP4 renders only**)
+  - Temp folder: resolved **Temp folder** (non-MP4 pipeline artifacts **and** render scratch; on Windows redirect `TEMP`/`TMP` here before rendering)
 - **Files**:
   - **Ben close video** (`speaker_0`)
   - **Guest close video** (`speaker_1`)
@@ -48,7 +48,20 @@ In all commands below, substitute **`<input folder>`**, **`<output folder>`**, a
   - **Opt out:** if the initial request includes **`adjust off`** (case-insensitive; e.g. `Adjust off`, `no adjust`), add **`--no-camera-switch-offset`** to `generate_full_dsl.py` (or `--camera-switch-offset-ms 0`).
   - **Override amount:** if the initial request includes **`Adjust <N> ms`** (or `Adjust <N>ms`, case-insensitive; e.g. `Adjust -200 ms`), use `--camera-switch-offset-ms <N>` instead of the default (parse `<N>` as a signed integer milliseconds value).
   - Current implementation supports **negative values only** (switch earlier). Positive values intentionally error out.
-- **Massive renders**: if the user's initial run request includes `massive`, `--massive`, or equivalent (e.g. “run massive”, “massive test”), then when they agree to the **full episode** render, append **`--massive`** to that `python -m podcast_dsl` command (same flags otherwise). That produces **in the same folder as `-o`**: `Ben Render.mp4`, `Guest Render.mp4`, and `Wide Render.mp4` (plus matching `.dsl` files), each the same timeline as `interview.dsl` but forced to `speaker_0`, `speaker_1`, or `wide` respectively; `massive_renderer.py` runs those three encodes **one after another** (Ben, then Guest, then Wide) to avoid overloading the machine. Do **not** add `--massive` to 1-minute or 5-minute test commands (`--max-seconds` is incompatible with `--massive`).
+- **Massive renders**: if the user's initial run request includes `massive`, `--massive`, or equivalent (e.g. “run massive”, “massive test”), then when they agree to the **full episode** render, append **`--massive`** to that `python -m podcast_dsl` command (same flags otherwise). That produces **`Ben Render.mp4`**, **`Guest Render.mp4`**, and **`Wide Render.mp4`** in **`<output folder>`** (same folder as `-o`), plus matching **`.dsl`** siblings in **`<temp folder>`** (same directory as `interview.dsl`), each the same timeline as `interview.dsl` but forced to `speaker_0`, `speaker_1`, or `wide` respectively; `massive_renderer.py` runs those three encodes **one after another** (Ben, then Guest, then Wide) to avoid overloading the machine. Do **not** add `--massive` to 1-minute or 5-minute test commands (`--max-seconds` is incompatible with `--massive`).
+
+### Artifact layout (Output vs Temp)
+
+Keep **`<output folder>`** for deliverable **`.mp4`** files only. Write **all other** pipeline outputs under **`<temp folder>`** (the `temp` / `Temp` sibling one level up from Input/Output):
+
+| Artifact | Folder |
+|----------|--------|
+| `interview_transcript_simplified.json` | `<temp folder>` |
+| `interview.dsl` | `<temp folder>` |
+| Massive variant `.dsl` files (`Ben Render.dsl`, etc.) | `<temp folder>` |
+| `1 Min Test.mp4`, `5 Min Test.mp4`, `Full Interview.mp4`, massive `.mp4` renders | `<output folder>` |
+
+Ensure **`<temp folder>`** exists before writing JSON/DSL. Do **not** place transcript JSON or DSL under Output.
 
 ## Core rules (must apply)
 
@@ -88,7 +101,7 @@ Confirm the exact filenames in `<input folder>` and identify which map to:
 
 ### 2) Convert detail transcript → simplified per-sentence JSON
 
-Run the repo converter to create a simplified transcript JSON in `<output folder>`.
+Run the repo converter to create a simplified transcript JSON in `<temp folder>`.
 
 - **Default**: split into one row per sentence from word timings (critical for sentence-boundary edits).
 - Output format must be a JSON dict keyed by row id strings; each row has `start`, `end`, `text`, `speaker_id`, `speaker_name`.
@@ -96,7 +109,7 @@ Run the repo converter to create a simplified transcript JSON in `<output folder
 Command template:
 
 ```bash
-python convert_transcript_json.py "<input folder>/<detail transcript filename>" -o "<output folder>/interview_transcript_simplified.json"
+python convert_transcript_json.py "<input folder>/<detail transcript filename>" -o "<temp folder>/interview_transcript_simplified.json"
 ```
 
 ### 3) Register a new segment in `src/podcast_dsl/config.py`
@@ -107,7 +120,7 @@ Add a new segment entry with:
 - `audio_offset`: 0
 - `enable_color_match`: `True` only if the user's initial request explicitly asked for color correction; otherwise `False`
 - `video_files`: `speaker_0`, `speaker_1`, `wide` each with absolute `file` path and `offset` (default 0 unless user provided overrides)
-- `transcript_file`: `<output folder>/interview_transcript_simplified.json` absolute path
+- `transcript_file`: `<temp folder>/interview_transcript_simplified.json` absolute path
 
 **Segment number policy**: choose the **next unused integer** segment key in `SEGMENT_CONFIG` (e.g. if `10` exists, use `11`).
 
@@ -115,18 +128,18 @@ Add a new segment entry with:
 
 Use `generate_full_dsl.py` (now includes camera switching + wide rule by default) to generate:
 
-- Full DSL: `<output folder>/interview.dsl`
+- Full DSL: `<temp folder>/interview.dsl`
 
 Command template:
 
 ```bash
-python generate_full_dsl.py "<output folder>/interview_transcript_simplified.json" --segment <SEGMENT_NUM> --output "<output folder>/interview.dsl" [--camera-switch-offset-ms <NEGATIVE_MS>] [--no-camera-switch-offset]
+python generate_full_dsl.py "<temp folder>/interview_transcript_simplified.json" --segment <SEGMENT_NUM> --output "<temp folder>/interview.dsl" [--camera-switch-offset-ms <NEGATIVE_MS>] [--no-camera-switch-offset]
 ```
 
 **Default** (`generate_full_dsl.py` applies **-250 ms** automatically; no extra flag needed unless the user said `adjust off` or overrides the amount):
 
 ```bash
-python generate_full_dsl.py "<output folder>/interview_transcript_simplified.json" --segment <SEGMENT_NUM> --output "<output folder>/interview.dsl"
+python generate_full_dsl.py "<temp folder>/interview_transcript_simplified.json" --segment <SEGMENT_NUM> --output "<temp folder>/interview.dsl"
 ```
 
 If the user overrides with e.g. `Adjust -200 ms`, add `--camera-switch-offset-ms -200`. If they said `adjust off`, add `--no-camera-switch-offset`.
@@ -145,7 +158,7 @@ Set-Location "<repo>\\src"
 $env:TEMP = "<temp folder>"
 $env:TMP  = "<temp folder>"
 
-python -m podcast_dsl "<output folder>\\interview.dsl" -o "<output folder>\\1 Min Test.mp4" --workers 6 --max-seconds 60
+python -m podcast_dsl "<temp folder>\\interview.dsl" -o "<output folder>\\1 Min Test.mp4" --workers 6 --max-seconds 60
 ```
 
 After the 1-minute render completes, **pause** and ask:
@@ -160,8 +173,8 @@ Set-Location "<repo>\\src"
 $env:TEMP = "<temp folder>"
 $env:TMP  = "<temp folder>"
 
-python -m podcast_dsl "<output folder>\\interview.dsl" -o "<output folder>\\5 Min Test.mp4" --workers 6 --max-seconds 300
-python -m podcast_dsl "<output folder>\\interview.dsl" -o "<output folder>\\Full Interview.mp4" --workers 6
+python -m podcast_dsl "<temp folder>\\interview.dsl" -o "<output folder>\\5 Min Test.mp4" --workers 6 --max-seconds 300
+python -m podcast_dsl "<temp folder>\\interview.dsl" -o "<output folder>\\Full Interview.mp4" --workers 6
 ```
 
 If the user asked for **massive** on the full episode, use the same command with **`--massive`** appended (and keep any `--downscale-4k-to-1080p` / `--video-encoder` flags they requested):
@@ -171,15 +184,16 @@ Set-Location "<repo>\\src"
 $env:TEMP = "<temp folder>"
 $env:TMP  = "<temp folder>"
 
-python -m podcast_dsl "<output folder>\\interview.dsl" -o "<output folder>\\Full Interview.mp4" --workers 6 --massive
+python -m podcast_dsl "<temp folder>\\interview.dsl" -o "<output folder>\\Full Interview.mp4" --workers 6 --massive
 ```
 
-After it finishes, confirm **`Ben Render.mp4`**, **`Guest Render.mp4`**, **`Wide Render.mp4`** (and optional `.dsl` siblings) exist beside **`Full Interview.mp4`**.
+After it finishes, confirm **`Ben Render.mp4`**, **`Guest Render.mp4`**, and **`Wide Render.mp4`** exist in **`<output folder>`** beside **`Full Interview.mp4`**, and optional **`.dsl`** siblings exist in **`<temp folder>`**.
 
 ### 7) Validate outputs
 
-- Confirm the output MP4 files exist and are non-trivial size.
-- Optional: run `--dry-run` on the DSL to confirm total duration before a long render.
+- Confirm MP4 files in **`<output folder>`** exist and are non-trivial size.
+- Confirm **`interview_transcript_simplified.json`** and **`interview.dsl`** exist in **`<temp folder>`** (not under Output).
+- Optional: run `--dry-run` on `<temp folder>/interview.dsl` to confirm total duration before a long render.
 - If **massive** was used: also confirm the three single-camera outputs are non-trivial size.
 
 ## Usage example
@@ -188,10 +202,10 @@ User: “Load Inkhaven-Podcast-Autocut. Working folder is `D:\\Project`. Ben clo
 
 Assistant (following this skill):
 
-- Uses `D:\Project\Input` for inputs, writes outputs to `D:\Project\Output`, and redirects `TEMP/TMP` to `D:\Project\Temp`
-- Convert transcript to `D:\Project\Output\interview_transcript_simplified.json`
+- Uses `D:\Project\Input` for inputs, writes MP4s to `D:\Project\Output`, pipeline JSON/DSL to `D:\Project\Temp`, and redirects `TEMP/TMP` to `D:\Project\Temp`
+- Convert transcript to `D:\Project\Temp\interview_transcript_simplified.json`
 - Add a new `SEGMENT_CONFIG['<next>']` entry pointing to the provided files, with `enable_color_match: False` unless the initial request explicitly asked for color correction
-- Generate `D:\Project\Output\interview.dsl` (with dense-cuts→wide; default **-250 ms** camera-switch offset is built into `generate_full_dsl.py`)
-- Render ONLY `1 Min Test.mp4` into the output folder with `TEMP/TMP` redirected to `D:\Project\Temp`
+- Generate `D:\Project\Temp\interview.dsl` (with dense-cuts→wide; default **-250 ms** camera-switch offset is built into `generate_full_dsl.py`)
+- Render ONLY `1 Min Test.mp4` into the output folder (DSL path `D:\Project\Temp\interview.dsl`) with `TEMP/TMP` redirected to `D:\Project\Temp`
 - Pause and ask whether to continue with the 5-minute test and/or full render
 

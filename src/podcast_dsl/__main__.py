@@ -218,6 +218,8 @@ Examples:
             str(dsl_path),
             '--output-dir',
             str(out_dir),
+            '--artifacts-dir',
+            str(dsl_path.parent),
             '--repo-src',
             str(repo_root / 'src'),
             '--workers',
