@@ -66,6 +66,22 @@ def _run(cmd: list[str]) -> None:
             f"Command failed ({r.returncode}): {' '.join(cmd)}\n{r.stderr or r.stdout}"
         )
 
+def _replace_file_atomic(tmp_path: Path, final_path: Path) -> None:
+    """
+    Replace final_path with tmp_path atomically when possible.
+
+    Important: MP4s are often unreadable until ffmpeg finalizes the container
+    ("moov atom"). Writing to a temporary path avoids leaving behind a
+    corrupt-looking final deliverable if the process is interrupted.
+    """
+    final_path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        tmp_path.replace(final_path)
+    except OSError:
+        # Cross-device or Windows weirdness fallback.
+        final_path.unlink(missing_ok=True)
+        tmp_path.replace(final_path)
+
 
 def _extract_video_audio_mono_wav(video: Path, out_wav: Path, *, sample_hz: int) -> None:
     _run(
@@ -150,17 +166,22 @@ def _trim_av_reencode(
     trim_sec: float,
     crf: int,
     audio_bitrate: str,
+    downscale_1080p: bool,
 ) -> None:
-    fc = (
-        f"[0:v]trim=start={trim_sec},setpts=PTS-STARTPTS[v];"
-        f"[0:a]atrim=start={trim_sec},asetpts=PTS-STARTPTS[a]"
-    )
+    # Apply trim first; optionally downscale video to 1080p max width for faster
+    # renders / smaller uploads (useful for YouTube workflows).
+    v_chain = f"trim=start={trim_sec},setpts=PTS-STARTPTS"
+    if downscale_1080p:
+        # Keep aspect ratio; never upscale. Height becomes even via -2.
+        v_chain += ",scale=w='min(1920,iw)':h=-2:flags=lanczos"
+    fc = f"[0:v]{v_chain}[v];[0:a]atrim=start={trim_sec},asetpts=PTS-STARTPTS[a]"
     cmd = [
         "ffmpeg",
         "-y",
         "-hide_banner",
         "-loglevel",
-        "error",
+        "warning",
+        "-stats",
         "-i",
         str(inp),
         "-filter_complex",
@@ -199,7 +220,8 @@ def _trim_av_streamcopy(inp: Path, out: Path, *, trim_sec: float) -> None:
         "-y",
         "-hide_banner",
         "-loglevel",
-        "error",
+        "warning",
+        "-stats",
         "-ss",
         f"{trim_sec:.6f}",
         "-i",
@@ -349,8 +371,16 @@ def main() -> int:
     p.add_argument(
         "--crf",
         type=int,
-        default=18,
-        help="H.264 CRF when re-encoding (default: 18).",
+        default=20,
+        help="H.264 CRF when re-encoding (default: 20; good YouTube upload default).",
+    )
+    p.add_argument(
+        "--downscale-1080p",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="When re-encoding (default mode), downscale video to max width 1920 "
+        "(preserve aspect; never upscale). Default: on. Ignored with --stream-copy "
+        "and when output is stream-copied with no head trim.",
     )
     p.add_argument(
         "--audio-bitrate",
@@ -443,35 +473,51 @@ def main() -> int:
         out_dir = args.out_dir if args.out_dir is not None else v.parent
         out_dir.mkdir(parents=True, exist_ok=True)
         out_path = (out_dir / out_basename).resolve()
+        # Suffix must stay recognized by ffmpeg muxer (e.g. .mp4), not ".mp4.partial".
+        tmp_path = out_path.with_name(f"{out_path.stem}.partial{out_path.suffix}")
 
         if trim_sec <= 0.0:
             if out_path == v:
                 print(f"  [{i}] skip (no trim, output would overwrite input)", file=sys.stderr)
                 continue
-            _run(
-                [
-                    "ffmpeg",
-                    "-y",
-                    "-hide_banner",
-                    "-loglevel",
-                    "error",
-                    "-i",
-                    str(v),
-                    "-c",
-                    "copy",
-                    str(out_path),
-                ]
-            )
+            try:
+                _run(
+                    [
+                        "ffmpeg",
+                        "-y",
+                        "-hide_banner",
+                        "-loglevel",
+                        "warning",
+                        "-stats",
+                        "-i",
+                        str(v),
+                        "-c",
+                        "copy",
+                        str(tmp_path),
+                    ]
+                )
+                _replace_file_atomic(tmp_path, out_path)
+            finally:
+                tmp_path.unlink(missing_ok=True)
         elif args.stream_copy:
-            _trim_av_streamcopy(v, out_path, trim_sec=trim_sec)
+            try:
+                _trim_av_streamcopy(v, tmp_path, trim_sec=trim_sec)
+                _replace_file_atomic(tmp_path, out_path)
+            finally:
+                tmp_path.unlink(missing_ok=True)
         else:
-            _trim_av_reencode(
-                v,
-                out_path,
-                trim_sec=trim_sec,
-                crf=args.crf,
-                audio_bitrate=args.audio_bitrate,
-            )
+            try:
+                _trim_av_reencode(
+                    v,
+                    tmp_path,
+                    trim_sec=trim_sec,
+                    crf=args.crf,
+                    audio_bitrate=args.audio_bitrate,
+                    downscale_1080p=bool(args.downscale_1080p),
+                )
+                _replace_file_atomic(tmp_path, out_path)
+            finally:
+                tmp_path.unlink(missing_ok=True)
         print(f"Wrote {out_path}")
 
     if args.json_report:

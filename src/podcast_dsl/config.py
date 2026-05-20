@@ -16,6 +16,27 @@ def _resolve_repo_path(path_str: str) -> str:
     return str((_PATH_BASE / path_str).resolve())
 
 
+# Header line emitted by generate_reading_dsl.py / shorten_reading_dsl_silences.py
+READING_DSL_MARKER = "// Generated reading DSL"
+
+
+def is_reading_dsl_text(dsl_text: str) -> bool:
+    """True when DSL was produced by the Inkhaven reading autocut pipeline."""
+    return any(line.strip().startswith(READING_DSL_MARKER) for line in dsl_text.splitlines())
+
+
+def segment_uses_embedded_audio(segment_config: dict, *, dsl_text: str | None = None) -> bool:
+    """
+    Reading segments use AAC embedded in each camera MP4 (not the master WAV) so
+    lip-sync does not drift. Explicit config wins; otherwise infer from reading DSL text.
+    """
+    if segment_config.get('use_video_embedded_audio'):
+        return True
+    if dsl_text is not None and is_reading_dsl_text(dsl_text):
+        return True
+    return False
+
+
 # Segment configuration
 SEGMENT_CONFIG = {
     '1': {
@@ -59,6 +80,7 @@ SEGMENT_CONFIG = {
     '8': {
         'audio_file': '../derived_media/Eneasz Audio (Reading) trimmed.wav',
         'audio_offset': 0,
+        'use_video_embedded_audio': True,
         'video_files': {
             'straight': {
                 'file': '../derived_media/Eneasz Vid (Reading) trimmed exact.mp4',
@@ -251,6 +273,7 @@ SEGMENT_CONFIG = {
     '14': {
         'audio_file': r'D:\PodcastRoom\Cursor\Inkhaven Drew\Input\Reading Audio.wav',
         'audio_offset': 0,
+        'use_video_embedded_audio': True,
         'video_files': {
             'speaker_0': {
                 'file': r'D:\PodcastRoom\Cursor\Inkhaven Drew\Input\Reading Front.mp4',
@@ -291,6 +314,7 @@ SEGMENT_CONFIG = {
     '16': {
         'audio_file': r'E:\PodcastRoom\Cursor\Inkhaven Decker\clean Decker Reading Audio.wav',
         'audio_offset': 0,
+        'use_video_embedded_audio': True,
         'enable_color_match': True,
         'video_files': {
             'speaker_0': {
@@ -375,6 +399,7 @@ SEGMENT_CONFIG = {
     '20': {
         'audio_file': r'E:\PodcastRoom\Cursor\Inkhaven Alice\Input\Reading Audio.wav',
         'audio_offset': 0,
+        'use_video_embedded_audio': True,
         'enable_color_match': False,
         'video_files': {
             'speaker_0': {
@@ -476,6 +501,7 @@ SEGMENT_CONFIG = {
     '25': {
         'audio_file': r'E:\PodcastRoom\Cursor\Inkhaven Georgia\Input\Reading Audio.wav',
         'audio_offset': 0,
+        'use_video_embedded_audio': True,
         'enable_color_match': False,
         'video_files': {
             'speaker_0': {
@@ -493,7 +519,6 @@ SEGMENT_CONFIG = {
     '26': {
         'audio_file': r'E:\PodcastRoom\Cursor\Inkhaven Aria\Input\Reading Audio.wav',
         'audio_offset': 0,
-        # Master WAV can drift vs camera MP4 clocks; use embedded AAC from each camera file.
         'use_video_embedded_audio': True,
         'enable_color_match': False,
         'video_files': {
@@ -633,6 +658,105 @@ SEGMENT_CONFIG = {
             },
         },
         'transcript_file': r'E:\Inkhaven Sammy\Output\main_transcript_simplified.json',
+    },
+    # Inkhaven Lawrence — intro (Ben/Guest/Wide); paths absolute
+    '33': {
+        'audio_file': r'E:\Inkhaven Lawrence\Input\Intro Audio clean-prepped.wav',
+        'audio_offset': 0,
+        'enable_color_match': False,
+        'video_files': {
+            'speaker_0': {
+                'file': r'E:\Inkhaven Lawrence\Input\Intro Ben vid-prepped.mp4',
+                'offset': 0,
+            },
+            'speaker_1': {
+                'file': r'E:\Inkhaven Lawrence\Input\Intro Guest vid-prepped.mp4',
+                'offset': 0,
+            },
+            'wide': {
+                'file': r'E:\Inkhaven Lawrence\Input\Intro Wide vid-prepped.mp4',
+                'offset': 0,
+            },
+        },
+        'transcript_file': r'E:\Inkhaven Lawrence\Output\interview_transcript_simplified.json',
+    },
+    # Inkhaven Lawrence — main (Ben/Guest/Wide); paths absolute
+    '34': {
+        'audio_file': r'E:\Inkhaven Lawrence\Input\Main Audio clean-prepped.wav',
+        'audio_offset': 0,
+        'enable_color_match': False,
+        'video_files': {
+            'speaker_0': {
+                'file': r'E:\Inkhaven Lawrence\Input\Main Guest vid-prepped.mp4',
+                'offset': 0,
+            },
+            'speaker_1': {
+                'file': r'E:\Inkhaven Lawrence\Input\Main Ben vid-prepped.mp4',
+                'offset': 0,
+            },
+            'wide': {
+                'file': r'E:\Inkhaven Lawrence\Input\Main Wide vid-prepped.mp4',
+                'offset': 0,
+            },
+        },
+        'transcript_file': r'E:\Inkhaven Lawrence\Output\main_transcript_simplified.json',
+    },
+    # Inkhaven Lawrence — reading (Front/Side); paths absolute
+    '35': {
+        'audio_file': r'E:\Inkhaven Lawrence\Input\Reading raw audio-prepped.wav',
+        'audio_offset': 0,
+        'use_video_embedded_audio': True,
+        'enable_color_match': False,
+        'video_files': {
+            'speaker_0': {
+                'file': r'E:\Inkhaven Lawrence\Input\Reading Front-prepped.mp4',
+                'offset': 0,
+            },
+            'speaker_1': {
+                'file': r'E:\Inkhaven Lawrence\Input\Reading side-prepped.mp4',
+                'offset': 0,
+            },
+        },
+        'transcript_file': r'E:\Inkhaven Lawrence\Output\reading_transcript_simplified.json',
+    },
+    # Inkhaven Viv — reading (Front/Side); paths absolute
+    '36': {
+        'audio_file': r'E:\Inkhaven Viv\Input\Reading audio raw-prepped.wav',
+        'audio_offset': 0,
+        'use_video_embedded_audio': True,
+        'enable_color_match': False,
+        'video_files': {
+            'speaker_0': {
+                'file': r'E:\Inkhaven Viv\Input\Reading front-prepped.mp4',
+                'offset': 0,
+            },
+            'speaker_1': {
+                'file': r'E:\Inkhaven Viv\Input\Reading side-prepped.mp4',
+                'offset': 0,
+            },
+        },
+        'transcript_file': r'E:\Inkhaven Viv\Output\reading_transcript_simplified.json',
+    },
+    # Inkhaven Viv — interview (Ben/Guest/Wide); paths absolute
+    '37': {
+        'audio_file': r'E:\Inkhaven Viv\Input\Main Combined Audio cleaned-prepped.wav',
+        'audio_offset': 0,
+        'enable_color_match': False,
+        'video_files': {
+            'speaker_0': {
+                'file': r'E:\Inkhaven Viv\Input\Main Ben vid-prepped.mp4',
+                'offset': 0,
+            },
+            'speaker_1': {
+                'file': r'E:\Inkhaven Viv\Input\Main Guest vid-prepped.mp4',
+                'offset': 0,
+            },
+            'wide': {
+                'file': r'E:\Inkhaven Viv\Input\Main Wide vid-prepped.mp4',
+                'offset': 0,
+            },
+        },
+        'transcript_file': r'E:\Inkhaven Viv\Output\interview_transcript_simplified.json',
     },
 }
 

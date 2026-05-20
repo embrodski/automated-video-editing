@@ -14,11 +14,11 @@ Workflow:
      whose concatenated text is closest to the row's text.
   4. Rows with low similarity to any article span are marked off-script (coach
      direction, asides, etc.) and dropped.
-  5. Walk rows in reverse, keeping only rows whose matched article range ends
-     BEFORE the most recently kept row's article range starts. This naturally
-     keeps only the final (latest) take of each article sentence, handles
-     speaker rewinds by replacing the affected range with the final contiguous
-     correct reading, and drops intermediate partial attempts.
+  5. Walk rows in reverse, keeping a row unless a later kept row strictly
+     covers its article span (rewind / full re-read). Same-span duplicates
+     keep the highest-similarity take so a weak late match cannot erase a
+     strong earlier read. Adjacent same-span split rows still use split-chunk
+     rescue.
   6. Partition kept rows into "spans": consecutive kept rows that are also
      consecutive in the ORIGINAL transcript (no dropped rows between them).
      Each span boundary is a "cut" that flips the camera (front <-> side).
@@ -33,7 +33,16 @@ Workflow:
      longer than `side_shot_max_sec` switches to front at the next comma,
      sentence end (. ? !), or row boundary.
   10. The last transcript row in the edit always uses the front camera.
-  11. Emit the DSL.
+  11. After gap lead-in, extend each subclip end by a short post-word tail (default
+      0.4s after the last word in that clip), clamped so the cut never enters the next
+      word, the next subclip, or past row.end; then extend the final shot tail.
+  12. Optionally (--shorten), compress inter-word silences longer than a threshold
+      before the final-shot tail extension; off by default.
+  13. Emit the DSL.
+
+Renders of the generated DSL use **embedded audio from each camera MP4** by default
+(see ``segment_uses_embedded_audio`` in ``src/podcast_dsl/config.py``). The master
+WAV in ``SEGMENT_CONFIG`` is for transcript timing, not final mux.
 
 Example:
   python generate_reading_dsl.py \\
@@ -48,7 +57,8 @@ from __future__ import annotations
 import argparse
 import json
 import re
-from dataclasses import dataclass, field
+import sys
+from dataclasses import dataclass
 from difflib import SequenceMatcher
 from pathlib import Path
 from typing import List, Optional, Tuple
@@ -78,6 +88,19 @@ class TranscriptRow:
     norm: str
     speaker_id: int
     words: List["WordToken"]
+    # Optional: trim usable start (drop in-row restart).
+    # This only affects emitted DSL slices (not the transcript JSON itself).
+    trim_start: Optional[float] = None
+    # Optional: trim usable end (drop tail retaken by the next kept row).
+    trim_end: Optional[float] = None
+
+
+def _row_effective_start(row: TranscriptRow) -> float:
+    return row.trim_start if row.trim_start is not None else row.start
+
+
+def _row_effective_end(row: TranscriptRow) -> float:
+    return row.trim_end if row.trim_end is not None else row.end
 
 
 @dataclass
@@ -108,16 +131,27 @@ _VISUAL_CALLOUT_RE = re.compile(
 )
 
 
+_SECTION_HEADER_CALLOUT_RE = re.compile(
+    r"\b("
+    r"(?:this|the next|next) section is called|"
+    r"the section title is|"
+    r"section\s+\d+\b"
+    r")",
+    re.I,
+)
+
+
 def is_visual_callout_sentence(text: str) -> bool:
-    """Return True if the sentence is a likely 'visual callout' the reader says while reading.
+    """Return True if the sentence is a likely non-article callout while reading.
 
     These are not always present in the canonical article text (often they refer to a figure
-    embedded in the page), but we still want to keep them in the reading cut.
+    embedded in the page, or a visible section header), but we still want to keep them in the
+    reading cut.
     """
     t = (text or "").strip()
     if not t:
         return False
-    return bool(_VISUAL_CALLOUT_RE.search(t))
+    return bool(_VISUAL_CALLOUT_RE.search(t) or _SECTION_HEADER_CALLOUT_RE.search(t))
 
 
 @dataclass
@@ -164,6 +198,39 @@ def parse_args() -> argparse.Namespace:
         help="Extend the final shot this many seconds past the last word if possible "
              "(default: 2.0). If media ends sooner, the renderer will naturally stop at EOF.",
     )
+    p.add_argument(
+        "--post-word-tail-sec",
+        type=float,
+        default=0.4,
+        help="Extend each subclip end this many seconds after the last word end in that "
+             "clip, clamped so the cut never enters the next word (or the next subclip / "
+             "row boundary). Set to 0 to disable (default: 0.4).",
+    )
+    p.add_argument(
+        "--shorten",
+        action="store_true",
+        help="After post-word tail, compress inter-word silences longer than "
+             "--shorten-min-silence-sec (same behavior as shorten_reading_dsl_silences.py). "
+             "Off by default.",
+    )
+    p.add_argument(
+        "--shorten-min-silence-sec",
+        type=float,
+        default=1.5,
+        help="With --shorten: treat gaps longer than this many seconds as long silences (default: 1.5).",
+    )
+    p.add_argument(
+        "--shorten-tail-sec",
+        type=float,
+        default=1.25,
+        help="With --shorten: keep at most this many seconds after the last word before a long gap (default: 1.25).",
+    )
+    p.add_argument(
+        "--shorten-lead-sec",
+        type=float,
+        default=0.25,
+        help="With --shorten: start the incoming clip this many seconds before the next word (default: 0.25).",
+    )
     p.add_argument("--keep-rows", default="",
                    help="Comma-separated transcript row indices to force-keep (e.g. for picture/graph description exceptions)")
     p.add_argument("--drop-rows", default="",
@@ -172,12 +239,79 @@ def parse_args() -> argparse.Namespace:
     return p.parse_args()
 
 
+_APOSTROPHE_VARIANTS = str.maketrans({
+    "\u2018": "'",  # left single quotation mark
+    "\u2019": "'",  # right single quotation mark
+    "\u2032": "'",  # prime
+    "\u0060": "'",  # grave accent
+    "\u00b4": "'",  # acute accent
+})
+
+
 def normalize(text: str) -> str:
-    """Lowercase, drop punctuation except apostrophes, collapse whitespace."""
-    text = text.lower()
+    """Lowercase, unify apostrophes, drop other punctuation, collapse whitespace."""
+    text = text.lower().translate(_APOSTROPHE_VARIANTS)
     text = re.sub(r"[^a-z0-9' ]+", " ", text)
     text = re.sub(r"\s+", " ", text).strip()
     return text
+
+
+def _word_norm(w: str) -> str:
+    return normalize(w).strip()
+
+
+def _find_last_subsequence(haystack: List[str], needle: List[str]) -> Optional[int]:
+    """Return the start index of the last occurrence of needle in haystack."""
+    if not needle or not haystack or len(needle) > len(haystack):
+        return None
+    for i in range(len(haystack) - len(needle), -1, -1):
+        if haystack[i : i + len(needle)] == needle:
+            return i
+    return None
+
+
+def _trim_restart_within_row(row: TranscriptRow, matched_article_text: str) -> Optional[float]:
+    """If a row contains a re-read/restart, trim to the last matched article occurrence.
+
+    The rewind logic mostly works at the row level, but sometimes the reader flubs and
+    restarts *within* a single transcript row (e.g. "... men never col- ... men never ...").
+    When we can locate the matched article words inside the row's word tokens more than
+    once, we can safely drop the earlier attempt by moving the row's effective start time.
+    """
+    if not row.words:
+        return None
+
+    # Prefer anchoring on the opening prefix of the matched sentence (more robust than
+    # matching the full sentence, since restarts often insert a few wrong words mid-row).
+    target_tokens = [_word_norm(t) for t in matched_article_text.split()]
+    target_tokens = [t for t in target_tokens if t]
+    prefix_len = min(6, len(target_tokens))
+    if prefix_len < 4:
+        return None
+    prefix = target_tokens[:prefix_len]
+
+    row_tokens: List[str] = []
+    starts: List[float] = []
+    for w in row.words:
+        t = _word_norm(w.text)
+        if not t:
+            continue
+        row_tokens.append(t)
+        starts.append(w.start)
+
+    if len(row_tokens) < len(prefix):
+        return None
+
+    hits: List[int] = []
+    for i in range(0, len(row_tokens) - len(prefix) + 1):
+        if row_tokens[i : i + len(prefix)] == prefix:
+            hits.append(i)
+    if len(hits) < 2:
+        return None
+
+    last = hits[-1]
+    t0 = starts[last]
+    return t0 if t0 > row.start + 1e-3 else None
 
 
 def split_article_line(line: str) -> List[str]:
@@ -313,6 +447,170 @@ def best_multi_match(
     return best
 
 
+def _single_chunk_substring_match(
+    row: TranscriptRow,
+    article: List[ArticleSentence],
+    last_good: Optional[int],
+    current_score: float,
+) -> Optional[Tuple[int, int, float]]:
+    """If ``row.norm`` occurs verbatim inside one article chunk's norm, prefer that chunk.
+
+    This fixes common failures where a short spoken clause is part of a single long
+    article sentence: SequenceMatcher(row, long_sentence) can be low enough that a
+    wrong, shorter chunk wins inside the local search window.
+    """
+    if not row.norm or len(row.norm) < 12 or len(row.norm) > 120:
+        return None
+
+    def best_in_range(lo: int, hi: int) -> Optional[Tuple[int, int, float]]:
+        best: Optional[Tuple[int, int, float]] = None
+        anchor = last_good if last_good is not None else 0
+        for i in range(max(0, lo), min(len(article), hi)):
+            an = article[i].norm
+            if not an or row.norm not in an:
+                continue
+            sc = max(sim(row.norm, an), 0.90)
+            if best is None:
+                best = (i, i, sc)
+                continue
+            bi, _, bs = best
+            if sc > bs + 1e-9:
+                best = (i, i, sc)
+            elif abs(sc - bs) < 1e-9 and abs(i - anchor) < abs(bi - anchor):
+                best = (i, i, sc)
+        return best
+
+    cand_local = (
+        best_in_range(last_good - 55, last_good + 56) if last_good is not None else None
+    )
+    cand_global = best_in_range(0, len(article))
+    if cand_local is None and cand_global is None:
+        return None
+    if cand_local is None:
+        cand = cand_global
+    elif cand_global is None:
+        cand = cand_local
+    elif cand_local[2] > cand_global[2] + 1e-9:
+        cand = cand_local
+    elif cand_global[2] > cand_local[2] + 1e-9:
+        cand = cand_global
+    else:
+        anchor = last_good if last_good is not None else 0
+        cand = cand_local if abs(cand_local[0] - anchor) <= abs(cand_global[0] - anchor) else cand_global
+    if cand is None or cand[2] <= current_score + 1e-9:
+        return None
+    return cand
+
+
+_LOOSE_MATCH_STOPWORDS = frozenset({
+    "the", "a", "an", "in", "on", "at", "to", "of", "and", "or", "is", "it", "as", "by",
+    "for", "we", "he", "she", "they", "his", "her", "their", "this", "that", "with",
+})
+
+
+def _loose_single_chunk_match(
+    row: TranscriptRow,
+    article: List[ArticleSentence],
+    last_good: Optional[int],
+    current_score: float,
+) -> Optional[Tuple[int, int, float]]:
+    """Fuzzy single-chunk rescues when exact substring fails.
+
+    - Collapsed spaces containment (handles spacing/line-break drift).
+    - Stopword-filtered token subset (handles small phrasing differences).
+    """
+    if not row.norm or len(row.norm) < 12 or len(row.norm) > 120:
+        return None
+
+    row_tok = [t for t in row.norm.split() if len(t) > 1 and t not in _LOOSE_MATCH_STOPWORDS]
+    if len(row_tok) < 3:
+        return None
+
+    row_compact = row.norm.replace(" ", "")
+
+    def score_chunk(an: str) -> Optional[float]:
+        if not an:
+            return None
+        sc_parts: List[float] = []
+        ac = an.replace(" ", "")
+        if len(row_compact) >= 12 and row_compact in ac:
+            sc_parts.append(0.87)
+        ch_set = set(an.split())
+        if all(t in ch_set for t in row_tok):
+            sc_parts.append(max(0.84, sim(row.norm, an)))
+        if not sc_parts:
+            return None
+        return max(sc_parts)
+
+    def best_in_range(lo: int, hi: int) -> Optional[Tuple[int, int, float]]:
+        best: Optional[Tuple[int, int, float]] = None
+        anchor = last_good if last_good is not None else 0
+        for i in range(max(0, lo), min(len(article), hi)):
+            sc = score_chunk(article[i].norm)
+            if sc is None:
+                continue
+            if best is None:
+                best = (i, i, sc)
+                continue
+            bi, _, bs = best
+            if sc > bs + 1e-9:
+                best = (i, i, sc)
+            elif abs(sc - bs) < 1e-9 and abs(i - anchor) < abs(bi - anchor):
+                best = (i, i, sc)
+        return best
+
+    cand_local = (
+        best_in_range(last_good - 55, last_good + 56) if last_good is not None else None
+    )
+    cand_global = best_in_range(0, len(article))
+    if cand_local is None and cand_global is None:
+        return None
+    if cand_local is None:
+        cand = cand_global
+    elif cand_global is None:
+        cand = cand_local
+    elif cand_local[2] > cand_global[2] + 1e-9:
+        cand = cand_local
+    elif cand_global[2] > cand_local[2] + 1e-9:
+        cand = cand_global
+    else:
+        anchor = last_good if last_good is not None else 0
+        cand = cand_local if abs(cand_local[0] - anchor) <= abs(cand_global[0] - anchor) else cand_global
+    if cand is None or cand[2] <= current_score + 1e-9:
+        return None
+    return cand
+
+
+def _match_row_to_article(
+    row: TranscriptRow,
+    article: List[ArticleSentence],
+    max_span: int,
+    threshold: float,
+    last_good_a_start: Optional[int],
+) -> Tuple[Optional[int], Optional[int], float]:
+    """Windowed span, full-article retry if weak, then single-chunk substring/loose rescues."""
+    a_start, a_end, score = best_multi_match(
+        row, article, max_span=max_span, start_hint=last_good_a_start,
+    )
+    if a_start is None:
+        return best_multi_match(row, article, max_span=max_span)
+
+    if score < threshold:
+        g_a, g_e, g_s = best_multi_match(row, article, max_span=max_span)
+        if g_a is not None and g_s > score + 1e-9:
+            a_start, a_end, score = g_a, g_e, g_s
+
+    sub = _single_chunk_substring_match(row, article, last_good_a_start, score)
+    if sub is not None:
+        a_start, a_end, score = sub
+
+    loose = _loose_single_chunk_match(row, article, last_good_a_start, score)
+    if loose is not None:
+        a_start, a_end, score = loose
+
+    return a_start, a_end, score
+
+
 def align_rows(
     rows: List[TranscriptRow],
     article: List[ArticleSentence],
@@ -333,8 +631,8 @@ def align_rows(
             matches.append(RowMatch(row=row, a_start=None, a_end=None, similarity=0.0, off_script=True))
             continue
 
-        # Reading exception: keep "visual callout" sentences even if they are not
-        # part of the canonical article text.
+        # Reading exception: keep visual and section-header callouts even if
+        # they are not part of the canonical article text.
         if (
             row.speaker_id == reader_speaker_id
             and row.idx not in force_drop
@@ -351,18 +649,32 @@ def align_rows(
             ))
             continue
 
-        # First try a windowed search around the last good match to avoid spurious
-        # far-away matches. Only fall back to a full search if the hint search
-        # fails to produce any match at all.
-        a_start, a_end, score = best_multi_match(
-            row, article, max_span=max_span, start_hint=last_good_a_start,
+        # Windowed span match for speed + reading-order locality. When the local best
+        # is weak, retry globally and then allow single-chunk substring/loose rescues
+        # so short clauses inside long article sentences aren't dropped.
+        a_start, a_end, score = _match_row_to_article(
+            row, article, max_span, threshold, last_good_a_start,
         )
-        if a_start is None:
-            a_start, a_end, score = best_multi_match(row, article, max_span=max_span)
 
         off_script = score < threshold and row.idx not in force_keep
+        if (
+            not off_script
+            and row.idx not in force_drop
+            and row.idx not in force_keep
+            and a_start is not None
+            and a_end is not None
+        ):
+            # If the reader restarts *within* a row, trim to the last correct take.
+            matched_text = " ".join(article[i].text for i in range(a_start, a_end + 1))
+            trimmed_start = _trim_restart_within_row(row, matched_text)
+            if trimmed_start is not None:
+                row.trim_start = trimmed_start
+
+        # Forced rows can still get a junk article span; don't advance the hint from them
+        # unless they actually clear the threshold.
         if not off_script and a_start is not None:
-            last_good_a_start = a_start
+            if row.idx not in force_keep or score >= threshold:
+                last_good_a_start = a_start
         matches.append(RowMatch(
             row=row,
             a_start=a_start,
@@ -501,22 +813,150 @@ def _augment_split_chunk_pairs(
     return sorted(kept_by_idx.values(), key=lambda m: m.row.idx)
 
 
+def _article_span_norm(
+    article: List[ArticleSentence],
+    a_start: int,
+    a_end: int,
+) -> str:
+    return " ".join(article[i].norm for i in range(a_start, a_end + 1))
+
+
+def _row_norm_is_prefix_of_article_span(
+    row_norm: str,
+    article: List[ArticleSentence],
+    a_start: int,
+    a_end: int,
+    *,
+    min_len: int = 12,
+) -> bool:
+    """True when ``row_norm`` is a leading substring of the matched article span."""
+    if not row_norm or len(row_norm) < min_len:
+        return False
+    if a_start is None or a_end is None or a_start < 0 or a_end >= len(article):
+        return False
+    span_norm = _article_span_norm(article, a_start, a_end)
+    if not span_norm.startswith(row_norm):
+        return False
+    # Require a proper prefix (first half of a split sentence), not the full span text.
+    if len(row_norm) >= len(span_norm):
+        return False
+    return span_norm[len(row_norm)] == " "
+
+
+def _can_rescue_prefix_chunk_pair(
+    prefix_row: RowMatch,
+    kept_partner: RowMatch,
+    article: List[ArticleSentence],
+) -> bool:
+    """Keep the first half of a split article sentence when the next row kept the span."""
+    if kept_partner.a_start is None or kept_partner.a_end is None:
+        return False
+    if prefix_row.row.idx + 1 != kept_partner.row.idx:
+        return False
+    return _row_norm_is_prefix_of_article_span(
+        prefix_row.row.norm,
+        article,
+        kept_partner.a_start,
+        kept_partner.a_end,
+    )
+
+
+def _augment_prefix_chunk_pairs(
+    matches: List[RowMatch],
+    kept: List[RowMatch],
+    article: List[ArticleSentence],
+    selection_notes: List[str],
+) -> List[RowMatch]:
+    """Rescue a dropped row when it is the spoken prefix of a kept partner's article span."""
+    kept_by_idx = {m.row.idx: m for m in kept}
+
+    for i in range(len(matches) - 1):
+        prefix = matches[i]
+        partner = matches[i + 1]
+        if partner.row.idx != prefix.row.idx + 1:
+            continue
+        if partner.row.idx not in kept_by_idx:
+            continue
+        if prefix.row.idx in kept_by_idx:
+            continue
+        kept_partner = kept_by_idx[partner.row.idx]
+        if not _can_rescue_prefix_chunk_pair(prefix, kept_partner, article):
+            continue
+
+        kept_by_idx[prefix.row.idx] = RowMatch(
+            row=prefix.row,
+            a_start=kept_partner.a_start,
+            a_end=kept_partner.a_end,
+            similarity=max(prefix.similarity, 0.88),
+            off_script=False,
+        )
+        selection_notes.append(
+            f"Rescued prefix chunk: kept row {prefix.row.idx} as lead-in to row "
+            f"{partner.row.idx} for article [{kept_partner.a_start}:{kept_partner.a_end}]"
+        )
+
+    return sorted(kept_by_idx.values(), key=lambda m: m.row.idx)
+
+
+def _is_strictly_superseded_by_later_kept(
+    m: RowMatch,
+    kept_reversed: List[RowMatch],
+) -> bool:
+    """True when a later (already kept) row's article span fully contains m's and is larger.
+
+    Equal spans are handled separately (best-similarity wins) so a weak fuzzy match on a
+    header cannot drop a strong read of the same chunk, and split-chunk pairs are not
+  treated as supersets."""
+    if m.a_start is None or m.a_end is None:
+        return False
+    for k in kept_reversed:
+        if k.a_start is None or k.a_end is None:
+            continue
+        if k.a_start <= m.a_start and k.a_end >= m.a_end:
+            if k.a_start < m.a_start or k.a_end > m.a_end:
+                return True
+    return False
+
+
+def _try_replace_same_span_weaker_match(
+    m: RowMatch,
+    kept_reversed: List[RowMatch],
+    *,
+    allow_adjacent: bool = False,
+) -> Optional[str]:
+    """If a later kept row matches the same article span, keep the higher-similarity row.
+
+    Returns ``"replaced"``, ``"dropped_weaker"``, or ``None`` when no same-span later row exists.
+    """
+    if m.a_start is None or m.a_end is None:
+        return None
+    for i, k in enumerate(kept_reversed):
+        if k.a_start != m.a_start or k.a_end != m.a_end:
+            continue
+        # Consecutive rows on one chunk are often one sentence split in two; let
+        # split-chunk rescue decide instead of keeping only the higher-sim half.
+        if not allow_adjacent and abs(m.row.idx - k.row.idx) == 1:
+            return None
+        if m.similarity > k.similarity + 1e-6:
+            kept_reversed[i] = m
+            return "replaced"
+        return "dropped_weaker"
+    return None
+
+
 def select_kept(
     matches: List[RowMatch],
     force_keep: set,
     article: List[ArticleSentence],
 ) -> Tuple[List[RowMatch], List[str]]:
-    """Walk rows in reverse; keep the row if its matched article range STARTS
-    strictly before the most recently kept row's article range starts. This
-    means the row contributes earlier-in-article content not already covered
-    by a later (final) take, so it correctly:
-    - drops previous takes of the same single article chunk (a_start == last)
-    - keeps multi-chunk rows whose range overlaps the next kept row by one
-      chunk but adds new earlier content (a_start < last)
-    - drops rows from before a rewind (any later take of an earlier chunk
-      resets `last` back, so pre-rewind rows whose a_start >= current last
-      get dropped)."""
-    last_a_start = float("inf")
+    """Walk rows in reverse and build the final take set.
+
+    - Drop a row when a later kept row's article span **strictly contains** its span
+      (true rewind: a later row re-read from an earlier chunk through more text).
+    - For the **same** article span, keep the highest-similarity row (drops weak late
+      fuzzy matches that would otherwise erase a good earlier read of that chunk).
+    - Adjacent rows on the same span can still be rescued as a split-chunk pair.
+    """
     kept_reversed: List[RowMatch] = []
     selection_notes: List[str] = []
     for m in reversed(matches):
@@ -528,29 +968,128 @@ def select_kept(
             continue
         if m.a_start is None:
             continue
-        if m.a_start < last_a_start:
-            if m.off_script and m.row.idx not in force_keep:
-                continue
-            kept_reversed.append(m)
-            last_a_start = m.a_start
+
+        same_span = _try_replace_same_span_weaker_match(m, kept_reversed)
+        if same_span == "dropped_weaker":
+            continue
+        if same_span == "replaced":
             continue
 
-        if kept_reversed and m.a_start == last_a_start:
+        if _is_strictly_superseded_by_later_kept(m, kept_reversed):
+            continue
+
+        if kept_reversed:
             tail_cluster = _tail_same_range_cluster(kept_reversed, m.a_start, m.a_end)
-            if _should_keep_split_chunk(m, tail_cluster, article):
-                kept_reversed.append(m)
-                covered_rows = ",".join(str(k.row.idx) for k in reversed(tail_cluster))
-                selection_notes.append(
-                    f"Rescued split chunk: kept row {m.row.idx} together with later row(s) "
-                    f"{covered_rows} for article [{m.a_start}:{m.a_end}]"
-                )
-                continue
+            if tail_cluster and m.a_start == tail_cluster[0].a_start:
+                if _should_keep_split_chunk(m, tail_cluster, article):
+                    kept_reversed.append(m)
+                    covered_rows = ",".join(str(k.row.idx) for k in reversed(tail_cluster))
+                    selection_notes.append(
+                        f"Rescued split chunk: kept row {m.row.idx} together with later row(s) "
+                        f"{covered_rows} for article [{m.a_start}:{m.a_end}]"
+                    )
+                    continue
+                if abs(m.row.idx - tail_cluster[0].row.idx) == 1:
+                    # Same chunk, consecutive rows, but not a complementary split → duplicate take.
+                    same_span = _try_replace_same_span_weaker_match(
+                        m, kept_reversed, allow_adjacent=True,
+                    )
+                    if same_span in ("dropped_weaker", "replaced"):
+                        continue
 
         if m.off_script and m.row.idx not in force_keep:
             continue
+        kept_reversed.append(m)
     kept_reversed.reverse()
     kept = _augment_split_chunk_pairs(matches, kept_reversed, article, selection_notes)
+    kept = _augment_prefix_chunk_pairs(matches, kept, article, selection_notes)
     return kept, selection_notes
+
+
+def apply_overlap_tail_trim(
+    kept: List[RowMatch],
+    article: List[ArticleSentence],
+    selection_notes: Optional[List[str]] = None,
+) -> None:
+    """Trim earlier kept rows when a consecutive later row retakes overlapping article chunks.
+
+    ``select_kept`` can keep row *i* because its article match *starts* before row *i+1*,
+    even when *i*'s range still includes audio for chunks that *i+1* re-reads correctly
+    (e.g. *i* matches [202:203] while *i+1* matches [203:203]). Drop the overlapping tail
+    on *i* by setting ``row.trim_end`` after the last word that completes the exclusive
+    prefix ``article[i.a_start : i+1.a_start]``.
+    """
+    if selection_notes is None:
+        selection_notes = []
+
+    def merge_trim_end(row: TranscriptRow, candidate_end: float) -> None:
+        lo = _row_effective_start(row)
+        if candidate_end <= lo + 0.05:
+            return
+        if row.trim_end is None:
+            row.trim_end = candidate_end
+        else:
+            row.trim_end = min(row.trim_end, candidate_end)
+
+    ordered = sorted(kept, key=lambda m: m.row.idx)
+    for i in range(len(ordered) - 1):
+        prev_m, nxt_m = ordered[i], ordered[i + 1]
+        pr, nx = prev_m.row, nxt_m.row
+        if nx.idx != pr.idx + 1:
+            continue
+        if prev_m.a_start is None or prev_m.a_end is None or nxt_m.a_start is None or nxt_m.a_end is None:
+            continue
+        if prev_m.a_end < nxt_m.a_start:
+            continue
+
+        if nxt_m.a_start <= prev_m.a_start:
+            # Same or earlier article chunk start: treat ``nx`` as a continuation take.
+            cut = nx.start - 2e-2
+            last_end = pr.start
+            for w in pr.words or []:
+                if w.end <= cut:
+                    last_end = max(last_end, w.end)
+            if last_end > pr.start + 0.05:
+                merge_trim_end(pr, last_end)
+                selection_notes.append(
+                    f"Overlap tail trim: row {pr.idx} end -> {last_end:.2f}s "
+                    f"(continuation row {nx.idx} at t={nx.start:.2f}s)"
+                )
+            continue
+
+        prefix_parts = [article[j].text for j in range(prev_m.a_start, nxt_m.a_start)]
+        want_tokens = normalize(" ".join(prefix_parts).strip()).split()
+        if not want_tokens:
+            continue
+
+        wi = 0
+        last_end: Optional[float] = None
+        ok = True
+        for w in pr.words or []:
+            for tok in normalize(w.text).split():
+                if not tok:
+                    continue
+                if wi >= len(want_tokens):
+                    break
+                if tok == want_tokens[wi]:
+                    wi += 1
+                    last_end = w.end
+                else:
+                    ok = False
+                    break
+            if not ok:
+                break
+            if wi >= len(want_tokens):
+                break
+
+        if not ok or last_end is None or wi < len(want_tokens):
+            continue
+
+        merge_trim_end(pr, last_end)
+        selection_notes.append(
+            f"Overlap tail trim: row {pr.idx} end -> {last_end:.2f}s "
+            f"(exclusive article chunks [{prev_m.a_start}:{nxt_m.a_start - 1}])"
+        )
 
 
 def build_spans(kept: List[RowMatch]) -> List[List[TranscriptRow]]:
@@ -574,15 +1113,18 @@ def collect_sentence_terminal_boundary_times(span_rows: List[TranscriptRow]) -> 
     Uses word-level timestamps when available; falls back to row end."""
     ts: set[float] = set()
     for row in span_rows:
+        eff_end = _row_effective_end(row)
         if row.words:
             for w in row.words:
+                if w.end > eff_end + 1e-3:
+                    continue
                 t = w.text.strip().rstrip('"\'')  # tolerate quoted tokens
                 if not t:
                     continue
                 if t.endswith("?") or t.endswith("!") or t.endswith("."):
                     ts.add(w.end)
         else:
-            ts.add(row.end)
+            ts.add(eff_end)
     return sorted(ts)
 
 
@@ -591,10 +1133,13 @@ def collect_linguistic_boundary_times(span_rows: List[TranscriptRow]) -> List[fl
     Uses word-level timestamps when available; falls back to row edges."""
     ts: set[float] = set()
     for row in span_rows:
-        ts.add(row.start)
-        ts.add(row.end)
+        ts.add(_row_effective_start(row))
+        ts.add(_row_effective_end(row))
         if row.words:
+            eff_end = _row_effective_end(row)
             for w in row.words:
+                if w.end > eff_end + 1e-3:
+                    continue
                 t = w.text.strip().rstrip('"\'')
                 if t.endswith(","):
                     ts.add(w.end)
@@ -677,7 +1222,9 @@ def collect_span_subclips(
 ) -> List[SubClip]:
     out: List[SubClip] = []
     for row in span_rows:
-        out.append(SubClip(row=row, a=row.start, b=row.end, cam=main_cam))
+        a = _row_effective_start(row)
+        b = _row_effective_end(row)
+        out.append(SubClip(row=row, a=a, b=b, cam=main_cam))
     return out
 
 
@@ -727,6 +1274,301 @@ def apply_cut_lead_in(
         cur.a = new_cur_a
 
 
+_WORD_OVERLAP_EPS = 1e-3
+
+
+def _last_word_end_in_subclip(row: TranscriptRow, a: float, b: float) -> float:
+    """Latest word end time among words overlapping [a, b); falls back to ``b`` if none."""
+    if not row.words:
+        return b
+    e = _WORD_OVERLAP_EPS
+    ends: List[float] = []
+    for w in row.words:
+        if w.start >= b - e:
+            continue
+        if w.end <= a + e:
+            continue
+        ends.append(min(w.end, b))
+    if not ends:
+        return b
+    return min(b, max(ends))
+
+
+def _next_word_start_after(row: TranscriptRow, t: float) -> Optional[float]:
+    """Smallest word start strictly after ``t`` on this row, or None."""
+    if not row.words:
+        return None
+    e = _WORD_OVERLAP_EPS
+    best: Optional[float] = None
+    for w in row.words:
+        if w.start <= t + e:
+            continue
+        best = w.start if best is None else min(best, w.start)
+    return best
+
+
+def apply_post_word_tail_extension(
+    subclips: List[SubClip],
+    tail_sec: float,
+    eps: float = 1e-3,
+) -> None:
+    """Extend each subclip's end by ``tail_sec`` after the last word in the clip, without
+    crossing into the next word on the row, the next subclip on the same row, the next
+    timeline subclip on a different row, or the row's effective end (``trim_end`` /
+    ``row.end``)."""
+    if tail_sec <= 0 or not subclips:
+        return
+
+    n = len(subclips)
+    next_same_row_j: List[Optional[int]] = [None] * n
+    for i in range(n):
+        for j in range(i + 1, n):
+            if subclips[j].row.idx == subclips[i].row.idx:
+                next_same_row_j[i] = j
+                break
+
+    for i, c in enumerate(subclips):
+        row = c.row
+        L = _last_word_end_in_subclip(row, c.a, c.b)
+        target_b = L + tail_sec
+        hard_max = _row_effective_end(row)
+
+        nw = _next_word_start_after(row, L)
+        if nw is not None:
+            hard_max = min(hard_max, nw - eps)
+
+        j = next_same_row_j[i]
+        if j is not None:
+            hard_max = min(hard_max, subclips[j].a - eps)
+        elif i + 1 < n:
+            nxt = subclips[i + 1]
+            if nxt.row.idx != c.row.idx:
+                hard_max = min(hard_max, nxt.a - eps)
+
+        new_b = min(target_b, hard_max)
+        if new_b > c.b + _WORD_OVERLAP_EPS:
+            c.b = new_b
+
+    for i in range(n - 1):
+        if subclips[i].b > subclips[i + 1].a - eps:
+            subclips[i].b = subclips[i + 1].a - eps
+
+
+# --- Optional inter-word silence shortening (same rules as shorten_reading_dsl_silences.py) ---
+
+
+def _inter_word_shorten_other_cam(cam: str, front: str, side: str) -> str:
+    if cam == front:
+        return side
+    if cam == side:
+        return front
+    raise ValueError(f"Camera {cam!r} is not front={front!r} nor side={side!r}")
+
+
+def _inter_word_shorten_flat_tokens(subclips: List[SubClip]) -> List[Tuple[float, float, int]]:
+    out: List[Tuple[float, float, int]] = []
+    for si, sc in enumerate(subclips):
+        if sc.b <= sc.a + 1e-6:
+            continue
+        if sc.row.words:
+            for w in sc.row.words:
+                if w.end <= sc.a or w.start >= sc.b:
+                    continue
+                out.append((w.start, w.end, si))
+        else:
+            out.append((sc.a, sc.b, si))
+    out.sort(key=lambda t: (t[0], t[1], t[2]))
+    return out
+
+
+def _inter_word_shorten_row_spans(subclips: List[SubClip]) -> List[List[SubClip]]:
+    if not subclips:
+        return []
+    spans: List[List[SubClip]] = []
+    cur: List[SubClip] = [subclips[0]]
+    for c in subclips[1:]:
+        if c.row.idx == cur[-1].row.idx + 1:
+            cur.append(c)
+        else:
+            spans.append(cur)
+            cur = [c]
+    spans.append(cur)
+    return spans
+
+
+def _inter_word_shorten_apply_one_gap(
+    subclips: List[SubClip],
+    i_left: int,
+    i_right: int,
+    tail_end: float,
+    lead_start: float,
+    front: str,
+    side: str,
+) -> bool:
+    left = subclips[i_left]
+    right = subclips[i_right]
+
+    if i_left == i_right:
+        tail_end = min(max(tail_end, left.a + 1e-3), left.b)
+        lead_start = min(max(lead_start, left.a + 1e-3), left.b)
+        if lead_start <= tail_end + 1e-4:
+            return False
+        cam2 = _inter_word_shorten_other_cam(left.cam, front, side)
+        first = SubClip(row=left.row, a=left.a, b=tail_end, cam=left.cam)
+        second = SubClip(row=left.row, a=lead_start, b=left.b, cam=cam2)
+        subclips[i_left : i_left + 1] = [first, second]
+        return True
+
+    tail_end = min(max(tail_end, left.a + 1e-3), left.b)
+    lead_start = min(max(lead_start, right.a + 1e-3), right.b)
+
+    changed = False
+    if left.b > tail_end + 1e-6:
+        left.b = tail_end
+        changed = True
+    if right.a < lead_start - 1e-6:
+        right.a = lead_start
+        changed = True
+
+    if i_right > i_left + 1:
+        to_remove: List[int] = []
+        for k in range(i_left + 1, i_right):
+            sc = subclips[k]
+            if sc.a >= tail_end - 1e-6 and sc.b <= lead_start + 1e-6:
+                to_remove.append(k)
+                continue
+            if sc.a < tail_end:
+                sc.a = min(max(sc.a, tail_end), sc.b - 1e-3)
+            if sc.b > lead_start:
+                sc.b = max(min(sc.b, lead_start), sc.a + 1e-3)
+            if sc.b <= sc.a + 1e-4:
+                to_remove.append(k)
+        for k in reversed(to_remove):
+            del subclips[k]
+            changed = True
+
+    try:
+        li = subclips.index(left)
+        ri = subclips.index(right)
+    except ValueError:
+        return changed
+    if ri == li + 1:
+        if right.cam == left.cam:
+            right.cam = _inter_word_shorten_other_cam(left.cam, front, side)
+            changed = True
+    elif ri > li + 1:
+        nxt = subclips[li + 1]
+        if nxt.cam == left.cam:
+            nxt.cam = _inter_word_shorten_other_cam(left.cam, front, side)
+            changed = True
+    return changed
+
+
+def _inter_word_shorten_run_passes(
+    subclips: List[SubClip],
+    front: str,
+    side: str,
+    min_silence: float,
+    tail_sec: float,
+    lead_sec: float,
+) -> None:
+    resolved: set[Tuple[float, float]] = set()
+    max_passes = max(64, len(subclips) * 24)
+    for _ in range(max_passes):
+        flat = _inter_word_shorten_flat_tokens(subclips)
+        if len(flat) < 2:
+            break
+        progressed = False
+        for idx in range(len(flat) - 1):
+            _w0s, w0e, i0 = flat[idx]
+            w1s, _w1e, i1 = flat[idx + 1]
+            gap = w1s - w0e
+            if gap <= min_silence + 1e-6:
+                continue
+            key = (round(w0e, 4), round(w1s, 4))
+            if key in resolved:
+                continue
+            tail_t = w0e + tail_sec
+            lead_t = w1s - lead_sec
+            if tail_t >= lead_t - 1e-6:
+                resolved.add(key)
+                continue
+            applied = _inter_word_shorten_apply_one_gap(subclips, i0, i1, tail_t, lead_t, front, side)
+            resolved.add(key)
+            if applied:
+                progressed = True
+                break
+        if not progressed:
+            break
+
+
+def _inter_word_shorten_reassemble_side(
+    subclips: List[SubClip],
+    front: str,
+    side: str,
+    side_shot_max_sec: float,
+) -> List[SubClip]:
+    out: List[SubClip] = []
+    for span in _inter_word_shorten_row_spans(subclips):
+        by_idx = {c.row.idx: c.row for c in span}
+        span_rows_unique = [by_idx[i] for i in sorted(by_idx)]
+        fixed = enforce_side_max_durations(
+            span,
+            span_rows_unique,
+            side_cam=side,
+            front_cam=front,
+            max_side_sec=side_shot_max_sec,
+        )
+        out.extend(fixed)
+    return out
+
+
+def apply_inter_word_silence_shorten(
+    subclips: List[SubClip],
+    *,
+    front_cam: str,
+    side_cam: str,
+    min_silence_sec: float = 1.5,
+    compress_tail_sec: float = 1.25,
+    compress_lead_sec: float = 0.25,
+    side_shot_max_sec: float = 12.0,
+) -> None:
+    """Mutate ``subclips`` in place: compress long silences between consecutive spoken tokens.
+
+    Same rules as ``shorten_reading_dsl_silences.py`` (camera flip per cut, side-cap, last row on front).
+    """
+    _inter_word_shorten_run_passes(
+        subclips,
+        front_cam,
+        side_cam,
+        min_silence_sec,
+        compress_tail_sec,
+        compress_lead_sec,
+    )
+    subclips[:] = [c for c in subclips if c.b > c.a + 1e-3]
+    subclips[:] = _inter_word_shorten_reassemble_side(
+        subclips, front_cam, side_cam, side_shot_max_sec,
+    )
+    ensure_last_sentence_on_front(subclips, front_cam)
+
+
+def _chunk_subclips_for_emit_comments(subclips: List[SubClip]) -> List[List[SubClip]]:
+    """Group subclips into runs separated by a gap in transcript row indices (span boundaries)."""
+    if not subclips:
+        return []
+    chunks: List[List[SubClip]] = []
+    cur: List[SubClip] = [subclips[0]]
+    for c in subclips[1:]:
+        pr = cur[-1].row.idx
+        if c.row.idx == pr or c.row.idx == pr + 1:
+            cur.append(c)
+        else:
+            chunks.append(cur)
+            cur = [c]
+    chunks.append(cur)
+    return chunks
+
+
 def emit_subclip_lines(
     subclips: List[SubClip],
     segment_num: str,
@@ -741,11 +1583,19 @@ def emit_subclip_lines(
         a, b = clip.a, clip.b
         sl_start = a - row.start
         sl_end = b - row.start
-        is_full_row = (abs(a - row.start) < 1e-6 and abs(b - row.end) < 1e-6)
+        # ``podcast_dsl`` reloads transcript JSON from disk (no trim_* fields). Any
+        # in-memory trim must become an explicit ``slice(...)`` or the renderer uses
+        # the full sentence ``start``/``end`` from the JSON file.
+        emit_plain = (
+            row.trim_start is None
+            and row.trim_end is None
+            and abs(a - row.start) < 1e-6
+            and abs(b - row.end) < 1e-6
+        )
         text_summary = row.text.replace("\n", " ").strip()
         if len(text_summary) > 90:
             text_summary = text_summary[:87] + "..."
-        if is_full_row:
+        if emit_plain:
             lines.append(f"$segment{segment_num}/{row.idx} // {text_summary}")
         else:
             lines.append(
@@ -765,11 +1615,19 @@ def generate_dsl(
     cut_lead_in_sec: float,
     side_shot_max_sec: float,
     final_shot_tail_sec: float,
+    post_word_tail_sec: float,
+    shorten_inter_word_silences: bool = False,
+    shorten_min_silence_sec: float = 1.5,
+    shorten_compress_tail_sec: float = 1.25,
+    shorten_compress_lead_sec: float = 0.25,
 ) -> str:
     spans = build_spans(kept)
 
     lines: List[str] = []
-    lines.append(f"// Generated reading DSL (segment {segment_num})")
+    header = f"// Generated reading DSL (segment {segment_num})"
+    if shorten_inter_word_silences:
+        header += " — inter-word silence shortened"
+    lines.append(header)
     lines.append(f"// Cameras: {front_cam} (front, starting) / {side_cam} (side, alternate)")
     lines.append(
         f"// Cuts: camera flips at each user-driven cut (dropped rows between kept rows)"
@@ -785,6 +1643,16 @@ def generate_dsl(
             f"sentence end / row edge"
         )
     lines.append(f"// Last transcript row is always {front_cam} (front)")
+    if post_word_tail_sec > 0:
+        lines.append(
+            f"// Post-word tail: extend each clip end up to {post_word_tail_sec:.2f}s after "
+            f"the last word, without crossing the next word or the next clip boundary"
+        )
+    if shorten_inter_word_silences:
+        lines.append(
+            f"// Shorten: gaps >{shorten_min_silence_sec:.2f}s → up to {shorten_compress_tail_sec:.2f}s "
+            f"after last word + {shorten_compress_lead_sec:.2f}s before next word (camera flip per cut)"
+        )
     lines.append(f"// Kept {len(kept)}/{len(rows)} rows in {len(spans)} span(s)")
     lines.append("")
     lines.append("!opening 1000")
@@ -797,26 +1665,16 @@ def generate_dsl(
     # Each subsequent span's main camera flips from whatever camera was on screen
     # at the end of the previous span. This guarantees every user-driven cut is
     # visibly a camera change.
-    span_metas: List[Tuple[str, List[SubClip]]] = []
     all_subclips: List[SubClip] = []
     next_main_cam: Optional[str] = front_cam
     for span_rows in spans:
-        t_start = span_rows[0].start
-        t_end = span_rows[-1].end
-        duration = t_end - t_start
-
         main_cam = next_main_cam
         alt_cam = side_cam if main_cam == front_cam else front_cam
-        comment = (
-            f"// Span on {main_cam}: {t_start:.2f}s -> {t_end:.2f}s "
-            f"({duration:.1f}s)"
-        )
 
         span_sub = collect_span_subclips(span_rows, main_cam)
         span_sub = enforce_side_max_durations(
             span_sub, span_rows, side_cam, front_cam, side_shot_max_sec,
         )
-        span_metas.append((comment, span_sub))
         all_subclips.extend(span_sub)
 
         end_cam = span_sub[-1].cam if span_sub else main_cam
@@ -824,13 +1682,29 @@ def generate_dsl(
 
     apply_cut_lead_in(all_subclips, cut_lead_in_sec)
     ensure_last_sentence_on_front(all_subclips, front_cam)
+    apply_post_word_tail_extension(all_subclips, post_word_tail_sec)
+    if shorten_inter_word_silences:
+        apply_inter_word_silence_shorten(
+            all_subclips,
+            front_cam=front_cam,
+            side_cam=side_cam,
+            min_silence_sec=shorten_min_silence_sec,
+            compress_tail_sec=shorten_compress_tail_sec,
+            compress_lead_sec=shorten_compress_lead_sec,
+            side_shot_max_sec=side_shot_max_sec,
+        )
     extend_final_shot(all_subclips, final_shot_tail_sec)
 
     current_camera_ref: List[Optional[str]] = [None]
-    for comment, span_sub in span_metas:
-        lines.append(comment)
+    for chunk in _chunk_subclips_for_emit_comments(all_subclips):
+        t_lo = min(c.a for c in chunk)
+        t_hi = max(c.b for c in chunk)
+        label_cam = chunk[0].cam
+        lines.append(
+            f"// Span on {label_cam}: {t_lo:.2f}s -> {t_hi:.2f}s ({t_hi - t_lo:.1f}s)"
+        )
         lines.append("")
-        emit_subclip_lines(span_sub, segment_num, current_camera_ref, lines)
+        emit_subclip_lines(chunk, segment_num, current_camera_ref, lines)
         lines.append("")
 
     return "\n".join(lines) + "\n"
@@ -952,6 +1826,10 @@ def main() -> int:
     kept, selection_notes = select_kept(matches, force_keep=force_keep, article=article)
     kept_row_ids = {m.row.idx for m in kept}
 
+    overlap_notes: List[str] = []
+    apply_overlap_tail_trim(kept, article, overlap_notes)
+    selection_notes.extend(overlap_notes)
+
     dsl = generate_dsl(
         rows, article, matches, kept,
         segment_num=str(args.segment),
@@ -960,6 +1838,11 @@ def main() -> int:
         cut_lead_in_sec=args.cut_lead_in_sec,
         side_shot_max_sec=args.side_shot_max_sec,
         final_shot_tail_sec=args.final_shot_tail_sec,
+        post_word_tail_sec=args.post_word_tail_sec,
+        shorten_inter_word_silences=args.shorten,
+        shorten_min_silence_sec=args.shorten_min_silence_sec,
+        shorten_compress_tail_sec=args.shorten_tail_sec,
+        shorten_compress_lead_sec=args.shorten_lead_sec,
     )
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -992,11 +1875,13 @@ def main() -> int:
         )
     if missing:
         print(f"Warning: {len(missing)} article chunks not explicitly matched by any kept row:")
+        enc = getattr(sys.stdout, "encoding", None) or "utf-8"
         for i in missing[:15]:
             txt = article[i].text
             if len(txt) > 70:
                 txt = txt[:67] + "..."
-            print(f"  [{i}] {txt}")
+            safe = txt.encode(enc, errors="replace").decode(enc, errors="replace")
+            print(f"  [{i}] {safe}")
         if len(missing) > 15:
             print(f"  ... and {len(missing) - 15} more")
 

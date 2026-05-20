@@ -109,6 +109,7 @@ def _is_article_type(t: Any) -> bool:
 class ArticleExtract:
     title: str = ""
     subtitle: str = ""
+    author: str = ""
     body: str = ""
 
 
@@ -126,10 +127,21 @@ def extract_from_jsonld(page_html: str) -> Optional[ArticleExtract]:
             body = obj.get("articleBody") or ""
             title = obj.get("headline") or ""
             subtitle = obj.get("alternativeHeadline") or obj.get("description") or ""
+            author = ""
+            auth = obj.get("author")
+            # JSON-LD author can be dict, list, or string.
+            for a in _as_list(auth):
+                if isinstance(a, dict) and isinstance(a.get("name"), str):
+                    author = a["name"].strip()
+                    break
+                if isinstance(a, str) and a.strip():
+                    author = a.strip()
+                    break
             if isinstance(body, str) and body.strip():
                 cand = ArticleExtract(
                     title=str(title).strip(),
                     subtitle=str(subtitle).strip(),
+                    author=author,
                     body=str(body),
                 )
                 # Prefer the longest body
@@ -151,6 +163,8 @@ def _strip_tags(fragment_html: str) -> str:
 
 
 def extract_from_article_tag(page_html: str) -> Optional[ArticleExtract]:
+    """First <article>...</article> block (may be short on sites that use many
+    small <article> cards for related posts)."""
     m = re.search(r"<article\b[^>]*>(.*?)</article>", page_html, flags=re.I | re.S)
     if not m:
         return None
@@ -162,6 +176,39 @@ def extract_from_article_tag(page_html: str) -> Optional[ArticleExtract]:
     if not text:
         return None
     return ArticleExtract(body=text)
+
+
+def extract_from_main_tag(page_html: str) -> Optional[ArticleExtract]:
+    """`<main>` often holds the primary article on modern layouts (e.g. Bellingcat),
+    while `<article>` is used for small related-post cards."""
+    m = re.search(r"<main\b[^>]*>(.*?)</main>", page_html, flags=re.I | re.S)
+    if not m:
+        return None
+    text = _strip_tags(m.group(1))
+    text = re.sub(r"\r\n?", "\n", text)
+    text = re.sub(r"[ \t]+\n", "\n", text)
+    text = re.sub(r"\n{3,}", "\n\n", text).strip()
+    if not text:
+        return None
+    return ArticleExtract(body=text)
+
+
+def extract_from_longest_article_tag(page_html: str) -> Optional[ArticleExtract]:
+    """Pick the longest `<article>...</article>` body (skips tiny related-post cards)."""
+    best: Optional[ArticleExtract] = None
+    best_len = 0
+    for m in re.finditer(r"<article\b[^>]*>(.*?)</article>", page_html, flags=re.I | re.S):
+        raw = m.group(1)
+        if re.search(r'class=["\'][^"\']*grid_item', raw, flags=re.I):
+            continue
+        text = _strip_tags(raw)
+        text = re.sub(r"\r\n?", "\n", text)
+        text = re.sub(r"[ \t]+\n", "\n", text)
+        text = re.sub(r"\n{3,}", "\n\n", text).strip()
+        if len(text) > best_len:
+            best_len = len(text)
+            best = ArticleExtract(body=text) if text else None
+    return best
 
 
 _CONTENT_CONTAINER_RE = re.compile(
@@ -274,6 +321,29 @@ def extract_from_common_content_container(page_html: str) -> Optional[ArticleExt
     body = max(parser.blocks, key=len)
     title = clean_title_text(parser.title_text or parser.document_title)
     return ArticleExtract(title=title, body=body)
+
+
+def format_title_line(extracted: ArticleExtract) -> str:
+    """Create a single canonical title line that aligns with how readers speak it.
+
+    Important: do NOT split this line at ':'; title alignment is sensitive.
+    """
+    title = clean_title_text(extracted.title).strip()
+    subtitle = normalize_ws(extracted.subtitle).strip()
+    author = normalize_ws(extracted.author).strip()
+
+    if title and subtitle:
+        low_t = title.lower()
+        low_s = subtitle.lower()
+        if low_s not in low_t:
+            # Common spoken format: "Title: Subtitle"
+            title = f"{title}: {subtitle}"
+    if author:
+        low = title.lower()
+        # Avoid duplicating "by ..." if already present.
+        if " by " not in low:
+            title = f"{title} by {author}" if title else f"by {author}"
+    return normalize_ws(title)
 
 
 def normalize_ws(s: str) -> str:
@@ -431,28 +501,148 @@ def strip_trailing_junk_body_lines(lines: list[str]) -> list[str]:
     return lines
 
 
+_LESSWRONG_POST_RE = re.compile(
+    r"https?://(?:www\.)?lesswrong\.com/posts/[^/]+/([^/?#]+)",
+    re.I,
+)
+
+
+def _strip_lesswrong_leading_star_metadata(md: str) -> str:
+    """Drop LessWrong /api/post header lines like ``*   By [...]`` before body prose."""
+    lines = md.splitlines()
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        if not line.strip():
+            i += 1
+            continue
+        if re.match(r"^\*\s{3,}", line):
+            i += 1
+            continue
+        break
+    return "\n".join(lines[i:]).lstrip("\n")
+
+
+def _strip_markdownish_lesswrong(md: str) -> str:
+    """Best-effort plain text from LessWrong /api/post markdown export."""
+    s = md
+    s = re.sub(r"(?m)^\[\^[^\]]+\]:.*$", "", s)
+    s = re.sub(r"(?m)^>\s?", "", s)
+    s = re.sub(r"!\[[^\]]*\]\([^)]*\)", " ", s)
+    s = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", s)
+    s = re.sub(r"\[\^[^\]]+\]", "", s)
+    s = re.sub(r"\*\*([^*]+)\*\*", r"\1", s)
+    s = re.sub(r"(?<!\*)\*(?!\*)([^*]+)(?<!\*)\*(?!\*)", r"\1", s)
+    s = re.sub(r"^\s*\*\s+", "", s, flags=re.MULTILINE)
+    s = re.sub(r"^#+\s+", "", s, flags=re.MULTILINE)
+    return normalize_ws(s)
+
+
+def extract_lesswrong_post(url: str) -> Optional[ArticleExtract]:
+    """LessWrong post pages are client-rendered; use /api/post/<slug> markdown."""
+    m = _LESSWRONG_POST_RE.search(url)
+    if not m:
+        return None
+    slug = m.group(1)
+    api_url = f"https://www.lesswrong.com/api/post/{slug}"
+    req = Request(
+        api_url,
+        headers={
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                          "AppleWebKit/537.36 (KHTML, like Gecko) "
+                          "Chrome/120.0 Safari/537.36"
+        },
+    )
+    with urlopen(req, timeout=30) as resp:
+        raw = resp.read()
+        charset = getattr(resp.headers, "get_content_charset", lambda: None)() or "utf-8"
+        md = raw.decode(charset, errors="replace")
+
+    for marker in ("## Top Comments", "Top Comments Index", "### Comment by"):
+        cut = md.find(marker)
+        if cut != -1:
+            md = md[:cut]
+            break
+
+    title = ""
+    body_md = md
+    for line in md.splitlines():
+        if line.startswith("# "):
+            title = line[2:].strip()
+            rest_i = md.find("\n", md.index(line)) + 1
+            body_md = md[rest_i:]
+            break
+    body_md = _strip_lesswrong_leading_star_metadata(body_md)
+    body = _strip_markdownish_lesswrong(body_md)
+    if not body.strip():
+        return None
+    return ArticleExtract(title=title, body=body)
+
+
+def _pick_best_extract(page_html: str) -> Optional[ArticleExtract]:
+    """Choose the richest body among JSON-LD, <main>, <article>, and common containers."""
+    candidates: list[ArticleExtract] = []
+    for fn in (
+        extract_from_jsonld,
+        extract_from_main_tag,
+        extract_from_longest_article_tag,
+        extract_from_article_tag,
+        extract_from_common_content_container,
+    ):
+        cand = fn(page_html)
+        if cand is None:
+            continue
+        body = (cand.body or "").strip()
+        if not body:
+            continue
+        candidates.append(
+            ArticleExtract(
+                title=cand.title or "",
+                subtitle=cand.subtitle or "",
+                author=getattr(cand, "author", "") or "",
+                body=body,
+            )
+        )
+    if not candidates:
+        return None
+
+    def score(c: ArticleExtract) -> int:
+        return len(c.body)
+
+    return max(candidates, key=score)
+
+
 def main() -> int:
     args = parse_args()
     page = _fetch_html(args.url)
 
-    extracted = (
-        extract_from_jsonld(page)
-        or extract_from_article_tag(page)
-        or extract_from_common_content_container(page)
-    )
+    extracted = _pick_best_extract(page)
+    if extracted is None:
+        extracted = extract_lesswrong_post(args.url)
     if extracted is None:
         print("Error: could not extract article text from URL.", file=sys.stderr)
         return 2
 
     lines: list[str] = []
     if args.include_title:
-        cleaned_title = clean_title_text(extracted.title)
-        if cleaned_title:
-            lines.extend(chunk_to_lines(cleaned_title))
+        title_line = format_title_line(extracted)
+        if title_line:
+            # Keep title as a single line (do not sentence-split it).
+            lines.append(title_line)
             lines.append("")
-        if extracted.subtitle:
-            lines.extend(chunk_to_lines(extracted.subtitle))
-            lines.append("")
+
+    body = extracted.body
+    for needle in ("\nShare this article", "\nRelated articles"):
+        cut = body.find(needle)
+        if cut != -1:
+            body = body[:cut]
+    body = body.strip()
+    extracted = ArticleExtract(
+        title=extracted.title,
+        subtitle=extracted.subtitle,
+        author=extracted.author,
+        body=body,
+    )
 
     body_lines = chunk_to_lines(extracted.body)
     body_lines = [ln for ln in body_lines if not is_junk_line(ln)]

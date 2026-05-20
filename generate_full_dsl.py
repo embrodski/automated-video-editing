@@ -117,11 +117,17 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--camera-switch-offset-ms",
         type=float,
-        default=0.0,
+        default=-250.0,
         help="Shift ALL camera switch boundaries by this many milliseconds. "
              "Negative = switch earlier, positive = switch later. Implemented by splitting "
              "the adjacent transcript row and assigning the moved slice to the other camera "
-             "(sentence-aligned overall order is preserved). Default: 0.",
+             "(sentence-aligned overall order is preserved). Default: -250. Use 0 or "
+             "--no-camera-switch-offset to disable.",
+    )
+    parser.add_argument(
+        "--no-camera-switch-offset",
+        action="store_true",
+        help="Do not shift camera switch boundaries (overrides --camera-switch-offset-ms).",
     )
     parser.add_argument(
         "--final-shot-tail-sec",
@@ -144,6 +150,12 @@ def parse_args() -> argparse.Namespace:
         help="Force speaker_0 for rows overlapping the last this many seconds of the "
              "timeline (uses --final-shot-tail-sec for end time). Default: 4.0. Set to 0 "
              "to disable.",
+    )
+    parser.add_argument(
+        "--speaker-2-to-wide",
+        action="store_true",
+        help="Map speaker_id 2 to the wide camera (--wide-camera, default wide). "
+             "Use for off-camera / third-speaker diarization labels.",
     )
     parser.add_argument(
         "--speaker-3-to-wide",
@@ -534,6 +546,8 @@ def main() -> int:
         return 0
 
     cam_by_speaker: Dict[int, str] = dict(CAM_BY_SPEAKER_ID)
+    if args.speaker_2_to_wide:
+        cam_by_speaker[2] = str(args.wide_camera)
     if args.speaker_3_to_wide:
         cam_by_speaker[3] = str(args.wide_camera)
 
@@ -557,6 +571,8 @@ def main() -> int:
 
     lines.append("// Generated DSL")
     spk_hdr = "Speaker 0 -> speaker_0, Speaker 1 -> speaker_1"
+    if args.speaker_2_to_wide:
+        spk_hdr += f", Speaker 2 -> {args.wide_camera}"
     if args.speaker_3_to_wide:
         spk_hdr += f", Speaker 3 -> {args.wide_camera}"
     lines.append(f"// segment{segment_num} | {spk_hdr}")
@@ -569,11 +585,17 @@ def main() -> int:
         f"// Wide rule: if >1 camera cut in {float(args.cut_window_sec):.1f}s, force !camera {args.wide_camera} "
         f"for >= {float(args.min_wide_sec):.1f}s (sentence-aligned), extend if another cut within {float(args.cut_window_sec):.1f}s"
     )
-    if float(args.camera_switch_offset_ms) != 0.0:
+    camera_switch_offset_ms = (
+        0.0 if args.no_camera_switch_offset else float(args.camera_switch_offset_ms)
+    )
+    if camera_switch_offset_ms != 0.0:
         # When pulling camera switches earlier via slice(negative_start:), the renderer's default
         # clip padding can cause visible "replay" overlaps. Make this deterministic by disabling
         # padding for the whole render when a global switch offset is requested.
-        lines.append(f"// camera-switch-offset-ms={float(args.camera_switch_offset_ms):.1f}; disabling cut padding to avoid overlap artifacts")
+        lines.append(
+            f"// camera-switch-offset-ms={camera_switch_offset_ms:.1f}; "
+            "disabling cut padding to avoid overlap artifacts"
+        )
         lines.append("!cut 0 0")
     lines.append("")
 
@@ -595,7 +617,7 @@ def main() -> int:
     events = _apply_camera_switch_offset(
         rows,
         events,
-        offset_sec=float(args.camera_switch_offset_ms) / 1000.0,
+        offset_sec=camera_switch_offset_ms / 1000.0,
     )
 
     # Emit !camera lines + segment refs.

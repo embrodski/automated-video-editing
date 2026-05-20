@@ -13,13 +13,20 @@ import json
 from typing import List, Dict, Tuple, Optional
 from multiprocessing import Pool, cpu_count
 from functools import lru_cache
-from .config import SEGMENT_CONFIG
+from .config import SEGMENT_CONFIG, is_reading_dsl_text, segment_uses_embedded_audio
 from .clip_processing import get_clip_info, parse_segment_id, load_transcript
 from .color_match import build_color_match_vf
 
 
 # Cache directory for intermediate results
-CACHE_DIR = os.path.expanduser('~/.cache/podcast_dsl')
+def _default_cache_dir() -> str:
+    override = os.environ.get('PODCAST_DSL_CACHE_DIR', '').strip()
+    if override:
+        return override
+    return os.path.expanduser('~/.cache/podcast_dsl')
+
+
+CACHE_DIR = _default_cache_dir()
 CACHE_DB = os.path.join(CACHE_DIR, 'cache.db')
 OUTPUT_FPS = 24000 / 1001
 OUTPUT_FPS_STR = '24000/1001'
@@ -33,6 +40,44 @@ AUTO_HARDWARE_ENCODERS = ('h264_nvenc', 'h264_qsv', 'h264_amf')
 _resolved_encoder_memo: Dict[Tuple[str, str, bool, str], str] = {}
 ENCODER_TEST_WIDTH = 1280
 ENCODER_TEST_HEIGHT = 720
+
+# Set during render_dsl / render_all_cams so reading DSLs default to embedded MP4 audio.
+_active_dsl_text: Optional[str] = None
+
+
+def _set_render_dsl_context(dsl_file: Optional[str]) -> None:
+    global _active_dsl_text
+    if dsl_file and dsl_file != "-":
+        try:
+            with open(dsl_file, encoding="utf-8") as f:
+                _active_dsl_text = f.read()
+        except OSError:
+            _active_dsl_text = None
+    else:
+        _active_dsl_text = None
+
+
+def _use_video_embedded_audio(config: dict) -> bool:
+    return segment_uses_embedded_audio(config, dsl_text=_active_dsl_text)
+
+
+def _final_concat_use_reencode() -> bool:
+    """Reading edits use embedded per-clip audio; re-encode final concat for NLE timeline sync."""
+    return bool(_active_dsl_text and is_reading_dsl_text(_active_dsl_text))
+
+
+def _append_fast_input_seek(cmd: List[str], path: str, start_sec: float) -> None:
+    """Seek before -i (fast, less accurate A/V alignment at cut points)."""
+    cmd.extend(['-ss', str(start_sec), '-i', path])
+
+
+def _append_accurate_muxed_input_seek(
+    cmd: List[str], path: str, start_sec: float, duration_sec: float,
+) -> None:
+    """Seek after -i so embedded audio and video stay aligned (slower, NLE-safe)."""
+    cmd.extend(['-i', path, '-ss', str(start_sec), '-t', str(duration_sec)])
+
+
 DOWNSCALE_WIDTH_1080P = 1920
 DOWNSCALE_HEIGHT_1080P = 1080
 
@@ -573,14 +618,22 @@ def _cache_file(cmd: List[str], source_file: str, extension: str = '.mp4') -> st
     return cache_file
 
 
-def concatenate_clips(clip_files: List[str], output_file: str, use_reencode: bool = False):
+def concatenate_clips(
+    clip_files: List[str],
+    output_file: str,
+    use_reencode: bool = False,
+    *,
+    muxed_reencode: bool = False,
+):
     """
     Concatenate video clips with optional re-encoding to fix timestamp issues.
 
     Args:
         clip_files: List of video file paths to concatenate
         output_file: Output file path
-        use_reencode: If True, use concat filter with re-encoding (fixes timestamp issues). If False, use stream copy (faster)
+        use_reencode: If True, use concat *filter* with separate video/audio chains (legacy).
+        muxed_reencode: Decode each whole clip via the concat demuxer, then re-encode once.
+            Keeps each segment's A/V aligned (required for reading finals and embedded-audio groups).
     """
     if len(clip_files) == 1:
         # Single file, just copy it
@@ -588,16 +641,76 @@ def concatenate_clips(clip_files: List[str], output_file: str, use_reencode: boo
         shutil.copy2(clip_files[0], output_file)
         return
 
-    # Use concat filter with re-encoding if requested
-    # This fixes timestamp issues from re-encoded segments without overlapping audio
+    if muxed_reencode:
+        _concatenate_clips_demuxer_reencode(clip_files, output_file)
+        return
+
+    # Legacy: separate video/audio concat filters (do not use for long multi-segment reading finals).
     if use_reencode:
         _concatenate_clips_reencode(clip_files, output_file)
         return
 
-    # Otherwise use concat demuxer for reliability - it handles edge cases better
-    # and avoids "too many open files" errors
     _concatenate_clips_demuxer(clip_files, output_file)
     return
+
+
+def _filter_valid_concat_clips(clip_files: List[str]) -> List[str]:
+    """Drop zero-length intermediates before concat demuxer runs."""
+    import json
+
+    valid_clips: List[str] = []
+    for i, clip_file in enumerate(clip_files):
+        cmd = [
+            'ffprobe', '-v', 'error',
+            '-select_streams', 'v:0',
+            '-show_entries', 'stream=duration,nb_frames',
+            '-of', 'json',
+            clip_file,
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True)
+
+        try:
+            info = json.loads(result.stdout)
+            streams = info.get('streams', [])
+
+            if not streams:
+                print(f"Warning: Skipping segment {i} - no video stream: {clip_file}", file=sys.stderr)
+                continue
+
+            stream = streams[0]
+            nb_frames = int(stream.get('nb_frames', 0))
+            duration = float(stream.get('duration', 0))
+
+            if nb_frames == 0 or duration <= 0.001:
+                print(
+                    f"Warning: Skipping segment {i} - zero/minimal duration "
+                    f"(frames={nb_frames}, duration={duration}s): {clip_file}",
+                    file=sys.stderr,
+                )
+                continue
+
+            valid_clips.append(clip_file)
+        except (json.JSONDecodeError, KeyError, ValueError) as e:
+            print(f"Warning: Could not validate segment {i}, including anyway: {e}", file=sys.stderr)
+            valid_clips.append(clip_file)
+
+    if not valid_clips:
+        raise RuntimeError("No valid clips to concatenate")
+
+    if len(valid_clips) != len(clip_files):
+        print(
+            f"Concatenating {len(valid_clips)} valid clips "
+            f"(filtered out {len(clip_files) - len(valid_clips)} invalid clips)"
+        )
+
+    return valid_clips
+
+
+def _write_concat_demuxer_list(concat_list_path: str, clip_files: List[str]) -> None:
+    with open(concat_list_path, 'w', encoding='utf-8') as concat_file:
+        for clip_file in clip_files:
+            escaped_path = clip_file.replace('\\', '\\\\').replace("'", "'\\''")
+            concat_file.write(f"file '{escaped_path}'\n")
 
 
 def _concatenate_clips_reencode(clip_files: List[str], output_file: str):
@@ -644,80 +757,64 @@ def _concatenate_clips_reencode(clip_files: List[str], output_file: str):
     )
 
 
+def _concatenate_clips_demuxer_reencode(clip_files: List[str], output_file: str):
+    """
+    Concat demuxer + single re-encode pass. Each input file stays muxed (A/V together),
+    which avoids cumulative drift from concatenating separate video and audio chains.
+    """
+    valid_clips = _filter_valid_concat_clips(clip_files)
+    concat_file = tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False)
+    try:
+        _write_concat_demuxer_list(concat_file.name, valid_clips)
+        concat_file.close()
+
+        cmd = _ffmpeg_cmd_base() + [
+            '-f', 'concat',
+            '-safe', '0',
+            '-i', concat_file.name,
+            '-vf', f'fps={OUTPUT_FPS_STR}',
+            '-af', 'aresample=async=1:first_pts=0',
+            '-fps_mode', 'cfr',
+            '-pix_fmt', 'yuv420p',
+            '-profile:v', 'high',
+            '-avoid_negative_ts', 'make_zero',
+            '-c:a', 'aac', '-b:a', '320k',
+            '-compression_level', '5',
+        ]
+        _run_ffmpeg_h264_encode_with_fallback(
+            cmd,
+            output_file,
+            stage_default_preset='ultrafast',
+            quality_level=23,
+            use_cache=False,
+            err_context='concat demuxer reencode',
+        )
+    finally:
+        if os.path.exists(concat_file.name):
+            os.unlink(concat_file.name)
+
+
 def _concatenate_clips_demuxer(clip_files: List[str], output_file: str):
     """
     Concatenate clips using ffmpeg's concat demuxer.
     This approach doesn't open all files at once, avoiding "too many open files" errors.
     Note: This uses stream copy, so no crossfading.
     """
-    import shutil
-    import json
-
-    # Validate each clip before concatenation
-    valid_clips = []
-    for i, clip_file in enumerate(clip_files):
-        # MP4 files created by our pipeline should be validated
-        # (Legacy check for .mkv files removed - we now use MP4 throughout)
-
-        # Get video and audio stream info for MP4 files
-        cmd = [
-            'ffprobe', '-v', 'error',
-            '-select_streams', 'v:0',
-            '-show_entries', 'stream=duration,nb_frames',
-            '-of', 'json',
-            clip_file
-        ]
-        result = subprocess.run(cmd, capture_output=True, text=True)
-
-        try:
-            info = json.loads(result.stdout)
-            streams = info.get('streams', [])
-
-            if not streams:
-                print(f"Warning: Skipping segment {i} - no video stream: {clip_file}", file=sys.stderr)
-                continue
-
-            stream = streams[0]
-            nb_frames = int(stream.get('nb_frames', 0))
-            duration = float(stream.get('duration', 0))
-
-            if nb_frames == 0 or duration <= 0.001:
-                print(f"Warning: Skipping segment {i} - zero/minimal duration (frames={nb_frames}, duration={duration}s): {clip_file}", file=sys.stderr)
-                continue
-
-            valid_clips.append(clip_file)
-        except (json.JSONDecodeError, KeyError, ValueError) as e:
-            print(f"Warning: Could not validate segment {i}, including anyway: {e}", file=sys.stderr)
-            valid_clips.append(clip_file)
-
-    if not valid_clips:
-        raise RuntimeError("No valid clips to concatenate")
-
-    print(f"Concatenating {len(valid_clips)} valid clips (filtered out {len(clip_files) - len(valid_clips)} invalid clips)")
-
-    # Create a temporary concat file list
+    valid_clips = _filter_valid_concat_clips(clip_files)
     concat_file = tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False)
     try:
-        # Write file list in concat demuxer format
-        for clip_file in valid_clips:
-            # Escape single quotes and backslashes in filenames
-            escaped_path = clip_file.replace('\\', '\\\\').replace("'", "'\\''")
-            concat_file.write(f"file '{escaped_path}'\n")
+        _write_concat_demuxer_list(concat_file.name, valid_clips)
         concat_file.close()
 
-        # Use concat demuxer with stream copy for perfect sync
         cmd = _ffmpeg_cmd_base() + [
             '-f', 'concat',
             '-safe', '0',
             '-i', concat_file.name,
             '-c', 'copy',
-            output_file
+            output_file,
         ]
-
-        # Don't suppress stderr so we can see ffmpeg errors
         subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL)
     finally:
-        # Clean up temp file
         if os.path.exists(concat_file.name):
             os.unlink(concat_file.name)
 
@@ -1041,7 +1138,7 @@ def _extract_single_camera_group(segment_ids: List[str], clips_info: List[Dict],
         video_start = max(0, first_clip['video_start'] - before_padding)
     audio_end = last_clip['audio_end'] + after_padding + audio_offset_in_file
     video_end = last_clip['video_end'] + after_padding
-    use_video_embedded_audio = bool(config.get('use_video_embedded_audio'))
+    use_video_embedded_audio = _use_video_embedded_audio(config)
     if use_video_embedded_audio:
         duration = max(0.0, video_end - video_start)
     else:
@@ -1077,9 +1174,7 @@ def _extract_single_camera_group(segment_ids: List[str], clips_info: List[Dict],
     cmd = _ffmpeg_cmd_base()
 
     if use_video_embedded_audio:
-        # One seek on the camera file keeps A/V aligned (no separate master WAV).
-        cmd.extend(['-ss', str(video_start), '-i', first_clip['video_file']])
-        cmd.extend(['-t', str(duration)])
+        _append_accurate_muxed_input_seek(cmd, first_clip['video_file'], video_start, duration)
         if filter_parts:
             cmd.extend(['-filter_complex', ';'.join(filter_parts)])
             cmd.extend(['-map', '[vout]'])
@@ -1087,9 +1182,9 @@ def _extract_single_camera_group(segment_ids: List[str], clips_info: List[Dict],
         else:
             cmd.extend(['-map', '0:v', '-map', '0:a'])
     else:
-        # Using -ss BEFORE -i for fast seeking; second input is master audio.
-        cmd.extend(['-ss', str(video_start), '-i', first_clip['video_file']])
-        cmd.extend(['-ss', str(audio_start), '-i', main_audio_file])
+        # Fast seek before -i; second input is master audio (interview path).
+        _append_fast_input_seek(cmd, first_clip['video_file'], video_start)
+        _append_fast_input_seek(cmd, main_audio_file, audio_start)
         cmd.extend(['-t', str(duration)])
         if filter_parts:
             cmd.extend(['-filter_complex', ';'.join(filter_parts)])
@@ -1189,7 +1284,11 @@ def _build_camera_spans(group: List[Tuple[str, str, str, float, float, Optional[
 
 def _extract_camera_segment(args):
     """
-    Extract a single camera span (video-only by default).
+    Extract a single camera span from a multi-camera group.
+
+    When ``use_video_embedded_audio`` is true, ``-frames:v`` snaps video to the
+    frame grid and ``-shortest`` trims audio to the same muxed length so concat
+    does not show the next camera while the previous span's audio still plays.
 
     Args:
         args: Tuple of (span, fade_in_ms, fade_out_ms, is_first, is_last,
@@ -1238,10 +1337,12 @@ def _extract_camera_segment(args):
     if video_filter_chain:
         filter_parts.append(f"[0:v]{','.join(video_filter_chain)}[vout]")
 
-    # Single FFmpeg call to extract the video span using fast seek.
     cmd = _ffmpeg_cmd_base()
-    cmd.extend(['-ss', str(video_start), '-i', video_file])
-    cmd.extend(['-t', str(segment_duration)])
+    if use_video_embedded_audio:
+        _append_accurate_muxed_input_seek(cmd, video_file, video_start, segment_duration)
+    else:
+        _append_fast_input_seek(cmd, video_file, video_start)
+        cmd.extend(['-t', str(segment_duration)])
 
     # Add filter_complex if we have any filters
     if filter_parts:
@@ -1262,7 +1363,10 @@ def _extract_camera_segment(args):
     ]
     cmd.extend(enc_tail)
     if use_video_embedded_audio:
-        cmd.extend(['-c:a', 'aac', '-b:a', '320k', '-compression_level', '5'])
+        cmd.extend([
+            '-c:a', 'aac', '-b:a', '320k', '-compression_level', '5',
+            '-shortest',  # Match audio length to -frames:v (same as single-camera path)
+        ])
     else:
         cmd.extend(['-an'])
     try:
@@ -1288,13 +1392,13 @@ def _extract_multi_camera_group(group: List[Tuple[str, str, str, float, float, O
     """
     Extract group with camera changes, using a continuous group audio timeline.
 
-    Strategy when ``use_video_embedded_audio`` is false (default):
+    Strategy when ``use_video_embedded_audio`` is false (typical interview segments):
     1. Build camera spans over the grouped timeline
     2. Render each camera span as video-only media
     3. Concatenate the video-only spans
     4. Mux the concatenated video with one continuous audio extract from ``audio_file``
 
-    When ``use_video_embedded_audio`` is true for the segment:
+    When ``use_video_embedded_audio`` is true (reading segments by default):
     1–3 as above, but each span keeps embedded audio; concat (re-encoded) yields the final output.
     """
     segment_ids = [seg_id for seg_id, _, _, _, _, _, _, _, _, _ in group]
@@ -1316,7 +1420,7 @@ def _extract_multi_camera_group(group: List[Tuple[str, str, str, float, float, O
     config = SEGMENT_CONFIG[segment_num]
     main_audio_file = config['audio_file']
     audio_offset_in_file = config.get('audio_offset', 0)
-    use_video_embedded_audio = bool(config.get('use_video_embedded_audio'))
+    use_video_embedded_audio = _use_video_embedded_audio(config)
     target_width, target_height = _get_segment_target_resolution(segment_num)
 
     # Calculate the continuous group audio range.
@@ -1370,11 +1474,11 @@ def _extract_multi_camera_group(group: List[Tuple[str, str, str, float, float, O
         os.close(temp_fd)
         os.unlink(temp_video_path)
 
-        # Embedded-audio spans may differ slightly between cameras; re-encode concat is safer.
+        # Keep each span muxed when re-encoding (never split video/audio concat chains).
         concatenate_clips(
             combined_segments,
             temp_video_path,
-            use_reencode=use_video_embedded_audio,
+            muxed_reencode=use_video_embedded_audio,
         )
 
         if use_video_embedded_audio:
@@ -1627,6 +1731,8 @@ def _render_dsl_from_commands(commands: List, output_file: str, dsl_file: str = 
     """
     from .clip_processing import group_consecutive_clips
     import shutil
+
+    _set_render_dsl_context(dsl_file)
 
     print(f"\n{'='*70}")
     if dry_run:
@@ -1916,10 +2022,20 @@ def _render_dsl_from_commands(commands: List, output_file: str, dsl_file: str = 
         # Use MP4 with AAC audio throughout
         temp_video_file = output_file + '.concat.mp4'
 
-        # Concatenate using stream copy (all segments are MP4 with matching codecs)
         if len(combined_clips) > 1:
-            print(f"Concatenating {len(combined_clips)} segments using stream copy...")
-            concatenate_clips(combined_clips, temp_video_file, use_reencode=False)
+            final_reencode = _final_concat_use_reencode()
+            if final_reencode:
+                print(
+                    f"Concatenating {len(combined_clips)} segments via concat demuxer + re-encode "
+                    f"(muxed A/V per segment, NLE-safe)..."
+                )
+            else:
+                print(f"Concatenating {len(combined_clips)} segments using stream copy...")
+            concatenate_clips(
+                combined_clips,
+                temp_video_file,
+                muxed_reencode=final_reencode,
+            )
         else:
             # Single segment - just copy to output
             print("Single segment - copying to output...")

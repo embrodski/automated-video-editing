@@ -1,32 +1,60 @@
 ---
 name: inkhaven-reading-autocut
-description: Automates the Inkhaven single-speaker reading workflow: given front/side camera files, master audio, a detail transcript JSON, and the article URL being read, convert the transcript to per-sentence simplified JSON (with word timestamps), create a canonical article text file, register a new segment in src/podcast_dsl/config.py using the next unused integer key in SEGMENT_CONFIG (same as podcast autocut; front=speaker_0, side=speaker_1, optional wide=wide only when color correction is explicitly requested), generate reading.dsl using generate_reading_dsl.py (re-read/rewind handling + side-disfavored rule + gap-only lead-in + last-line-on-front + no cut padding), then render a 1-minute test MP4 and pause to ask before longer renders. Default to no color correction; enable it only if the user's initial request explicitly says "Use Color Correct", "Run Color Correct", or similar. Use when the user says “reading autocut”, “Inkhaven-Reading-Autocut”, “generate reading DSL”, or provides reading inputs (Front/Side plus optional Wide + Reading Audio + Reading Transcript + article link).
+description: Automates the Inkhaven single-speaker reading workflow: given front/side camera files, master audio, a detail transcript JSON, and the article URL being read, convert the transcript to per-sentence simplified JSON (with word timestamps), create a canonical article text file, register a new segment in src/podcast_dsl/config.py using the next unused integer key in SEGMENT_CONFIG (same as podcast autocut; front=speaker_0, side=speaker_1, use_video_embedded_audio True, optional wide=wide only when color correction is explicitly requested), generate reading.dsl using generate_reading_dsl.py (re-read/rewind handling + side-disfavored rule + gap-only lead-in + last-line-on-front + no cut padding). If the user's initial directions include **Shorten**, post-process the DSL with shorten_reading_dsl_silences.py (compress inter-word silence over 1.5s with mandatory camera flips and side→front re-application) before any render. Then render a 1-minute test MP4 and pause to ask before longer renders. By default (unless the user requests **--FastCut**), after the agreed full-reading render append `--massive` to `python -m podcast_dsl` so the same folder also gets Front Render and Side Render (single-camera variants, encoded sequentially: Front, then Side). Default to no color correction; enable it only if the user's initial request explicitly says "Use Color Correct", "Run Color Correct", or similar. Use when the user says “reading autocut”, “Inkhaven-Reading-Autocut”, “generate reading DSL”, or provides reading inputs (Front/Side plus optional Wide + Reading Audio + Reading Transcript + article link).
 ---
 
 # Inkhaven Reading Autocut
 
+## Permanent safety rule (must apply)
+
+- **Do not re-render any video without first asking the user for permission.**
+  - This includes re-rendering the 1-minute test (it typically overwrites the same output filename).
+  - If a fix requires a re-render, stop after generating/updating `reading.dsl` and ask.
+
+## Working folder resolution
+
+Resolve episode folders **before** listing files or building command paths. Let **`P`** be the absolute path the user gave. Let **`WF_INPUT`** be true iff **`P`**'s last path segment equals **`Input`** (case-insensitive).
+
+- **If `WF_INPUT` is true**: let **`R = parent(P)`**. If **`R / Output`** exists as a directory **and** **`R`** has a sibling **`temp`** directory (case-insensitive; e.g. `Temp` or `temp` on Windows), treat **`R`** as the **working folder** (same as if the user had passed the parent):
+  - **Input folder** = **`P`** (the path they passed; normally **`R / Input`**)
+  - **Output folder** = **`R / Output`**
+  - **Temp folder** = that existing **`R / temp`** sibling (do not create a second temp folder under **`P`**)
+- **Else**: **working folder** = **`P`**, with the usual layout:
+  - **Input folder** = **`P / Input`**
+  - **Output folder** = **`P / Output`**
+  - **Temp folder** = existing **`P / temp`** sibling if present, else **`P / Temp`** (case-insensitive; create if missing when needed)
+
+If **`parent(P)`** is not meaningful (e.g. drive root), do not promote; use **`P`** as the working folder.
+
+When promotion applies, say so once (e.g. “Using `E:\Inkhaven Viv` as the working folder because you passed `...\Input`”). Use the resolved **Input**, **Output**, and **Temp** paths in every step below—not **`P / Input`** when **`P`** was already the Input folder.
+
+In all commands below, substitute **`<input folder>`**, **`<output folder>`**, and **`<temp folder>`** with those resolved absolute paths.
+
 ## Inputs to collect
 
-- **Working folder path**
-  - Input folder: `<working folder>/Input` (source files live here)
-  - Output folder: `<working folder>/Output` (generated transcript/article/DSL + renders go here)
-  - Temp folder: `<working folder>/Temp` (temporary working files; on Windows redirect `TEMP`/`TMP` here before rendering)
+- **Working folder path** (after [Working folder resolution](#working-folder-resolution))
+  - Input folder: resolved **Input folder** (source files live here)
+  - Output folder: resolved **Output folder** (generated transcript/article/DSL + renders go here)
+  - Temp folder: resolved **Temp folder** (temporary working files; on Windows redirect `TEMP`/`TMP` here before rendering)
 - **Edit aggressiveness**:
   - Default: **hard edit** (more aggressive pause splitting; better at separating false starts + restarts)
   - If the user explicitly requests **soft edit**: use less aggressive pause splitting (more conservative)
 - **Files**
   - **Front camera video** (maps to `speaker_0`)
   - **Side camera video** (maps to `speaker_1`)
-  - **Master audio** (WAV preferred)
+  - **Master audio** (WAV preferred) — used for **ElevenLabs / transcript timing only**; renders take **AAC embedded in each camera MP4** by default (see step 4)
   - **Detail transcript JSON** (must have top-level `segments` array; ideally includes `words`)
 - **Wide video**: collect only if the user's initial request explicitly asks for color correction. If provided, map it to `wide` and use it as a reference only; never show it in the edit.
 - **Color correction request**: treat color correction as **off by default**. Only enable it if the user's initial run request explicitly says `Use Color Correct`, `Run Color Correct`, or equivalent phrasing.
 - **Encoder preference**: by default, let `podcast_dsl` use a working hardware H.264 encoder if available; otherwise it should fall back to `libx264`. Only override this if the user explicitly asks for a specific encoder.
 - **Downscale request**: if the user's initial run request says `Downscale 4K to 1080p` or equivalent phrasing, add `--downscale-4k-to-1080p` to the render command.
 - **Original article URL** (the canonical script being read)
+- **Shorten**: if the user's initial directions include the word **Shorten** (e.g. “reading autocut, Shorten”), after `reading.dsl` is generated you must run the silence post-pass (see workflow step 6) **before** any `python -m podcast_dsl` render.
+- **FastCut**: if the user's initial run request includes **`--FastCut`** (case-insensitive; e.g. `--fastcut`, `--FASTCUT`), treat it as “skip massive variants”: render only the normal outputs (1-min test + optional 5-min test + optional full), and do **not** append `--massive` to the full render.
+- **Massive renders (default)**: unless `--FastCut` was requested in the user's initial run request, when they agree to the **full reading** render, append **`--massive`** to that `python -m podcast_dsl` command (same flags otherwise). That produces **in the same folder as `-o`**: `Front Render.mp4` and `Side Render.mp4` (plus matching `.dsl` files), each the same timeline as `reading.dsl` but forced to `speaker_0` or `speaker_1` respectively; `massive_renderer.py` runs those two encodes **one after another** (Front, then Side) to avoid overloading the machine. Do **not** add `--massive` to 1-minute or 5-minute test commands (`--max-seconds` is incompatible with `--massive`).
 - **Optional overrides**
   - Per-camera offsets (seconds; default 0)
-  - Transcript rows to force-keep / force-drop (for rare picture/graph description exception cases)
+  - Transcript rows to force-keep / force-drop (for rare visual or section-header callout exception cases)
 
 ## Core rules (must apply)
 
@@ -37,6 +65,7 @@ description: Automates the Inkhaven single-speaker reading workflow: given front
 
 ### Content rules
 - Keep only sentences that belong to the original article (URL), in order.
+- Keep reader callouts for visuals or section headers even when they are not in the canonical article text, including phrases like “here is a graph”, “here is a picture”, “this section is called”, “section 2”, “the next section is called”, or “the section title is”.
 - Handle flubs / re-reads / rewinds: keep only the final contiguous correct reading.
 - No article sentence should appear more than once unless it appears more than once in the source.
 
@@ -48,16 +77,25 @@ description: Automates the Inkhaven single-speaker reading workflow: given front
 - **Last transcript row** in the final edit must be **Front**.
 - **No padding between cuts**: emit `!cut 0 0` so the renderer does not add pre/post padding that could cause tiny audio overlaps at camera switches.
 
+### Shorten (silence removal) — only when the user includes **Shorten**
+- Run **after** `generate_reading_dsl.py` has written `<output folder>/reading.dsl`, and **before** any render.
+- Detect consecutive spoken tokens using **word** timestamps from the simplified transcript (rows without `words` use the whole clip interval as a single token).
+- Where the gap from **end of previous word** to **start of next word** is **greater than 1.5 seconds**:
+  - End the outgoing clip at **1.25 seconds after** the previous word’s end.
+  - Start the incoming clip at **0.25 seconds before** the next word’s start.
+- **Every** such edit is a cut and must include a **camera change** (front ↔ side).
+- If that cut puts the incoming segment on the **side** camera, re-apply the usual **side-disfavored** behavior (same logic as `generate_reading_dsl.py`: cap side runs at 12s with comma / sentence end / row-boundary flips to front, and the last transcript row stays on front). The repo script `shorten_reading_dsl_silences.py` performs the trim, forces the camera flip at each shortened gap, then runs `enforce_side_max_durations` per span and `ensure_last_sentence_on_front`.
+
 ## Workflow
 
 ### 1) List the input files
-Confirm the exact filenames for front/side/wide/audio/transcript in `<working folder>/Input`.
+Confirm the exact filenames for front/side/wide/audio/transcript in `<input folder>`.
 
 ### 2) Convert detail transcript → simplified per-sentence JSON (with words)
 Run (default = **hard edit**):
 
 ```bash
-python convert_transcript_json.py "<working folder>/Input/<detail transcript filename>" -o "<working folder>/Output/reading_transcript_simplified.json" --pause-split-gap-sec 0.60 --pause-split-min-words 4
+python convert_transcript_json.py "<input folder>/<detail transcript filename>" -o "<output folder>/reading_transcript_simplified.json" --pause-split-gap-sec 0.60 --pause-split-min-words 4
 ```
 
 This must produce a JSON dict keyed by row id strings with `start`, `end`, `text`, `speaker_id`, and **`words`** (word-level timestamps) so the reading DSL can snap cuts to true word boundaries.
@@ -65,24 +103,24 @@ This must produce a JSON dict keyed by row id strings with `start`, `end`, `text
 If the user explicitly requests a **soft edit**, use:
 
 ```bash
-python convert_transcript_json.py "<working folder>/Input/<detail transcript filename>" -o "<working folder>/Output/reading_transcript_simplified.json" --pause-split-gap-sec 0.65 --pause-split-min-words 6
+python convert_transcript_json.py "<input folder>/<detail transcript filename>" -o "<output folder>/reading_transcript_simplified.json" --pause-split-gap-sec 0.65 --pause-split-min-words 6
 ```
 
 ### 3) Create canonical article text file in output folder
 Run the fetcher utility to create:
 
-- `<working folder>/Output/reading_article.txt`
+- `<output folder>/reading_article.txt`
 
 Command template:
 
 ```bash
-python fetch_article_to_reading_article.py --url "<article url>" --output-dir "<working folder>/Output"
+python fetch_article_to_reading_article.py --url "<article url>" --output-dir "<output folder>"
 ```
 
 Equivalent (explicit path):
 
 ```bash
-python fetch_article_to_reading_article.py --url "<article url>" --output "<working folder>/Output/reading_article.txt"
+python fetch_article_to_reading_article.py --url "<article url>" --output "<output folder>/reading_article.txt"
 ```
 
 Notes:
@@ -94,26 +132,53 @@ Add a new segment entry with:
 
 **Segment number policy**: choose the **next unused integer** segment key in `SEGMENT_CONFIG` (e.g. if `10` exists, use `11`).
 
-- `audio_file`: master audio absolute path
+- `audio_file`: master audio absolute path (transcript alignment reference; **not** muxed into the final reading MP4 unless you explicitly disable embedded audio)
+- `use_video_embedded_audio`: **`True`** (required for all reading segments — lip-sync uses each camera file's embedded track so output does not drift vs a separate WAV)
 - `enable_color_match`: `True` only if the user's initial request explicitly asked for color correction; otherwise `False`
 - `video_files`:
   - `speaker_0`: front file absolute path (+ optional offset)
   - `speaker_1`: side file absolute path (+ optional offset)
   - `wide`: wide file absolute path (+ optional offset) only when color correction is enabled
-- `transcript_file`: `<working folder>/Output/reading_transcript_simplified.json` absolute path
+- `transcript_file`: `<output folder>/reading_transcript_simplified.json` absolute path
 
 ### 5) Generate `reading.dsl`
 Run:
 
 ```bash
-python generate_reading_dsl.py "<working folder>/Output/reading_transcript_simplified.json" "<working folder>/Output/reading_article.txt" --segment <SEGMENT_NUM> --output "<working folder>/Output/reading.dsl"
+python generate_reading_dsl.py "<output folder>/reading_transcript_simplified.json" "<output folder>/reading_article.txt" --segment <SEGMENT_NUM> --output "<output folder>/reading.dsl"
 ```
 
 Optional:
-- Run `--verbose` or inspect `<working folder>/Output/reading.dsl.alignment.txt` if alignment is suspicious.
+- Run `--verbose` or inspect `<output folder>/reading.dsl.alignment.txt` if alignment is suspicious.
 - If you want to change the final hold, pass `--final-shot-tail-sec 2.0` (default is 2 seconds).
 
-### 6) Render ONLY the 1-minute test first (always redirect TEMP/TMP)
+### 6) Shorten long pauses in `reading.dsl` (only when user includes **Shorten**)
+Skip this step entirely if **Shorten** was not in the user’s initial directions.
+
+From the **repository root** (same folder as `shorten_reading_dsl_silences.py`):
+
+```bash
+python shorten_reading_dsl_silences.py "<output folder>/reading.dsl" --segment <SEGMENT_NUM>
+```
+
+This overwrites `reading.dsl` in place by default (add `--output` if you want a separate file). It uses `SEGMENT_CONFIG[<SEGMENT_NUM>]['transcript_file']` unless you pass `--transcript`. Defaults match the skill: `--min-silence-sec 1.5`, `--tail-sec 1.25`, `--lead-sec 0.25`, `--side-shot-max-sec 12`.
+
+Do **not** start the 1-minute render until this step has finished when Shorten is requested.
+
+### Render audio source (default)
+`python -m podcast_dsl` **must** use **embedded audio from the front/side MP4s** for reading projects. That is the default when:
+- the segment has `'use_video_embedded_audio': True` in `SEGMENT_CONFIG`, and/or
+- the DSL header is `// Generated reading DSL` (renderer infers embedded audio even if the flag was omitted).
+
+Do **not** turn this off for reading unless the user explicitly asks to debug master-WAV muxing.
+
+Final concat of segment MP4s uses **concat demuxer + re-encode** (each segment stays muxed; never separate video/audio concat chains) with **CFR 23.976** (`fps` filter + `fps_mode cfr` + `aresample=async=1`) so DaVinci Resolve and other NLEs get one continuous timeline without progressive A/V drift.
+
+Per-segment cuts from camera MP4s use **accurate seek** (`-i` then `-ss`, not fast seek before `-i`) so embedded audio stays aligned at each cut (slower than interview autocut, NLE-safe).
+
+Multi-camera groups snap cuts to the output frame grid; each span export uses **`-frames:v`** plus **`-shortest`** so embedded audio cannot run past the last video frame before concat (avoids ~3 frames of previous-camera audio under the new shot).
+
+### 7) Render ONLY the 1-minute test first (always redirect TEMP/TMP)
 PowerShell-friendly template (do not use `&&`):
 
 By default, `python -m podcast_dsl` now auto-selects a working hardware H.264 encoder if available and falls back to `libx264` otherwise. If the user explicitly asks for software-only or a specific encoder, add `--video-encoder <encoder>`.
@@ -121,26 +186,38 @@ If the user explicitly asks to downscale 4K footage, add `--downscale-4k-to-1080
 
 ```powershell
 Set-Location "<repo>\\src"
-$env:TEMP = "<working folder>\\Temp"
-$env:TMP  = "<working folder>\\Temp"
+$env:TEMP = "<temp folder>"
+$env:TMP  = "<temp folder>"
 
-python -m podcast_dsl "<working folder>\\Output\\reading.dsl" -o "<working folder>\\Output\\1 Min Test Reading.mp4" --workers 6 --max-seconds 60
+python -m podcast_dsl "<output folder>\\reading.dsl" -o "<output folder>\\1 Min Test Reading.mp4" --workers 6 --max-seconds 60
 ```
 
 After the 1-minute render finishes, **pause and ask** whether to render longer tests or the full episode.
 
-### 7) Optional: render 5-minute test and/or full MP4 (only if user agrees)
+### 8) Optional: render 5-minute test and/or full MP4 (only if user agrees)
 
 ```powershell
 Set-Location "<repo>\\src"
-$env:TEMP = "<working folder>\\Temp"
-$env:TMP  = "<working folder>\\Temp"
+$env:TEMP = "<temp folder>"
+$env:TMP  = "<temp folder>"
 
-python -m podcast_dsl "<working folder>\\Output\\reading.dsl" -o "<working folder>\\Output\\5 Min Test Reading.mp4" --workers 6 --max-seconds 300
-python -m podcast_dsl "<working folder>\\Output\\reading.dsl" -o "<working folder>\\Output\\Full Reading.mp4" --workers 6
+python -m podcast_dsl "<output folder>\\reading.dsl" -o "<output folder>\\5 Min Test Reading.mp4" --workers 6 --max-seconds 300
+python -m podcast_dsl "<output folder>\\reading.dsl" -o "<output folder>\\Full Reading.mp4" --workers 6
 ```
 
-### 8) After render
+Unless the user requested **`--FastCut`**, use the full render command with **`--massive`** appended (and keep any `--downscale-4k-to-1080p` / `--video-encoder` flags they requested):
+
+```powershell
+Set-Location "<repo>\\src"
+$env:TEMP = "<temp folder>"
+$env:TMP  = "<temp folder>"
+
+python -m podcast_dsl "<output folder>\\reading.dsl" -o "<output folder>\\Full Reading.mp4" --workers 6 --massive
+```
+
+After it finishes, confirm **`Front Render.mp4`** and **`Side Render.mp4`** (and optional `.dsl` siblings) exist beside **`Full Reading.mp4`**.
+
+### 9) After render
 No thumbnail-text generation step is included in this pipeline.
 
 ## Usage example (what the user will paste)
@@ -156,7 +233,8 @@ Working folder: `D:\...\Inkhaven Alice`”
 Assistant:
 - Converts transcript to `reading_transcript_simplified.json`
 - Creates `reading_article.txt` from the URL
-- Registers a new segment in `src/podcast_dsl/config.py` using the **next unused integer** key in `SEGMENT_CONFIG` (same rule as Inkhaven-Podcast-Autocut), with `enable_color_match: False` unless the initial request explicitly asked for color correction
+- Registers a new segment in `src/podcast_dsl/config.py` using the **next unused integer** key in `SEGMENT_CONFIG` (same rule as Inkhaven-Podcast-Autocut), with `use_video_embedded_audio: True` and `enable_color_match: False` unless the initial request explicitly asked for color correction
 - Generates `reading.dsl`
-- Renders `1 Min Test Reading.mp4` only, then asks before longer renders
+- If the user included **Shorten**, runs `shorten_reading_dsl_silences.py` on `reading.dsl` before rendering
+- Renders `1 Min Test Reading.mp4` only, then asks before longer renders; unless the initial request included **`--FastCut`**, append `--massive` only to the agreed full-reading render
 

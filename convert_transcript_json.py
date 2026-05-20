@@ -2,11 +2,24 @@
 """
 Convert a JSON transcript into the simplified format expected by podcast_dsl.
 
-Input format:
-- Top-level JSON object with a "segments" array
-- Each segment has "text", "start_time", "end_time", and an optional nested
-  "speaker" object with "id" and/or "name"
-- Optional per-segment "words" array with { "text", "start_time", "end_time" }
+Input format (two transcript shapes are accepted; both produce the same output):
+
+1. Manual UI export shape:
+   - Top-level JSON object with a "segments" array
+   - Each segment has "text", "start_time", "end_time", and an optional nested
+     "speaker" object with "id" and/or "name"
+   - Optional per-segment "words" array with { "text", "start_time", "end_time" }
+
+2. ElevenLabs API "segmented_json" export shape:
+   - Top-level JSON object with a "segments" array
+   - Each segment has "text" and a "words" array; segment-level start/end and
+     speaker block are NOT present.
+   - Each word has { "text", "start", "end", "type", "speaker_id", ... }
+     (note "start"/"end" instead of "start_time"/"end_time", and a per-word
+     "speaker_id" string like "speaker_0").
+   When loading this shape, segment start/end is derived from the first/last
+   timed word, and segment speaker is inferred from the most common per-word
+   "speaker_id" within the segment.
 
 Output format:
 - JSON object keyed by sentence index as a string
@@ -130,6 +143,37 @@ def load_input(path: str) -> Dict:
         return json.load(f)
 
 
+def _word_start_time(w: Dict) -> Optional[float]:
+    """Return a word's start time in seconds.
+
+    Accepts either ``start_time`` (manual UI export) or ``start``
+    (ElevenLabs API ``segmented_json`` export). Returns ``None`` if neither
+    key is present or the value can't be coerced to float.
+    """
+    val = w.get("start_time")
+    if val is None:
+        val = w.get("start")
+    if val is None:
+        return None
+    try:
+        return float(val)
+    except (TypeError, ValueError):
+        return None
+
+
+def _word_end_time(w: Dict) -> Optional[float]:
+    """Return a word's end time in seconds (mirrors ``_word_start_time``)."""
+    val = w.get("end_time")
+    if val is None:
+        val = w.get("end")
+    if val is None:
+        return None
+    try:
+        return float(val)
+    except (TypeError, ValueError):
+        return None
+
+
 def normalize_text(text: Optional[str]) -> str:
     if text is None:
         return ""
@@ -145,6 +189,22 @@ def extract_speaker_token(segment: Dict, speaker_source: str) -> Tuple[Optional[
     speaker = segment.get("speaker") or {}
     speaker_id = speaker.get("id")
     speaker_name = speaker.get("name")
+
+    # ElevenLabs API segmented_json export has no segment-level "speaker" block
+    # but every word carries a "speaker_id" string (e.g. "speaker_0"). Fall
+    # back to the most common per-word speaker_id within this segment.
+    if not speaker_id and not speaker_name:
+        words = segment.get("words")
+        if isinstance(words, list) and words:
+            counts: Dict[str, int] = {}
+            for w in words:
+                if not isinstance(w, dict):
+                    continue
+                sid = w.get("speaker_id")
+                if isinstance(sid, str) and sid:
+                    counts[sid] = counts.get(sid, 0) + 1
+            if counts:
+                speaker_id = max(counts.items(), key=lambda kv: kv[1])[0]
 
     if speaker_source == "id":
         return speaker_id, speaker_name
@@ -247,8 +307,13 @@ def words_to_sentence_rows(
             return
         text = "".join(w.get("text") or "" for w in buf)
         text = normalize_text(re.sub(r"\s+", " ", text))
-        start = float(substantive[0]["start_time"])
-        end = float(substantive[-1]["end_time"])
+        start_first = _word_start_time(substantive[0])
+        end_last = _word_end_time(substantive[-1])
+        if start_first is None or end_last is None:
+            buf = []
+            return
+        start = start_first
+        end = end_last
         if end <= start:
             end = start + MIN_UTTERANCE_DURATION_SEC
         # Preserve word-level timestamps so downstream logic can snap cuts to
@@ -256,10 +321,9 @@ def words_to_sentence_rows(
         words_out: List[Dict] = []
         for w in substantive:
             w_text = (w.get("text") or "")
-            try:
-                w_start = float(w["start_time"])
-                w_end = float(w["end_time"])
-            except Exception:
+            w_start = _word_start_time(w)
+            w_end = _word_end_time(w)
+            if w_start is None or w_end is None:
                 continue
             if w_end <= w_start:
                 w_end = w_start + MIN_UTTERANCE_DURATION_SEC
@@ -277,7 +341,7 @@ def words_to_sentence_rows(
     for wi, w in enumerate(words):
         if not isinstance(w, dict):
             continue
-        if "start_time" not in w or "end_time" not in w:
+        if _word_start_time(w) is None or _word_end_time(w) is None:
             return None
         buf.append(w)
         piece = (w.get("text") or "").strip()
@@ -290,15 +354,15 @@ def words_to_sentence_rows(
             nxt_i = _next_substantive_word_index(words, wi)
             if nxt_i is not None:
                 nxt = words[nxt_i]
-                if isinstance(nxt, dict) and "start_time" in nxt:
-                    try:
-                        gap = float(nxt["start_time"]) - float(w["end_time"])
-                    except Exception:
-                        gap = 0.0
-                    if gap >= pause_split_gap_sec:
-                        substantive_ct = sum(1 for ww in buf if (ww.get("text") or "").strip())
-                        if substantive_ct >= pause_split_min_words:
-                            pause_split = True
+                if isinstance(nxt, dict):
+                    nxt_start = _word_start_time(nxt)
+                    cur_end = _word_end_time(w)
+                    if nxt_start is not None and cur_end is not None:
+                        gap = nxt_start - cur_end
+                        if gap >= pause_split_gap_sec:
+                            substantive_ct = sum(1 for ww in buf if (ww.get("text") or "").strip())
+                            if substantive_ct >= pause_split_min_words:
+                                pause_split = True
 
         if terminal or pause_split:
             flush()
@@ -308,11 +372,42 @@ def words_to_sentence_rows(
 
 
 def validate_segment(segment: Dict, index: int) -> Tuple[float, float]:
-    if "start_time" not in segment or "end_time" not in segment:
-        raise ValueError(f"Segment {index} is missing start_time or end_time")
+    start: Optional[float] = None
+    end: Optional[float] = None
+    if "start_time" in segment:
+        try:
+            start = float(segment["start_time"])
+        except (TypeError, ValueError):
+            start = None
+    if "end_time" in segment:
+        try:
+            end = float(segment["end_time"])
+        except (TypeError, ValueError):
+            end = None
 
-    start = float(segment["start_time"])
-    end = float(segment["end_time"])
+    # ElevenLabs API segmented_json export omits segment-level start/end; derive
+    # them from the first/last timed word in the segment.
+    if start is None or end is None:
+        words = segment.get("words")
+        if isinstance(words, list) and words:
+            first_start: Optional[float] = None
+            last_end: Optional[float] = None
+            for w in words:
+                if not isinstance(w, dict):
+                    continue
+                ws = _word_start_time(w)
+                we = _word_end_time(w)
+                if ws is not None and first_start is None:
+                    first_start = ws
+                if we is not None:
+                    last_end = we
+            if start is None and first_start is not None:
+                start = first_start
+            if end is None and last_end is not None:
+                end = last_end
+
+    if start is None or end is None:
+        raise ValueError(f"Segment {index} is missing start_time or end_time")
 
     if end < start:
         raise ValueError(f"Segment {index} has end_time < start_time")
