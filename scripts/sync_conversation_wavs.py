@@ -53,6 +53,34 @@ def _default_combined_output_path(wav_a: Path) -> Path:
     return wav_a.parent / f"{prefix} Combined Audio.wav"
 
 
+def _find_child_dir_case_insensitive(parent: Path, name: str) -> Path | None:
+    if not parent.is_dir():
+        return None
+    target = name.lower()
+    for child in parent.iterdir():
+        if child.is_dir() and child.name.lower() == target:
+            return child
+    return None
+
+
+def _resolve_temp_dir(wav_a: Path) -> Path:
+    """Temp folder parallel to Raw when sources live under Raw; else beside sources."""
+    sources = wav_a.resolve().parent
+    if sources.name.lower() == "raw":
+        episode_root = sources.parent
+        if episode_root.name:
+            existing = _find_child_dir_case_insensitive(episode_root, "temp")
+            return existing if existing is not None else episode_root / "Temp"
+    existing = _find_child_dir_case_insensitive(sources, "temp")
+    if existing is not None:
+        return existing
+    return sources / "Temp"
+
+
+def _default_json_report_path(output_wav: Path, wav_a: Path) -> Path:
+    return _resolve_temp_dir(wav_a) / f"{output_wav.stem} sync report.json"
+
+
 def _to_mono(y: np.ndarray) -> np.ndarray:
     if y.ndim == 1:
         return y.astype(np.float32)
@@ -585,12 +613,71 @@ def _mix_peak_limited(a_use: np.ndarray, b_use: np.ndarray) -> tuple[np.ndarray,
     return mix, meta
 
 
+def _track_rms(y: np.ndarray) -> float:
+    return float(np.sqrt(np.mean(y.astype(np.float64) ** 2)))
+
+
+def _rms_match_boost(
+    a: np.ndarray,
+    b: np.ndarray,
+    *,
+    max_gain: float = 20.0,
+    min_rms: float = 1e-6,
+    fraction: float = 0.9,
+) -> tuple[np.ndarray, np.ndarray, dict]:
+    """Boost the quieter track toward the louder's RMS (never attenuate).
+
+    fraction in [0, 1]: 1.0 = full RMS match; 0.9 = apply 90% of the gain correction.
+    Applied as gain = 1 + fraction * (full_gain - 1).
+    """
+    if fraction < 0.0 or fraction > 1.0:
+        raise ValueError("rms_match fraction must be between 0 and 1.")
+
+    rms_a = _track_rms(a)
+    rms_b = _track_rms(b)
+    meta: dict = {
+        "rms_match": True,
+        "rms_match_fraction": fraction,
+        "rms_match_pre_a": rms_a,
+        "rms_match_pre_b": rms_b,
+        "rms_match_gain_a": 1.0,
+        "rms_match_gain_b": 1.0,
+    }
+    if rms_a < min_rms or rms_b < min_rms:
+        meta["rms_match_skipped"] = "source too quiet to match safely"
+        return a, b, meta
+    target = max(rms_a, rms_b)
+    if abs(rms_a - rms_b) / target < 0.01:
+        meta["rms_match_skipped"] = "already within 1%"
+        return a, b, meta
+
+    def _apply_boost(track: np.ndarray, rms: float, label: str) -> tuple[np.ndarray, float]:
+        full_gain = target / rms
+        gain = 1.0 + fraction * (full_gain - 1.0)
+        gain = min(gain, max_gain)
+        meta[f"rms_match_full_gain_{label}"] = full_gain
+        meta[f"rms_match_gain_{label}"] = gain
+        meta["rms_match_boosted"] = label
+        return (track * gain).astype(np.float32), gain
+
+    if rms_a < rms_b:
+        a_out, _ = _apply_boost(a, rms_a, "a")
+        return a_out, b, meta
+    if rms_b < rms_a:
+        b_out, _ = _apply_boost(b, rms_b, "b")
+        return a, b_out, meta
+    return a, b, meta
+
+
 def _align_and_mix(
     a: np.ndarray,
     b: np.ndarray,
     lag_ab: int,
     *,
     echo_suppress: float = 0.0,
+    rms_match: bool = True,
+    rms_match_max_gain: float = 20.0,
+    rms_match_fraction: float = 0.9,
 ) -> tuple[np.ndarray, dict]:
     """
     lag_ab: positive means the second track (b) is delayed vs (a); trim start
@@ -602,6 +689,17 @@ def _align_and_mix(
     if echo_suppress > 0.0:
         a_adj, b_adj, es_meta = _echo_suppress_bidirectional(a_adj, b_adj, echo_suppress)
         meta.update(es_meta)
+
+    if rms_match:
+        a_adj, b_adj, lm_meta = _rms_match_boost(
+            a_adj,
+            b_adj,
+            max_gain=rms_match_max_gain,
+            fraction=rms_match_fraction,
+        )
+        meta.update(lm_meta)
+    else:
+        meta["rms_match"] = False
 
     mix, mm = _mix_peak_limited(a_adj, b_adj)
     meta.update(mm)
@@ -623,6 +721,9 @@ def sync_pair(
     crossfade_ms: float = 25.0,
     lag_median_size: int = 3,
     echo_suppress: float = 0.0,
+    rms_match: bool = True,
+    rms_match_max_gain: float = 20.0,
+    rms_match_fraction: float = 0.9,
 ) -> tuple[np.ndarray, int, dict]:
     """
     Load WAVs, resample B to A's rate if needed, estimate lag, mix.
@@ -637,6 +738,10 @@ def sync_pair(
 
     echo_suppress in [0, 1]: bidirectional linear suppression of shared content
     after alignment (see module docstring).
+
+    rms_match: after alignment, boost the quieter track toward the louder's RMS
+    before the 50/50 mix (never attenuate the louder source). rms_match_fraction
+    (default 0.9) applies that fraction of the full corrective gain.
     """
     if echo_suppress < 0.0 or echo_suppress > 1.0:
         raise ValueError("echo_suppress must be between 0 and 1.")
@@ -715,6 +820,16 @@ def sync_pair(
         if echo_suppress > 0.0:
             a_use, b_w, es_meta = _echo_suppress_bidirectional(a_use, b_w, echo_suppress)
             report.update(es_meta)
+        if rms_match:
+            a_use, b_w, lm_meta = _rms_match_boost(
+                a_use,
+                b_w,
+                max_gain=rms_match_max_gain,
+                fraction=rms_match_fraction,
+            )
+            report.update(lm_meta)
+        else:
+            report["rms_match"] = False
         mix, meta = _mix_peak_limited(a_use, b_w)
 
         report["piecewise"] = True
@@ -749,7 +864,15 @@ def sync_pair(
             report["shifted_file"] = path_a.name
             report["reference_file"] = path_b.name
 
-        mix, meta = _align_and_mix(a, b, lag, echo_suppress=echo_suppress)
+        mix, meta = _align_and_mix(
+            a,
+            b,
+            lag,
+            echo_suppress=echo_suppress,
+            rms_match=rms_match,
+            rms_match_max_gain=rms_match_max_gain,
+            rms_match_fraction=rms_match_fraction,
+        )
         report.update(meta)
 
     if check_drift and len(mono_a_full) > int(2.5 * analyze_seconds * sr_a):
@@ -846,15 +969,46 @@ def main() -> int:
         help="0..1 bidirectional linear echo reduction after alignment (default: 0 = off).",
     )
     p.add_argument(
+        "--rms-match",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Boost the quieter aligned track so its RMS matches the louder before mixing "
+        "(default: on). Use --no-rms-match to keep raw recorder levels.",
+    )
+    p.add_argument(
+        "--rms-match-max-gain",
+        type=float,
+        default=20.0,
+        help="Maximum linear gain applied when RMS-matching (default: 20).",
+    )
+    p.add_argument(
+        "--rms-match-fraction",
+        type=float,
+        default=0.9,
+        help="Fraction of full RMS corrective gain to apply, 0..1 (default: 0.9). "
+        "1.0 = full match; 0.9 = boost 90%% of the way from unity to a perfect match.",
+    )
+    p.add_argument(
+        "--no-json-report",
+        action="store_true",
+        help="Do not write alignment metadata JSON.",
+    )
+    p.add_argument(
         "--json-report",
         type=Path,
         default=None,
-        help="Write alignment metadata as JSON to this path.",
+        help="Write alignment metadata JSON (default: Temp folder parallel to Raw, "
+        '"{output stem} sync report.json").',
     )
     args = p.parse_args()
 
     if args.output is None:
         args.output = _default_combined_output_path(args.wav_a.resolve())
+
+    if not args.no_json_report and args.json_report is None:
+        args.json_report = _default_json_report_path(
+            args.output.resolve(), args.wav_a.resolve()
+        )
 
     if not args.wav_a.is_file() or not args.wav_b.is_file():
         print("Both input paths must exist.", file=sys.stderr)
@@ -873,6 +1027,9 @@ def main() -> int:
             crossfade_ms=args.crossfade_ms,
             lag_median_size=args.lag_median_size,
             echo_suppress=args.echo_suppress,
+            rms_match=args.rms_match,
+            rms_match_max_gain=args.rms_match_max_gain,
+            rms_match_fraction=args.rms_match_fraction,
         )
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
@@ -896,6 +1053,21 @@ def main() -> int:
         print(f"  Drift estimate:    {report['drift_estimate_ms']:.2f} ms (start vs end window)")
     if report.get("echo_suppress_strength"):
         print(f"  Echo suppress:     {report['echo_suppress_strength']:.2f} (k_ab={report.get('echo_suppress_k_ab')}, k_ba={report.get('echo_suppress_k_ba')})")
+    if report.get("rms_match") and not report.get("rms_match_skipped"):
+        boosted = report.get("rms_match_boosted", "?")
+        ga = report.get("rms_match_gain_a", 1.0)
+        gb = report.get("rms_match_gain_b", 1.0)
+        ra = report.get("rms_match_pre_a", 0.0)
+        rb = report.get("rms_match_pre_b", 0.0)
+        frac = report.get("rms_match_fraction", 1.0)
+        print(
+            f"  RMS match:         boosted track {boosted!r} at {frac:.0%} correction "
+            f"(pre RMS {ra:.5f} / {rb:.5f}, gains {ga:.3f}x / {gb:.3f}x)"
+        )
+    elif report.get("rms_match_skipped"):
+        print(f"  RMS match:         skipped ({report['rms_match_skipped']})")
+    elif report.get("rms_match") is False:
+        print("  RMS match:         off")
     if report.get("gain_reduction", 1.0) > 1.01:
         print(f"  Peak limiting:     applied (pre-mix peak > 0.99)")
     if "drift_warning" in report:
@@ -904,6 +1076,7 @@ def main() -> int:
         print(f"  Note: {report['drift_note']}")
 
     if args.json_report:
+        args.json_report.parent.mkdir(parents=True, exist_ok=True)
         out = {**report, "output_path": str(args.output.resolve())}
         args.json_report.write_text(json.dumps(out, indent=2), encoding="utf-8")
         print(f"  JSON report:       {args.json_report}")
