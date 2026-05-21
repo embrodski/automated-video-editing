@@ -71,6 +71,8 @@ Ensure **`<temp folder>`** exists before writing JSON/DSL. Do **not** place tran
 - **Speaker 1 = Guest = `speaker_1`**
 - Wide camera is `wide`
 
+**ElevenLabs diarization is not Ben/Guest-aware.** Word-level `speaker_0` / `speaker_1` in the detail JSON are arbitrary cluster IDs that can differ per WAV. `convert_transcript_json.py` maps `speaker_N` → integer `N`; `generate_full_dsl.py` maps integer `0` → Ben’s camera and `1` → Guest’s. Do **not** auto-detect or swap speakers; only add **`--swap-speaker-ids`** on step 2 when the user explicitly asks to swap Host/Guest cameras.
+
 ### Open and close on Ben (`generate_full_dsl.py`)
 
 These apply when generating **`interview.dsl`** (before rendering):
@@ -111,6 +113,8 @@ Command template:
 ```bash
 python convert_transcript_json.py "<input folder>/<detail transcript filename>" -o "<temp folder>/interview_transcript_simplified.json"
 ```
+
+Only if the user explicitly requests a Host/Guest camera swap: re-run step 2 with **`--swap-speaker-ids`**, then repeat steps 4–5 (regenerate DSL and re-render the 1-minute test).
 
 ### 3) Register a new segment in `src/podcast_dsl/config.py`
 
@@ -161,7 +165,11 @@ $env:TMP  = "<temp folder>"
 python -m podcast_dsl "<temp folder>\\interview.dsl" -o "<output folder>\\1 Min Test.mp4" --workers 6 --max-seconds 60
 ```
 
-After the 1-minute render completes, **pause** and ask:
+After the 1-minute render completes, **pause** and report completion. **Always** include this note (verbatim intent; wording may be natural):
+
+> **1-minute test render complete.** Review `1 Min Test.mp4` in `<output folder>`. If Host and Guest cameras look swapped, say so and we can re-run transcript conversion with `--swap-speaker-ids`, regenerate the DSL, and render again. Otherwise, continue when ready.
+
+Then ask:
 
 - “Do you want to continue with the 5-minute test render?”
 - “Do you want to render the full episode MP4?”
@@ -207,5 +215,5 @@ Assistant (following this skill):
 - Add a new `SEGMENT_CONFIG['<next>']` entry pointing to the provided files, with `enable_color_match: False` unless the initial request explicitly asked for color correction
 - Generate `D:\Project\Temp\interview.dsl` (with dense-cuts→wide; default **-250 ms** camera-switch offset is built into `generate_full_dsl.py`)
 - Render ONLY `1 Min Test.mp4` into the output folder (DSL path `D:\Project\Temp\interview.dsl`) with `TEMP/TMP` redirected to `D:\Project\Temp`
-- Pause and ask whether to continue with the 5-minute test and/or full render
+- Pause: confirm 1-minute render complete, **always** mention the optional Host/Guest swap (`--swap-speaker-ids`), then ask whether to continue with the 5-minute test and/or full render
 

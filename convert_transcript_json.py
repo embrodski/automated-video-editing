@@ -128,6 +128,15 @@ def parse_args() -> argparse.Namespace:
         default=PAUSE_SPLIT_MIN_WORDS,
         help=f"Minimum buffered word tokens before pause-based split is allowed (default: {PAUSE_SPLIT_MIN_WORDS}).",
     )
+    parser.add_argument(
+        "--swap-speaker-ids",
+        action="store_true",
+        help=(
+            "Swap speaker_id 0 and 1 in every output row after conversion. Use when "
+            "ElevenLabs diarization labeled the host as speaker_1 and the guest as "
+            "speaker_0 (Ben must end up as speaker_id 0 for podcast autocut)."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -494,6 +503,20 @@ def convert_segments(
     return output, speaker_map
 
 
+def swap_speaker_ids_in_output(output: Dict[str, Dict]) -> int:
+    """Swap speaker_id 0 <-> 1 in place. Returns number of rows touched."""
+    touched = 0
+    for row in output.values():
+        sid = row.get("speaker_id")
+        if sid == 0:
+            row["speaker_id"] = 1
+            touched += 1
+        elif sid == 1:
+            row["speaker_id"] = 0
+            touched += 1
+    return touched
+
+
 def main() -> int:
     args = parse_args()
 
@@ -514,6 +537,10 @@ def main() -> int:
         pause_split_gap_sec=float(args.pause_split_gap_sec),
         pause_split_min_words=int(args.pause_split_min_words),
     )
+
+    if args.swap_speaker_ids:
+        n = swap_speaker_ids_in_output(converted)
+        print(f"Applied --swap-speaker-ids to {n} rows (0 <-> 1).")
 
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(converted, f, indent=2, ensure_ascii=False)
