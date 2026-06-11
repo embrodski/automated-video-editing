@@ -19,6 +19,10 @@ def _resolve_repo_path(path_str: str) -> str:
 # Header line emitted by generate_reading_dsl.py / shorten_reading_dsl_silences.py
 READING_DSL_MARKER = "// Generated reading DSL"
 
+# Applied at ``!shorten-join`` boundaries (each side of the cut; matches shorten tail/lead).
+SHORTEN_JOIN_DEFAULT_PADDING_MS = 1500.0
+SHORTEN_JOIN_DEFAULT_CROSSFADE_MS = 20.0
+
 
 def is_reading_dsl_text(dsl_text: str) -> bool:
     """True when DSL was produced by the Inkhaven reading autocut pipeline."""
@@ -817,6 +821,27 @@ SEGMENT_CONFIG = {
             },
         },
         'transcript_file': r'E:\Inkhaven Nancy\temp\interview_transcript_simplified.json',
+    },
+    # Inkhaven Avi — main interview (Ben/Guest/Wide); paths absolute
+    '46': {
+        'audio_file': r'E:\Inkhaven Avi\Input\Main Clean Audio-prepped.wav',
+        'audio_offset': 0,
+        'enable_color_match': False,
+        'video_files': {
+            'speaker_0': {
+                'file': r'E:\Inkhaven Avi\Input\Main Ben vid-prepped.mp4',
+                'offset': 0,
+            },
+            'speaker_1': {
+                'file': r'E:\Inkhaven Avi\Input\Main Guest vid-prepped.mp4',
+                'offset': 0,
+            },
+            'wide': {
+                'file': r'E:\Inkhaven Avi\Input\Main Wide vid-prepped.mp4',
+                'offset': 0,
+            },
+        },
+        'transcript_file': r'E:\Inkhaven Avi\Temp\interview_transcript_simplified.json',
     },
 }
 

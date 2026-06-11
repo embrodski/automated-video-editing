@@ -13,9 +13,16 @@ import json
 from typing import List, Dict, Tuple, Optional
 from multiprocessing import Pool, cpu_count
 from functools import lru_cache
-from .config import SEGMENT_CONFIG, is_reading_dsl_text, segment_uses_embedded_audio
+from .config import (
+    SEGMENT_CONFIG,
+    SHORTEN_JOIN_DEFAULT_CROSSFADE_MS,
+    SHORTEN_JOIN_DEFAULT_PADDING_MS,
+    is_reading_dsl_text,
+    segment_uses_embedded_audio,
+)
 from .clip_processing import get_clip_info, parse_segment_id, load_transcript
 from .color_match import build_color_match_vf
+from .zero_cross_snap import snap_boundary_group_time, snap_enabled
 
 
 # Cache directory for intermediate results
@@ -794,6 +801,91 @@ def _concatenate_clips_demuxer_reencode(clip_files: List[str], output_file: str)
             os.unlink(concat_file.name)
 
 
+def _shorten_join_from_clip(
+    clip: Tuple,
+) -> Optional[Tuple[float, float]]:
+    """Return (padding_ms, crossfade_ms) when clip[10] marks a shorten join."""
+    if len(clip) < 11:
+        return None
+    spec = clip[10]
+    if not spec:
+        return None
+    if isinstance(spec, tuple):
+        return spec
+    return (SHORTEN_JOIN_DEFAULT_PADDING_MS, SHORTEN_JOIN_DEFAULT_CROSSFADE_MS)
+
+
+def _build_muxed_shorten_audio_filter(
+    num_inputs: int,
+    join_specs: List[Optional[Tuple[float, float]]],
+) -> Tuple[str, str]:
+    """Chain acrossfade (shorten joins) and concat (other joins); return filter + audio label."""
+    if num_inputs < 2:
+        raise ValueError("need at least two inputs for audio join chain")
+
+    parts: List[str] = []
+    left = '[0:a]'
+    for i in range(1, num_inputs):
+        right = f'[{i}:a]'
+        out_label = '[a]' if i == num_inputs - 1 else f'[sa{i:02d}]'
+        spec = join_specs[i - 1] if i - 1 < len(join_specs) else None
+        if spec:
+            crossfade_sec = spec[1] / 1000.0
+            parts.append(
+                f'{left}{right}acrossfade=d={crossfade_sec}:c1=tri:c2=tri{out_label}'
+            )
+        else:
+            parts.append(f'{left}{right}concat=n=2:v=0:a=1{out_label}')
+        left = out_label
+    return ';'.join(parts), left
+
+
+def _concatenate_muxed_with_shorten_joins(
+    clip_files: List[str],
+    output_file: str,
+    join_specs: List[Optional[Tuple[float, float]]],
+) -> None:
+    """
+    Concat muxed camera spans: hard video concat; audio acrossfade only at shorten joins.
+    """
+    valid_clips = _filter_valid_concat_clips(clip_files)
+    if len(valid_clips) == 1:
+        shutil.copy2(valid_clips[0], output_file)
+        return
+
+    if not any(join_specs):
+        _concatenate_clips_demuxer_reencode(valid_clips, output_file)
+        return
+
+    n = len(valid_clips)
+    video_inputs = ''.join(f'[{i}:v]' for i in range(n))
+    video_filter = f'{video_inputs}concat=n={n}:v=1:a=0[v]'
+    audio_filter, _audio_label = _build_muxed_shorten_audio_filter(n, join_specs)
+    filter_complex = video_filter + ';' + audio_filter
+
+    cmd = _ffmpeg_cmd_base()
+    for clip_file in valid_clips:
+        cmd.extend(['-i', clip_file])
+    cmd.extend([
+        '-filter_complex', filter_complex,
+        '-map', '[v]',
+        '-map', '[a]',
+        '-r', OUTPUT_FPS_STR,
+        '-pix_fmt', 'yuv420p',
+        '-profile:v', 'high',
+        '-c:a', 'aac', '-b:a', '320k',
+        '-compression_level', '5',
+    ])
+    _run_ffmpeg_h264_encode_with_fallback(
+        cmd,
+        output_file,
+        stage_default_preset='ultrafast',
+        quality_level=23,
+        use_cache=False,
+        err_context='concat muxed shorten joins',
+    )
+
+
 def _concatenate_clips_demuxer(clip_files: List[str], output_file: str):
     """
     Concatenate clips using ffmpeg's concat demuxer.
@@ -1064,11 +1156,11 @@ def extract_clip_group(group: List[Tuple[str, str, str, float, float, Optional[f
         return 0.0
 
     # Extract group info
-    segment_ids = [seg_id for seg_id, _, _, _, _, _, _, _, _, _ in group]
-    cameras = [camera for _, camera, _, _, _, _, _, _, _, _ in group]
-    slice_starts = [slice_start for _, _, _, _, _, _, _, slice_start, _, _ in group]
-    slice_ends = [slice_end for _, _, _, _, _, _, _, _, slice_end, _ in group]
-    volumes = [volume for _, _, _, _, _, _, _, _, _, volume in group]
+    segment_ids = [clip[0] for clip in group]
+    cameras = [clip[1] for clip in group]
+    slice_starts = [clip[7] for clip in group]
+    slice_ends = [clip[8] for clip in group]
+    volumes = [clip[9] for clip in group]
     before_padding_ms = group[0][3]
     after_padding_ms = group[0][4]
     fade_in_ms = group[0][5]
@@ -1215,6 +1307,99 @@ def _extract_single_camera_group(segment_ids: List[str], clips_info: List[Dict],
     return duration
 
 
+def _build_playback_intervals(
+    clip_infos: List[dict],
+    group_audio_start: float,
+    group_audio_end: float,
+) -> List[dict]:
+    """
+    Build DSL-playback-order intervals on the master-audio timeline.
+
+    Each clip owns ``[start, end]`` in list order. A sliced ``audio_start`` on a
+    later clip cannot pull a camera cut before an earlier clip has finished.
+    Gaps between clips keep the previous clip's camera.
+    """
+    intervals: List[dict] = []
+    playhead = group_audio_start
+
+    for idx, clip in enumerate(clip_infos):
+        clip_info = clip['clip_info']
+        a_start = clip_info['audio_start']
+        a_end = clip_info['audio_end']
+
+        if idx == 0:
+            int_start = group_audio_start
+        else:
+            if a_start > playhead + 1e-9:
+                prev = clip_infos[idx - 1]
+                intervals.append({
+                    't_start': playhead,
+                    't_end': a_start,
+                    'clip_idx': idx - 1,
+                    'camera': prev['camera'],
+                    'clip_info': prev['clip_info'],
+                    'is_gap': True,
+                })
+            int_start = max(playhead, a_start)
+
+        if a_end > int_start + 1e-9:
+            intervals.append({
+                't_start': int_start,
+                't_end': a_end,
+                'clip_idx': idx,
+                'camera': clip['camera'],
+                'clip_info': clip_info,
+                'is_gap': False,
+            })
+        playhead = max(playhead, a_end)
+
+    if playhead < group_audio_end - 1e-9 and clip_infos:
+        last = clip_infos[-1]
+        intervals.append({
+            't_start': playhead,
+            't_end': group_audio_end,
+            'clip_idx': len(clip_infos) - 1,
+            'camera': last['camera'],
+            'clip_info': last['clip_info'],
+            'is_gap': True,
+        })
+
+    return intervals
+
+
+def _snap_playback_interval_boundaries(
+    intervals: List[dict],
+    *,
+    half_window_sec: float = 0.05,
+    min_gap_sec: float = 1.0 / 30.0,
+) -> None:
+    """Snap interior junctions between playback intervals to zero crossings."""
+    if len(intervals) < 2:
+        return
+
+    for i in range(len(intervals) - 1):
+        left = intervals[i]
+        right = intervals[i + 1]
+        nominal = left['t_end']
+        if abs(nominal - right['t_start']) > 1e-6:
+            nominal = max(left['t_start'], min(left['t_end'], right['t_start']))
+
+        lo = left['t_start'] + min_gap_sec
+        hi = right['t_end'] - min_gap_sec
+        if lo >= hi:
+            continue
+
+        snapped = snap_boundary_group_time(
+            nominal,
+            left['clip_info'],
+            right['clip_info'],
+            half_window_sec,
+        )
+        snapped = max(lo, min(hi, snapped))
+        left['t_end'] = snapped
+        right['t_start'] = snapped
+
+
 def _build_camera_spans(group: List[Tuple[str, str, str, float, float, Optional[float], Optional[float], Optional[float], Optional[float], float]],
                         margin: float,
                         group_audio_start: float,
@@ -1223,34 +1408,45 @@ def _build_camera_spans(group: List[Tuple[str, str, str, float, float, Optional[
     """
     Build a camera timeline for a grouped clip extraction.
 
-    Each span covers continuous timeline time until the next clip begins,
-    allowing the audio timeline to remain continuous even when the camera changes.
+    Intervals follow DSL clip order on the continuous master-audio timeline so
+    ``slice()`` lead-ins cannot reorder camera cuts relative to earlier clips.
     """
     clip_infos = []
-    for segment_id, camera, _, _, _, _, _, slice_start, slice_end, _ in group:
+    for segment_id, camera, _, _, _, _, _, slice_start, slice_end, _, *_ in group:
         clip_infos.append({
             'camera': camera,
             'clip_info': get_clip_info(segment_id, camera, slice_start, slice_end, margin)
         })
 
-    raw_boundaries = [group_audio_start]
-    for clip in clip_infos[1:]:
-        raw_boundaries.append(clip['clip_info']['audio_start'])
-    raw_boundaries.append(group_audio_end)
+    intervals = _build_playback_intervals(clip_infos, group_audio_start, group_audio_end)
 
-    snapped_frame_boundaries = []
-    for boundary in raw_boundaries:
-        rel_time = boundary - group_audio_start
-        frame_boundary = round(rel_time * OUTPUT_FPS)
-        if snapped_frame_boundaries:
-            frame_boundary = max(frame_boundary, snapped_frame_boundaries[-1])
-        snapped_frame_boundaries.append(frame_boundary)
+    config = SEGMENT_CONFIG[segment_num]
+    if snap_enabled() and _use_video_embedded_audio(config):
+        _snap_playback_interval_boundaries(intervals)
+
+    pad_before = []
+    for idx in range(len(clip_infos)):
+        spec = _shorten_join_from_clip(group[idx]) if idx < len(group) else None
+        pad_before.append((spec[0] / 1000.0) if spec else 0.0)
 
     spans = []
-    for idx, clip in enumerate(clip_infos):
-        clip_info = clip['clip_info']
-        start_frame = snapped_frame_boundaries[idx]
-        end_frame = snapped_frame_boundaries[idx + 1]
+    for interval in intervals:
+        clip_idx = interval['clip_idx']
+        clip_info = interval['clip_info']
+        camera = interval['camera']
+        t_start = interval['t_start']
+        t_end = interval['t_end']
+
+        if not interval['is_gap']:
+            if clip_idx > 0:
+                t_start -= pad_before[clip_idx]
+            if clip_idx + 1 < len(pad_before):
+                t_end += pad_before[clip_idx + 1]
+
+        rel_start = t_start - group_audio_start
+        rel_end = t_end - group_audio_start
+        start_frame = round(rel_start * OUTPUT_FPS)
+        end_frame = round(rel_end * OUTPUT_FPS)
         frame_count = end_frame - start_frame
         if frame_count <= 0:
             continue
@@ -1262,7 +1458,9 @@ def _build_camera_spans(group: List[Tuple[str, str, str, float, float, Optional[
         # Translate the snapped timeline start back into the source camera's clock.
         video_start = max(0, clip_info['video_start'] + (span_audio_start - clip_info['audio_start']))
 
-        if spans and spans[-1]['camera'] == clip['camera']:
+        shorten_spec = None if interval['is_gap'] else _shorten_join_from_clip(group[clip_idx])
+
+        if spans and spans[-1]['camera'] == camera:
             spans[-1]['duration'] += span_duration
             spans[-1]['frame_count'] += frame_count
             spans[-1]['audio_end'] = span_audio_end
@@ -1270,13 +1468,14 @@ def _build_camera_spans(group: List[Tuple[str, str, str, float, float, Optional[
 
         spans.append({
             'segment_num': segment_num,
-            'camera': clip['camera'],
+            'camera': camera,
             'video_file': clip_info['video_file'],
             'video_start': video_start,
             'duration': span_duration,
             'frame_count': frame_count,
             'audio_start': span_audio_start,
             'audio_end': span_audio_end,
+            'shorten_join_spec': shorten_spec,
         })
 
     return spans
@@ -1401,11 +1600,11 @@ def _extract_multi_camera_group(group: List[Tuple[str, str, str, float, float, O
     When ``use_video_embedded_audio`` is true (reading segments by default):
     1–3 as above, but each span keeps embedded audio; concat (re-encoded) yields the final output.
     """
-    segment_ids = [seg_id for seg_id, _, _, _, _, _, _, _, _, _ in group]
-    cameras = [camera for _, camera, _, _, _, _, _, _, _, _ in group]
-    slice_starts = [slice_start for _, _, _, _, _, _, _, slice_start, _, _ in group]
-    slice_ends = [slice_end for _, _, _, _, _, _, _, _, slice_end, _ in group]
-    volumes = [volume for _, _, _, _, _, _, _, _, _, volume in group]
+    segment_ids = [clip[0] for clip in group]
+    cameras = [clip[1] for clip in group]
+    slice_starts = [clip[7] for clip in group]
+    slice_ends = [clip[8] for clip in group]
+    volumes = [clip[9] for clip in group]
     before_padding_ms = group[0][3]
     after_padding_ms = group[0][4]
     fade_in_ms = group[0][5]
@@ -1475,11 +1674,27 @@ def _extract_multi_camera_group(group: List[Tuple[str, str, str, float, float, O
         os.unlink(temp_video_path)
 
         # Keep each span muxed when re-encoding (never split video/audio concat chains).
-        concatenate_clips(
-            combined_segments,
-            temp_video_path,
-            muxed_reencode=use_video_embedded_audio,
-        )
+        if use_video_embedded_audio:
+            join_specs = [
+                camera_spans[i].get('shorten_join_spec')
+                for i in range(1, len(camera_spans))
+            ]
+            if any(join_specs):
+                _concatenate_muxed_with_shorten_joins(
+                    combined_segments, temp_video_path, join_specs,
+                )
+            else:
+                concatenate_clips(
+                    combined_segments,
+                    temp_video_path,
+                    muxed_reencode=True,
+                )
+        else:
+            concatenate_clips(
+                combined_segments,
+                temp_video_path,
+                muxed_reencode=False,
+            )
 
         if use_video_embedded_audio:
             shutil.copy2(temp_video_path, output_file)
@@ -1523,13 +1738,13 @@ def _render_segment_wrapper(args):
 
     # Regular video clip rendering
     # Get camera info and volume for display
-    cameras_in_group = list(set([camera for _, camera, _, _, _, _, _, _, _, _ in group]))
-    volumes_in_group = list(set([volume for _, _, _, _, _, _, _, _, _, volume in group]))
+    cameras_in_group = list(set(clip[1] for clip in group))
+    volumes_in_group = list(set(clip[9] for clip in group))
     camera_desc = cameras_in_group[0] if len(cameras_in_group) == 1 else f"{len(cameras_in_group)} cameras"
     volume = volumes_in_group[0]  # All clips in group should have same volume
 
     if len(group) == 1:
-        segment_id, camera, _, _, _, _, _, _, _, _ = group[0]
+        segment_id, camera, _, _, _, _, _, _, _, _, *_ = group[0]
         desc = f"{segment_id} [{camera}]"
     else:
         segment_id_first = group[0][0]
@@ -1729,7 +1944,7 @@ def _render_dsl_from_commands(commands: List, output_file: str, dsl_file: str = 
     Internal function to render DSL commands to video.
     Extracted from render_dsl to allow reuse by render_all_cams.
     """
-    from .clip_processing import group_consecutive_clips
+    from .clip_processing import apply_shorten_join_clip_bounds, group_consecutive_clips
     import shutil
 
     _set_render_dsl_context(dsl_file)
@@ -1757,12 +1972,15 @@ def _render_dsl_from_commands(commands: List, output_file: str, dsl_file: str = 
     current_volume = 1.0  # Default volume (1.0 = 100%)
     opening_preroll_ms = None  # Optional preroll for the first content clip/group
     pending_fade_in = None  # Fade in duration for next clip
-    clips_to_render = []  # Each item: (segment_id, camera, comment, cut_before, cut_after, fade_in_ms, fade_out_ms, slice_start, slice_end, volume)
+    pending_shorten_join = None  # (padding_ms, crossfade_ms) for next segment
+    clips_to_render = []  # (segment_id, camera, comment, cut_before, cut_after, fade_in_ms, fade_out_ms, slice_start, slice_end, volume, shorten_join)
     audio_overlays = []  # Each item: (clip_index, audio_file, volume, speed)
 
     for cmd in commands:
         cmd_type = type(cmd).__name__
-        if cmd_type == 'CameraCommand':
+        if cmd_type == 'ShortenJoinCommand':
+            pending_shorten_join = (cmd.padding_ms, cmd.crossfade_ms)
+        elif cmd_type == 'CameraCommand':
             current_camera = cmd.camera_name
         elif cmd_type == 'CutCommand':
             current_cut_before = cmd.before_ms
@@ -1786,12 +2004,13 @@ def _render_dsl_from_commands(commands: List, output_file: str, dsl_file: str = 
                 # Update the last clip to include fade out
                 clips_to_render[-1] = (prev_clip[0], prev_clip[1], prev_clip[2],
                                        prev_clip[3], prev_clip[4], prev_clip[5], cmd.duration_ms,
-                                       prev_clip[7], prev_clip[8], prev_clip[9])
+                                       prev_clip[7], prev_clip[8], prev_clip[9],
+                                       prev_clip[10] if len(prev_clip) > 10 else None)
         elif cmd_type == 'BlackCommand':
             # Add black clip as a special segment
             # Format: __BLACK__:{duration_ms}
             black_segment_id = f"__BLACK__:{cmd.duration_ms}"
-            clips_to_render.append((black_segment_id, 'black', '', 0.0, 0.0, None, None, None, None, 1.0))
+            clips_to_render.append((black_segment_id, 'black', '', 0.0, 0.0, None, None, None, None, 1.0, None))
         elif cmd_type == 'AudioCommand':
             # Store audio overlay for later processing (we'll calculate timeline position after grouping)
             # For now, just store the command with its position in the clips_to_render list
@@ -1803,9 +2022,13 @@ def _render_dsl_from_commands(commands: List, output_file: str, dsl_file: str = 
 
             clips_to_render.append((cmd.segment_id, current_camera, cmd.comment,
                                    current_cut_before, current_cut_after, fade_in, None,
-                                   cmd.slice_start, cmd.slice_end, current_volume))
+                                   cmd.slice_start, cmd.slice_end, current_volume,
+                                   pending_shorten_join))
+            pending_shorten_join = None
 
     print(f"\nTotal clips to render: {len(clips_to_render)}\n")
+
+    clips_to_render = apply_shorten_join_clip_bounds(clips_to_render)
 
     # Apply skip/limit for testing (as late as possible in pipeline)
     if skip_clips > 0 or limit_clips is not None:
@@ -1823,7 +2046,7 @@ def _render_dsl_from_commands(commands: List, output_file: str, dsl_file: str = 
             raise ValueError(f"--max-seconds must be > 0 (got {max_seconds})")
 
         def _clip_duration_seconds(clip, *, clip_idx: int) -> float:
-            segment_id, camera, _, cut_before, cut_after, _, _, slice_start, slice_end, _ = clip
+            segment_id, camera, _, cut_before, cut_after, _, _, slice_start, slice_end, _, *_ = clip
 
             if segment_id.startswith('__BLACK__'):
                 duration_ms = float(segment_id.split(':')[1])
@@ -1873,15 +2096,15 @@ def _render_dsl_from_commands(commands: List, output_file: str, dsl_file: str = 
             print(f"  Group {i+1}: BLACK ({duration_ms}ms)")
             continue
 
-        cameras_in_group = list(set([camera for _, camera, _, _, _, _, _, _, _, _ in group]))
+        cameras_in_group = list(set(clip[1] for clip in group))
         camera_desc = cameras_in_group[0] if len(cameras_in_group) == 1 else f"{', '.join(cameras_in_group)}"
 
         if len(group) == 1:
-            seg_id, cam, _, _, _, _, _, _, _, _ = group[0]
+            seg_id, cam, _, _, _, _, _, _, _, _, *_ = group[0]
             print(f"  Group {i+1}: {seg_id} [{cam}]")
         else:
-            seg_id_first, _, _, _, _, _, _, _, _, _ = group[0]
-            seg_id_last, _, _, _, _, _, _, _, _, _ = group[-1]
+            seg_id_first = group[0][0]
+            seg_id_last = group[-1][0]
             print(f"  Group {i+1}: {seg_id_first} - {seg_id_last} [{camera_desc}] ({len(group)} clips)")
     print()
 
@@ -1901,14 +2124,14 @@ def _render_dsl_from_commands(commands: List, output_file: str, dsl_file: str = 
                 print(f"  Clip {i+1}: BLACK - {duration:.2f}s")
                 continue
 
-            segment_ids = [seg_id for seg_id, _, _, _, _, _, _, _, _, _ in group]
-            slice_starts = [slice_start for _, _, _, _, _, _, _, slice_start, _, _ in group]
-            slice_ends = [slice_end for _, _, _, _, _, _, _, _, slice_end, _ in group]
+            segment_ids = [clip[0] for clip in group]
+            slice_starts = [clip[7] for clip in group]
+            slice_ends = [clip[8] for clip in group]
             # Use first camera for timing info (audio timing is same for all cameras)
             camera = group[0][1]
             cut_before = group[0][3]
             cut_after = group[0][4]
-            cameras_in_group = list(set([cam for _, cam, _, _, _, _, _, _, _, _ in group]))
+            cameras_in_group = list(set(clip[1] for clip in group))
             camera_desc = cameras_in_group[0] if len(cameras_in_group) == 1 else f"{', '.join(cameras_in_group)}"
 
             # Calculate duration from transcript
@@ -2053,7 +2276,7 @@ def _render_dsl_from_commands(commands: List, output_file: str, dsl_file: str = 
             # We need to map clip indices to actual timeline positions
 
             cumulative_durations = [0.0]  # Start at 0
-            for clip_i, (segment_id, camera, comment, cut_before, cut_after, fade_in, fade_out, slice_start, slice_end, volume) in enumerate(clips_to_render):
+            for clip_i, (segment_id, camera, comment, cut_before, cut_after, fade_in, fade_out, slice_start, slice_end, volume, *_) in enumerate(clips_to_render):
                 # Calculate duration for this individual clip
                 if segment_id.startswith('__BLACK__'):
                     # Black clip

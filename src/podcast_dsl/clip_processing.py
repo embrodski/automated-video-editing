@@ -5,7 +5,11 @@ Clip and segment processing logic.
 import json
 from typing import List, Dict, Tuple, Optional
 
-from .config import SEGMENT_CONFIG
+from .config import (
+    SEGMENT_CONFIG,
+    SHORTEN_JOIN_DEFAULT_CROSSFADE_MS,
+    SHORTEN_JOIN_DEFAULT_PADDING_MS,
+)
 
 
 # Global cache for transcript files
@@ -121,6 +125,80 @@ def get_clip_info(segment_id: str, camera_name: str, slice_start: float = None, 
     }
 
 
+def _clip_shorten_join_spec(clip: Tuple) -> Optional[Tuple[float, float]]:
+    """Return (padding_ms, crossfade_ms) when this clip starts after a shorten join."""
+    if len(clip) < 11 or not clip[10]:
+        return None
+    spec = clip[10]
+    if isinstance(spec, tuple):
+        return spec
+    return (SHORTEN_JOIN_DEFAULT_PADDING_MS, SHORTEN_JOIN_DEFAULT_CROSSFADE_MS)
+
+
+def _row_spoken_bounds(sentence: dict) -> Tuple[float, float]:
+    """First/last word times, or sentence start/end when words are missing."""
+    words = sentence.get('words') or []
+    if words:
+        return float(words[0]['start']), float(words[-1]['end'])
+    return float(sentence['start']), float(sentence['end'])
+
+
+def apply_shorten_join_clip_bounds(
+    clips_to_render: List[Tuple],
+) -> List[Tuple]:
+    """
+    At each ``!shorten-join``, extend the outgoing clip through (last_word_end + padding)
+    and the incoming clip from (first_word_start - padding), using explicit slices so
+    padding applies across render groups, not only inside multi-camera span concat.
+    """
+    if not clips_to_render:
+        return clips_to_render
+
+    updated: List[Tuple] = list(clips_to_render)
+    for i in range(len(updated)):
+        spec = _clip_shorten_join_spec(updated[i])
+        if spec is None or i == 0:
+            continue
+        prev = list(updated[i - 1])
+        curr = list(updated[i])
+        if prev[0].startswith('__BLACK__') or curr[0].startswith('__BLACK__'):
+            continue
+
+        pad_sec = spec[0] / 1000.0
+        prev_seg, prev_sent = parse_segment_id(prev[0])
+        curr_seg, curr_sent = parse_segment_id(curr[0])
+        if prev_seg != curr_seg:
+            continue
+
+        transcript = load_transcript(SEGMENT_CONFIG[prev_seg]['transcript_file'])
+        prev_row = transcript[prev_sent]
+        curr_row = transcript[curr_sent]
+        _, prev_word_end = _row_spoken_bounds(prev_row)
+        curr_word_start, _ = _row_spoken_bounds(curr_row)
+        tail_abs = prev_word_end + pad_sec
+        lead_abs = curr_word_start - pad_sec
+
+        prev_row_start = float(prev_row['start'])
+        curr_row_start = float(curr_row['start'])
+
+        prev_sl_start = prev[7]
+        prev_sl_end = prev[8]
+        prev_info = get_clip_info(prev[0], prev[1], prev_sl_start, prev_sl_end, 0.0)
+        new_prev_end = max(prev_info['audio_start'] + 1e-3, tail_abs)
+        prev[8] = new_prev_end - prev_row_start
+
+        curr_sl_start = curr[7]
+        curr_sl_end = curr[8]
+        curr_info = get_clip_info(curr[0], curr[1], curr_sl_start, curr_sl_end, 0.0)
+        new_curr_start = min(curr_info['audio_end'] - 1e-3, lead_abs)
+        curr[7] = new_curr_start - curr_row_start
+
+        updated[i - 1] = tuple(prev)
+        updated[i] = tuple(curr)
+
+    return updated
+
+
 def group_consecutive_clips(clips_to_render: List[Tuple[str, str, str, float, float, Optional[float], Optional[float], Optional[float], Optional[float], float]], max_gap: Optional[float] = None):
     """
     Group consecutive clips that are close together in time AND sequential in the transcript.
@@ -140,11 +218,17 @@ def group_consecutive_clips(clips_to_render: List[Tuple[str, str, str, float, fl
     current_group = [clips_to_render[0]]
 
     for i in range(1, len(clips_to_render)):
-        prev_segment_id, prev_camera, prev_comment, _, _, prev_fade_in, prev_fade_out, _, _, prev_volume = clips_to_render[i-1]
-        curr_segment_id, curr_camera, curr_comment, _, _, curr_fade_in, curr_fade_out, _, _, curr_volume = clips_to_render[i]
+        prev_segment_id, prev_camera, prev_comment, _, _, prev_fade_in, prev_fade_out, _, _, prev_volume, *_ = clips_to_render[i-1]
+        curr_segment_id, curr_camera, curr_comment, _, _, curr_fade_in, curr_fade_out, _, _, curr_volume, *_ = clips_to_render[i]
 
         # Don't group black clips with anything (they're standalone)
         if prev_segment_id.startswith('__BLACK__') or curr_segment_id.startswith('__BLACK__'):
+            groups.append(current_group)
+            current_group = [clips_to_render[i]]
+            continue
+
+        # Shorten joins need their own extraction boundary (padding on each side).
+        if _clip_shorten_join_spec(clips_to_render[i]) is not None:
             groups.append(current_group)
             current_group = [clips_to_render[i]]
             continue

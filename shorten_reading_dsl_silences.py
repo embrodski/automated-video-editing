@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Post-process a generated reading.dsl: compress any silence gap longer than
+Post-process a generated reading.dsl: compress silence gaps of at least
 --min-silence-sec between consecutive spoken tokens (word timestamps when
 available; otherwise the whole subclip range) by ending the outgoing side at
 (last_word_end + tail_sec) and starting the incoming side at (next_word_start -
@@ -27,7 +27,13 @@ for _p in (_REPO_ROOT, _SRC):
     if str(_p) not in sys.path:
         sys.path.insert(0, str(_p))
 
-from podcast_dsl.commands import CameraCommand, CutCommand, OpeningPrerollCommand, SegmentCommand
+from podcast_dsl.commands import (
+    CameraCommand,
+    CutCommand,
+    OpeningPrerollCommand,
+    SegmentCommand,
+    ShortenJoinCommand,
+)
 from podcast_dsl.parser import parse_dsl_line
 
 from generate_reading_dsl import (  # noqa: E402
@@ -74,8 +80,12 @@ def _commands_to_subclips(
     current_cam: Optional[str] = None
     segment_num: Optional[str] = None
     subclips: List[SubClip] = []
+    pending_shorten_join = False
 
     for cmd in commands:
+        if isinstance(cmd, ShortenJoinCommand):
+            pending_shorten_join = True
+            continue
         if isinstance(cmd, CameraCommand):
             current_cam = cmd.camera_name
             continue
@@ -99,7 +109,16 @@ def _commands_to_subclips(
             b = row.start + cmd.slice_end
         else:
             b = row.end
-        subclips.append(SubClip(row=row, a=a, b=b, cam=current_cam))
+        subclips.append(
+            SubClip(
+                row=row,
+                a=a,
+                b=b,
+                cam=current_cam,
+                shorten_join_before=pending_shorten_join,
+            )
+        )
+        pending_shorten_join = False
 
     if segment_num is None:
         raise ValueError("No segment commands found in DSL")
@@ -137,9 +156,9 @@ def main() -> int:
     p.add_argument("--output", type=Path, help="Output DSL path (default: overwrite input)")
     p.add_argument("--front-camera", default="speaker_0")
     p.add_argument("--side-camera", default="speaker_1")
-    p.add_argument("--min-silence-sec", type=float, default=1.5)
-    p.add_argument("--tail-sec", type=float, default=1.25, help="Keep at most this much audio after last word before gap")
-    p.add_argument("--lead-sec", type=float, default=0.25, help="Start next clip this many seconds before next word")
+    p.add_argument("--min-silence-sec", type=float, default=3.0)
+    p.add_argument("--tail-sec", type=float, default=1.5, help="Keep this much audio after last word before gap")
+    p.add_argument("--lead-sec", type=float, default=1.5, help="Start next clip this many seconds before next word")
     p.add_argument("--side-shot-max-sec", type=float, default=12.0)
     args = p.parse_args()
 

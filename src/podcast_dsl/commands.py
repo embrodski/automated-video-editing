@@ -97,3 +97,17 @@ class VolumeCommand(DSLCommand):
 
     def __repr__(self):
         return f"VolumeCommand(volume={self.volume}x)"
+
+
+class ShortenJoinCommand(DSLCommand):
+    """Marks the next segment boundary as a silence-shorten join (overlap + audio crossfade)."""
+
+    def __init__(self, padding_ms: float, crossfade_ms: float):
+        self.padding_ms = padding_ms
+        self.crossfade_ms = crossfade_ms
+
+    def __repr__(self):
+        return (
+            f"ShortenJoinCommand(padding={self.padding_ms}ms, "
+            f"crossfade={self.crossfade_ms}ms)"
+        )

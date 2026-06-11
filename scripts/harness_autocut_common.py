@@ -1,0 +1,55 @@
+"""Shared render helpers for harness reading / podcast autocut."""
+
+from __future__ import annotations
+
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+from harness_episode_lib import REPO_ROOT
+
+
+def run_cmd(cmd: list[str], *, cwd: Path | None = None, env: dict | None = None) -> None:
+    proc = subprocess.run(
+        cmd,
+        cwd=str(cwd or REPO_ROOT),
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    if proc.returncode != 0:
+        raise RuntimeError(
+            f"Command failed ({proc.returncode}): {' '.join(cmd)}\n"
+            f"stdout:\n{proc.stdout}\nstderr:\n{proc.stderr}"
+        )
+
+
+def temp_env(temp_dir: Path) -> dict[str, str]:
+    env = os.environ.copy()
+    env["TEMP"] = str(temp_dir)
+    env["TMP"] = str(temp_dir)
+    return env
+
+
+def render_dsl(
+    dsl_path: Path,
+    output_mp4: Path,
+    temp_dir: Path,
+    *,
+    max_seconds: int | None = None,
+    workers: int = 6,
+) -> None:
+    cmd = [
+        sys.executable,
+        "-m",
+        "podcast_dsl",
+        str(dsl_path),
+        "-o",
+        str(output_mp4),
+        "--workers",
+        str(workers),
+    ]
+    if max_seconds is not None:
+        cmd.extend(["--max-seconds", str(max_seconds)])
+    run_cmd(cmd, cwd=REPO_ROOT / "src", env=temp_env(temp_dir))

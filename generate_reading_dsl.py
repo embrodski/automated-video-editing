@@ -76,6 +76,7 @@ class ArticleSentence:
     idx: int
     text: str
     norm: str
+    norm_had: str
     paragraph_idx: int
 
 
@@ -86,6 +87,7 @@ class TranscriptRow:
     end: float
     text: str
     norm: str
+    norm_had: str
     speaker_id: int
     words: List["WordToken"]
     # Optional: trim usable start (drop in-row restart).
@@ -161,6 +163,7 @@ class SubClip:
     a: float
     b: float
     cam: str
+    shorten_join_before: bool = False
 
 
 def parse_args() -> argparse.Namespace:
@@ -216,20 +219,20 @@ def parse_args() -> argparse.Namespace:
     p.add_argument(
         "--shorten-min-silence-sec",
         type=float,
-        default=1.5,
-        help="With --shorten: treat gaps longer than this many seconds as long silences (default: 1.5).",
+        default=3.0,
+        help="With --shorten: treat gaps this many seconds or longer as long silences (default: 3.0).",
     )
     p.add_argument(
         "--shorten-tail-sec",
         type=float,
-        default=1.25,
-        help="With --shorten: keep at most this many seconds after the last word before a long gap (default: 1.25).",
+        default=1.5,
+        help="With --shorten: keep this many seconds after the last word before a long gap (default: 1.5).",
     )
     p.add_argument(
         "--shorten-lead-sec",
         type=float,
-        default=0.25,
-        help="With --shorten: start the incoming clip this many seconds before the next word (default: 0.25).",
+        default=1.5,
+        help="With --shorten: start the incoming clip this many seconds before the next word (default: 1.5).",
     )
     p.add_argument("--keep-rows", default="",
                    help="Comma-separated transcript row indices to force-keep (e.g. for picture/graph description exceptions)")
@@ -247,13 +250,144 @@ _APOSTROPHE_VARIANTS = str.maketrans({
     "\u00b4": "'",  # acute accent
 })
 
+# Applied after normalize_base(); longer / more specific patterns first.
+_CONTRACTION_SHARED: Tuple[Tuple[str, str], ...] = (
+    (r"\bwon't\b", "will not"),
+    (r"\bwouldn't\b", "would not"),
+    (r"\bshouldn't\b", "should not"),
+    (r"\bcouldn't\b", "could not"),
+    (r"\bmustn't\b", "must not"),
+    (r"\bneedn't\b", "need not"),
+    (r"\baren't\b", "are not"),
+    (r"\bwasn't\b", "was not"),
+    (r"\bweren't\b", "were not"),
+    (r"\bhasn't\b", "has not"),
+    (r"\bhaven't\b", "have not"),
+    (r"\bhadn't\b", "had not"),
+    (r"\bdoesn't\b", "does not"),
+    (r"\bdon't\b", "do not"),
+    (r"\bdidn't\b", "did not"),
+    (r"\bisn't\b", "is not"),
+    (r"\bcan't\b", "can not"),
+    (r"\blet's\b", "let us"),
+    (r"\bthat's\b", "that is"),
+    (r"\bwhat's\b", "what is"),
+    (r"\bwho's\b", "who is"),
+    (r"\bwhere's\b", "where is"),
+    (r"\bwhen's\b", "when is"),
+    (r"\bwhy's\b", "why is"),
+    (r"\bhow's\b", "how is"),
+    (r"\bhere's\b", "here is"),
+    (r"\bthere's\b", "there is"),
+    (r"\bit's\b", "it is"),
+    (r"\byou're\b", "you are"),
+    (r"\bi'm\b", "i am"),
+    (r"\bi've\b", "i have"),
+    (r"\bi'll\b", "i will"),
+    (r"\b([a-z]+)'re\b", r"\1 are"),
+    (r"\b([a-z]+)'ve\b", r"\1 have"),
+    (r"\b([a-z]+)'ll\b", r"\1 will"),
+    (r"\b([a-z]+)'m\b", r"\1 am"),
+    (r"\b([a-z]+)n't\b", r"\1 not"),
+)
 
-def normalize(text: str) -> str:
+# ``'d`` → would (e.g. you'd ↔ you would).
+_CONTRACTION_WOULD_D: Tuple[Tuple[str, str], ...] = (
+    (r"\byou'd\b", "you would"),
+    (r"\bi'd\b", "i would"),
+    (r"\bhe'd\b", "he would"),
+    (r"\bshe'd\b", "she would"),
+    (r"\bwe'd\b", "we would"),
+    (r"\bthey'd\b", "they would"),
+    (r"\bit'd\b", "it would"),
+    (r"\bwho'd\b", "who would"),
+    (r"\bwhat'd\b", "what would"),
+    (r"\bthat'd\b", "that would"),
+    (r"\bthere'd\b", "there would"),
+    (r"\bhere'd\b", "here would"),
+    (r"\bwhere'd\b", "where would"),
+    (r"\bwhen'd\b", "when would"),
+    (r"\bwhy'd\b", "why would"),
+    (r"\bhow'd\b", "how would"),
+    (r"\b([a-z]+)'d\b", r"\1 would"),
+)
+
+# ``'d`` → had (e.g. I'd ↔ I had). ``you'd`` still maps to ``you would`` in both variants.
+_CONTRACTION_HAD_D: Tuple[Tuple[str, str], ...] = (
+    (r"\byou'd\b", "you would"),
+    (r"\bi'd\b", "i had"),
+    (r"\bhe'd\b", "he had"),
+    (r"\bshe'd\b", "she had"),
+    (r"\bwe'd\b", "we had"),
+    (r"\bthey'd\b", "they had"),
+    (r"\bit'd\b", "it had"),
+    (r"\bwho'd\b", "who had"),
+    (r"\bwhat'd\b", "what had"),
+    (r"\bthat'd\b", "that had"),
+    (r"\bthere'd\b", "there had"),
+    (r"\bhere'd\b", "here had"),
+    (r"\bwhere'd\b", "where had"),
+    (r"\bwhen'd\b", "when had"),
+    (r"\bwhy'd\b", "why had"),
+    (r"\bhow'd\b", "how had"),
+    (r"\b([a-z]+)'d\b", r"\1 had"),
+)
+
+
+def _apply_contraction_expanders(text: str, expanders: Tuple[Tuple[str, str], ...]) -> str:
+    if not text:
+        return text
+    out = text
+    for pattern, repl in expanders:
+        out = re.sub(pattern, repl, out)
+    return out
+
+
+def normalize_base(text: str) -> str:
     """Lowercase, unify apostrophes, drop other punctuation, collapse whitespace."""
     text = text.lower().translate(_APOSTROPHE_VARIANTS)
     text = re.sub(r"[^a-z0-9' ]+", " ", text)
-    text = re.sub(r"\s+", " ", text).strip()
-    return text
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def expand_contractions_would(text: str) -> str:
+    """Expand contractions with ``'d`` → would (plus shared n't / 're / …)."""
+    return _apply_contraction_expanders(text, _CONTRACTION_SHARED + _CONTRACTION_WOULD_D)
+
+
+def expand_contractions_had(text: str) -> str:
+    """Expand contractions with ``'d`` → had (plus shared n't / 're / …)."""
+    return _apply_contraction_expanders(text, _CONTRACTION_SHARED + _CONTRACTION_HAD_D)
+
+
+def expand_contractions(text: str) -> str:
+    """Alias for :func:`expand_contractions_would` (backward compatible)."""
+    return expand_contractions_would(text)
+
+
+def normalize_had(text: str) -> str:
+    """Like :func:`normalize` but ``'d`` pronouns expand to had where ambiguous."""
+    return expand_contractions_had(normalize_base(text))
+
+
+def normalize(text: str) -> str:
+    """Normalized text for matching (would-biased ``'d`` expansion)."""
+    return expand_contractions_would(normalize_base(text))
+
+
+def normalize_pair(text: str) -> Tuple[str, str]:
+    """Return (would-expanded, had-expanded) norms for cross-matching."""
+    base = normalize_base(text)
+    return expand_contractions_would(base), expand_contractions_had(base)
+
+
+def _norm_substring_match(needle_would: str, needle_had: str, hay_would: str, hay_had: str) -> bool:
+    return (
+        needle_would in hay_would
+        or needle_had in hay_had
+        or needle_would in hay_had
+        or needle_had in hay_would
+    )
 
 
 def _word_norm(w: str) -> str:
@@ -356,13 +490,14 @@ def load_article(path: Path) -> List[ArticleSentence]:
             paragraph_idx += 1
             prev_blank = False
         for chunk in split_article_line(line):
-            norm = normalize(chunk)
+            norm, norm_had = normalize_pair(chunk)
             if not norm:
                 continue
             out.append(ArticleSentence(
                 idx=len(out),
                 text=chunk,
                 norm=norm,
+                norm_had=norm_had,
                 paragraph_idx=paragraph_idx,
             ))
     return out
@@ -389,12 +524,14 @@ def load_transcript(path: Path) -> List[TranscriptRow]:
                 if w_end <= w_start:
                     continue
                 words.append(WordToken(text=w_text, start=w_start, end=w_end))
+        norm, norm_had = normalize_pair(text)
         out.append(TranscriptRow(
             idx=int(key),
             start=float(v.get("start", 0.0)),
             end=float(v.get("end", 0.0)),
             text=text,
-            norm=normalize(text),
+            norm=norm,
+            norm_had=norm_had,
             speaker_id=int(v.get("speaker_id", 0)),
             words=words,
         ))
@@ -406,6 +543,16 @@ def sim(a: str, b: str) -> float:
     if not a or not b:
         return 0.0
     return SequenceMatcher(a=a, b=b, autojunk=False).ratio()
+
+
+def sim_match(a: str, a_had: str, b: str, b_had: str) -> float:
+    """Best similarity across would/had contraction variants (both directions)."""
+    return max(
+        sim(a, b),
+        sim(a_had, b_had),
+        sim(a, b_had),
+        sim(a_had, b),
+    )
 
 
 def best_multi_match(
@@ -433,12 +580,15 @@ def best_multi_match(
 
     best: Tuple[Optional[int], Optional[int], float] = (None, None, 0.0)
     for a_start in a_start_range:
-        pieces: List[str] = []
+        pieces_would: List[str] = []
+        pieces_had: List[str] = []
         prev_score = -1.0
         for a_end in range(a_start, min(a_start + max_span, len(article))):
-            pieces.append(article[a_end].norm)
-            candidate = " ".join(pieces)
-            score = sim(row.norm, candidate)
+            pieces_would.append(article[a_end].norm)
+            pieces_had.append(article[a_end].norm_had)
+            candidate_would = " ".join(pieces_would)
+            candidate_had = " ".join(pieces_had)
+            score = sim_match(row.norm, row.norm_had, candidate_would, candidate_had)
             if score > best[2]:
                 best = (a_start, a_end, score)
             if score + 1e-9 < prev_score:
@@ -467,9 +617,10 @@ def _single_chunk_substring_match(
         anchor = last_good if last_good is not None else 0
         for i in range(max(0, lo), min(len(article), hi)):
             an = article[i].norm
-            if not an or row.norm not in an:
+            an_had = article[i].norm_had
+            if not an or not _norm_substring_match(row.norm, row.norm_had, an, an_had):
                 continue
-            sc = max(sim(row.norm, an), 0.90)
+            sc = max(sim_match(row.norm, row.norm_had, an, an_had), 0.90)
             if best is None:
                 best = (i, i, sc)
                 continue
@@ -522,22 +673,34 @@ def _loose_single_chunk_match(
     if not row.norm or len(row.norm) < 12 or len(row.norm) > 120:
         return None
 
-    row_tok = [t for t in row.norm.split() if len(t) > 1 and t not in _LOOSE_MATCH_STOPWORDS]
-    if len(row_tok) < 3:
+    row_tok_would = [t for t in row.norm.split() if len(t) > 1 and t not in _LOOSE_MATCH_STOPWORDS]
+    row_tok_had = [t for t in row.norm_had.split() if len(t) > 1 and t not in _LOOSE_MATCH_STOPWORDS]
+    if len(row_tok_would) < 3 and len(row_tok_had) < 3:
         return None
 
-    row_compact = row.norm.replace(" ", "")
+    row_compact_would = row.norm.replace(" ", "")
+    row_compact_had = row.norm_had.replace(" ", "")
 
-    def score_chunk(an: str) -> Optional[float]:
+    def score_chunk(an: str, an_had: str) -> Optional[float]:
         if not an:
             return None
         sc_parts: List[float] = []
-        ac = an.replace(" ", "")
-        if len(row_compact) >= 12 and row_compact in ac:
+        ac_would = an.replace(" ", "")
+        ac_had = an_had.replace(" ", "")
+        if len(row_compact_would) >= 12 and row_compact_would in ac_would:
             sc_parts.append(0.87)
-        ch_set = set(an.split())
-        if all(t in ch_set for t in row_tok):
-            sc_parts.append(max(0.84, sim(row.norm, an)))
+        if len(row_compact_had) >= 12 and row_compact_had in ac_had:
+            sc_parts.append(0.87)
+        if len(row_compact_would) >= 12 and row_compact_would in ac_had:
+            sc_parts.append(0.87)
+        if len(row_compact_had) >= 12 and row_compact_had in ac_would:
+            sc_parts.append(0.87)
+        ch_set_would = set(an.split())
+        ch_set_had = set(an_had.split())
+        if row_tok_would and all(t in ch_set_would for t in row_tok_would):
+            sc_parts.append(max(0.84, sim_match(row.norm, row.norm_had, an, an_had)))
+        if row_tok_had and all(t in ch_set_had for t in row_tok_had):
+            sc_parts.append(max(0.84, sim_match(row.norm, row.norm_had, an, an_had)))
         if not sc_parts:
             return None
         return max(sc_parts)
@@ -546,7 +709,7 @@ def _loose_single_chunk_match(
         best: Optional[Tuple[int, int, float]] = None
         anchor = last_good if last_good is not None else 0
         for i in range(max(0, lo), min(len(article), hi)):
-            sc = score_chunk(article[i].norm)
+            sc = score_chunk(article[i].norm, article[i].norm_had)
             if sc is None:
                 continue
             if best is None:
@@ -1415,7 +1578,9 @@ def _inter_word_shorten_apply_one_gap(
             return False
         cam2 = _inter_word_shorten_other_cam(left.cam, front, side)
         first = SubClip(row=left.row, a=left.a, b=tail_end, cam=left.cam)
-        second = SubClip(row=left.row, a=lead_start, b=left.b, cam=cam2)
+        second = SubClip(
+            row=left.row, a=lead_start, b=left.b, cam=cam2, shorten_join_before=True,
+        )
         subclips[i_left : i_left + 1] = [first, second]
         return True
 
@@ -1461,6 +1626,13 @@ def _inter_word_shorten_apply_one_gap(
         if nxt.cam == left.cam:
             nxt.cam = _inter_word_shorten_other_cam(left.cam, front, side)
             changed = True
+    if changed:
+        try:
+            li = subclips.index(left)
+            if li + 1 < len(subclips):
+                subclips[li + 1].shorten_join_before = True
+        except ValueError:
+            pass
     return changed
 
 
@@ -1483,7 +1655,7 @@ def _inter_word_shorten_run_passes(
             _w0s, w0e, i0 = flat[idx]
             w1s, _w1e, i1 = flat[idx + 1]
             gap = w1s - w0e
-            if gap <= min_silence + 1e-6:
+            if gap + 1e-6 < min_silence:
                 continue
             key = (round(w0e, 4), round(w1s, 4))
             if key in resolved:
@@ -1528,9 +1700,9 @@ def apply_inter_word_silence_shorten(
     *,
     front_cam: str,
     side_cam: str,
-    min_silence_sec: float = 1.5,
-    compress_tail_sec: float = 1.25,
-    compress_lead_sec: float = 0.25,
+    min_silence_sec: float = 3.0,
+    compress_tail_sec: float = 1.5,
+    compress_lead_sec: float = 1.5,
     side_shot_max_sec: float = 12.0,
 ) -> None:
     """Mutate ``subclips`` in place: compress long silences between consecutive spoken tokens.
@@ -1576,6 +1748,8 @@ def emit_subclip_lines(
     lines: List[str],
 ) -> None:
     for clip in subclips:
+        if clip.shorten_join_before:
+            lines.append("!shorten-join")
         if clip.cam != current_camera_ref[0]:
             lines.append(f"!camera {clip.cam}")
             current_camera_ref[0] = clip.cam
@@ -1587,7 +1761,8 @@ def emit_subclip_lines(
         # in-memory trim must become an explicit ``slice(...)`` or the renderer uses
         # the full sentence ``start``/``end`` from the JSON file.
         emit_plain = (
-            row.trim_start is None
+            not clip.shorten_join_before
+            and row.trim_start is None
             and row.trim_end is None
             and abs(a - row.start) < 1e-6
             and abs(b - row.end) < 1e-6
@@ -1617,9 +1792,9 @@ def generate_dsl(
     final_shot_tail_sec: float,
     post_word_tail_sec: float,
     shorten_inter_word_silences: bool = False,
-    shorten_min_silence_sec: float = 1.5,
-    shorten_compress_tail_sec: float = 1.25,
-    shorten_compress_lead_sec: float = 0.25,
+    shorten_min_silence_sec: float = 3.0,
+    shorten_compress_tail_sec: float = 1.5,
+    shorten_compress_lead_sec: float = 1.5,
 ) -> str:
     spans = build_spans(kept)
 
@@ -1650,8 +1825,9 @@ def generate_dsl(
         )
     if shorten_inter_word_silences:
         lines.append(
-            f"// Shorten: gaps >{shorten_min_silence_sec:.2f}s → up to {shorten_compress_tail_sec:.2f}s "
-            f"after last word + {shorten_compress_lead_sec:.2f}s before next word (camera flip per cut)"
+            f"// Shorten: gaps >={shorten_min_silence_sec:.2f}s → "
+            f"{shorten_compress_tail_sec:.2f}s after last word + "
+            f"{shorten_compress_lead_sec:.2f}s before next word (camera flip per cut)"
         )
     lines.append(f"// Kept {len(kept)}/{len(rows)} rows in {len(spans)} span(s)")
     lines.append("")

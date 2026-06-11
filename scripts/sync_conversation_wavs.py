@@ -101,17 +101,20 @@ def _estimate_lag_samples(
     mono_b: np.ndarray,
     sr: int,
     analyze_seconds: float,
+    analyze_start_seconds: float = 0.0,
 ) -> tuple[int, float]:
     """
     Return lag (samples) where positive means b is delayed vs a.
     """
-    max_samples = int(min(len(mono_a), len(mono_b), analyze_seconds * sr))
+    start = int(max(0.0, analyze_start_seconds) * sr)
+    avail = int(min(len(mono_a), len(mono_b)) - start)
+    max_samples = int(min(avail, analyze_seconds * sr))
     if max_samples < sr // 2:
         raise ValueError("Not enough audio to analyze (need at least ~0.5s).")
 
     target_sr = min(8000, sr)
-    a_ds = _resample_poly(mono_a[:max_samples], sr, target_sr)
-    b_ds = _resample_poly(mono_b[:max_samples], sr, target_sr)
+    a_ds = _resample_poly(mono_a[start : start + max_samples], sr, target_sr)
+    b_ds = _resample_poly(mono_b[start : start + max_samples], sr, target_sr)
     a_ds -= np.mean(a_ds)
     b_ds -= np.mean(b_ds)
     if float(np.std(a_ds) * np.std(b_ds)) < 1e-12:
@@ -248,6 +251,7 @@ def sync_pair(
     path_b: Path,
     *,
     analyze_seconds: float = 300.0,
+    analyze_start_seconds: float = 0.0,
     check_drift: bool = True,
     piecewise: bool = True,
     segment_seconds: float = 22.0,
@@ -275,8 +279,15 @@ def sync_pair(
 
     mono_a = _to_mono(a)
     mono_b = _to_mono(b)
-    lag, strength = _estimate_lag_samples(mono_a, mono_b, sr_a, analyze_seconds)
+    lag, strength = _estimate_lag_samples(
+        mono_a,
+        mono_b,
+        sr_a,
+        analyze_seconds,
+        analyze_start_seconds=analyze_start_seconds,
+    )
     report["correlation_peak_strength"] = strength
+    report["analyze_start_seconds"] = float(analyze_start_seconds)
     report["lag_ms_initial"] = lag / float(sr_a) * 1000.0
 
     mono_a_full = mono_a
@@ -713,6 +724,7 @@ def sync_pair(
     path_b: Path,
     *,
     analyze_seconds: float = 300.0,
+    analyze_start_seconds: float = 0.0,
     check_drift: bool = True,
     piecewise: bool = True,
     segment_seconds: float = 22.0,
@@ -765,8 +777,15 @@ def sync_pair(
 
     mono_a = _to_mono(a)
     mono_b = _to_mono(b)
-    lag, strength = _estimate_lag_samples(mono_a, mono_b, sr_a, analyze_seconds)
+    lag, strength = _estimate_lag_samples(
+        mono_a,
+        mono_b,
+        sr_a,
+        analyze_seconds,
+        analyze_start_seconds=analyze_start_seconds,
+    )
     report["correlation_peak_strength"] = strength
+    report["analyze_start_seconds"] = float(analyze_start_seconds)
     report["lag_ms_initial"] = lag / float(sr_a) * 1000.0
 
     mono_a_full = mono_a
@@ -917,7 +936,14 @@ def main() -> int:
         "--analyze-seconds",
         type=float,
         default=300.0,
-        help="Max duration from the start used for offset detection (default: 300).",
+        help="Max duration used for offset detection (default: 300).",
+    )
+    p.add_argument(
+        "--analyze-start-seconds",
+        type=float,
+        default=0.0,
+        help="Skip this many seconds from the start before offset detection "
+        "(default: 0). Use when early audio differs between recorders.",
     )
     p.add_argument(
         "--no-drift-check",
@@ -1019,6 +1045,7 @@ def main() -> int:
             args.wav_a.resolve(),
             args.wav_b.resolve(),
             analyze_seconds=args.analyze_seconds,
+            analyze_start_seconds=args.analyze_start_seconds,
             check_drift=not args.no_drift_check,
             piecewise=args.piecewise,
             segment_seconds=args.segment_seconds,

@@ -5,6 +5,7 @@ Format:
   $segment2/0                     // Play this segment
   !camera wide                    // Switch to this camera
   !cut 50 50                      // Set padding before/after cuts
+  !shorten-join [20 20]           // Next join: overlap padding + audio crossfade (ms)
   !opening 1000                   // Start first content clip/group this many ms early
   !volume 1.2                     // Set main audio volume (1.0 = 100%)
   !fade to black 100              // Fade to black
@@ -32,7 +33,8 @@ from .commands import (
     BlackCommand,
     SegmentCommand,
     AudioCommand,
-    VolumeCommand
+    VolumeCommand,
+    ShortenJoinCommand,
 )
 
 
@@ -203,6 +205,28 @@ def parse_dsl_line(line: str) -> Optional[DSLCommand]:
                 return VolumeCommand(volume)
             except ValueError as e:
                 raise ValueError(f"Volume must be a positive number: {line}")
+
+        elif command_type == 'shorten-join':
+            from .config import (
+                SHORTEN_JOIN_DEFAULT_CROSSFADE_MS,
+                SHORTEN_JOIN_DEFAULT_PADDING_MS,
+            )
+            padding_ms = SHORTEN_JOIN_DEFAULT_PADDING_MS
+            crossfade_ms = SHORTEN_JOIN_DEFAULT_CROSSFADE_MS
+            if len(parts) == 3:
+                try:
+                    padding_ms = float(parts[1])
+                    crossfade_ms = float(parts[2])
+                except ValueError:
+                    raise ValueError(
+                        f"Shorten-join expects numeric padding and crossfade ms: {line}"
+                    ) from None
+            elif len(parts) != 1:
+                raise ValueError(
+                    f"Shorten-join format: '!shorten-join' or "
+                    f"'!shorten-join 20 20': {line}"
+                )
+            return ShortenJoinCommand(padding_ms, crossfade_ms)
 
         else:
             raise ValueError(f"Unknown command type: {command_type}")

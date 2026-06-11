@@ -86,15 +86,18 @@ Register `transcript_file` in `SEGMENT_CONFIG` pointing at **`<temp folder>/read
 - **Gap-only lead-in**: if a camera change crosses discarded time (a transcript time gap), start the incoming clip up to 0.25s early; never shorten outgoing clips; if there is no gap, do not shift times.
 - **Last transcript row** in the final edit must be **Front**.
 - **No padding between cuts**: emit `!cut 0 0` so the renderer does not add pre/post padding that could cause tiny audio overlaps at camera switches.
+- **Zero-cross snap (render)**: for embedded-camera reading renders, `podcast_dsl` nudges each interior cut (±0.2 s) to a nearby audio zero crossing when ffmpeg finds one (disable with `PODCAST_DSL_ZERO_CROSS_SNAP=0`).
 
 ### Shorten (silence removal) — only when the user includes **Shorten**
 - Run **after** `generate_reading_dsl.py` has written `<temp folder>/reading.dsl`, and **before** any render.
 - Detect consecutive spoken tokens using **word** timestamps from the simplified transcript (rows without `words` use the whole clip interval as a single token).
-- Where the gap from **end of previous word** to **start of next word** is **greater than 1.5 seconds**:
-  - End the outgoing clip at **1.25 seconds after** the previous word’s end.
-  - Start the incoming clip at **0.25 seconds before** the next word’s start.
+- Where the gap from **end of previous word** to **start of next word** is **3 seconds or longer**:
+  - End the outgoing clip at **1.5 seconds after** the previous word’s end.
+  - Start the incoming clip at **1.5 seconds before** the next word’s start.
+  - (Removes **3 seconds** from the middle of the gap; e.g. a 5 s pause becomes ~2 s in the edit.)
 - **Every** such edit is a cut and must include a **camera change** (front ↔ side).
 - If that cut puts the incoming segment on the **side** camera, re-apply the usual **side-disfavored** behavior (same logic as `generate_reading_dsl.py`: cap side runs at 12s with comma / sentence end / row-boundary flips to front, and the last transcript row stays on front). The repo script `shorten_reading_dsl_silences.py` performs the trim, forces the camera flip at each shortened gap, then runs `enforce_side_max_durations` per span and `ensure_last_sentence_on_front`.
+- **Shorten joins in the DSL**: each silence-shorten cut emits `!shorten-join` before the incoming `!camera` line. The renderer keeps **1.5 s** of outgoing audio after the last spoken word and **1.5 s** of lead-in before the next word (same as shorten tail/lead), including across render-group boundaries, plus a short **audio** crossfade at the join. Global `!cut 0 0` stays unchanged for normal camera switches.
 
 ## Workflow
 
@@ -172,7 +175,7 @@ From the **repository root** (same folder as `shorten_reading_dsl_silences.py`):
 python shorten_reading_dsl_silences.py "<temp folder>/reading.dsl" --segment <SEGMENT_NUM>
 ```
 
-This overwrites `reading.dsl` in place by default (add `--output` if you want a separate file). It uses `SEGMENT_CONFIG[<SEGMENT_NUM>]['transcript_file']` unless you pass `--transcript`. Defaults match the skill: `--min-silence-sec 1.5`, `--tail-sec 1.25`, `--lead-sec 0.25`, `--side-shot-max-sec 12`.
+This overwrites `reading.dsl` in place by default (add `--output` if you want a separate file). It uses `SEGMENT_CONFIG[<SEGMENT_NUM>]['transcript_file']` unless you pass `--transcript`. Defaults match the skill: `--min-silence-sec 3`, `--tail-sec 1.5`, `--lead-sec 1.5`, `--side-shot-max-sec 12`.
 
 Do **not** start the 1-minute render until this step has finished when Shorten is requested.
 

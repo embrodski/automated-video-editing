@@ -15,21 +15,28 @@ from generate_reading_dsl import (
     build_sanity_report,
     is_visual_callout_sentence,
     normalize,
+    normalize_had,
+    normalize_pair,
     select_kept,
 )
 
 
 def _article(idx: int, text: str) -> ArticleSentence:
-    return ArticleSentence(idx=idx, text=text, norm=normalize(text), paragraph_idx=0)
+    norm, norm_had = normalize_pair(text)
+    return ArticleSentence(
+        idx=idx, text=text, norm=norm, norm_had=norm_had, paragraph_idx=0,
+    )
 
 
 def _row(idx: int, text: str) -> TranscriptRow:
+    norm, norm_had = normalize_pair(text)
     return TranscriptRow(
         idx=idx,
         start=float(idx),
         end=float(idx) + 0.5,
         text=text,
-        norm=normalize(text),
+        norm=norm,
+        norm_had=norm_had,
         speaker_id=1,
         words=[],
     )
@@ -82,6 +89,54 @@ class ReadingSelectionTests(unittest.TestCase):
         article_line = "If you are alone, that\u2019s okay\u2014four is ideal."
         spoken = "If you are alone, that's okay."
         self.assertIn(normalize(spoken), normalize(article_line))
+
+    def test_contraction_expansion_bidirectional(self) -> None:
+        contracted = normalize("You'd be working from the office full-time.")
+        expanded = normalize("You would be working from the office full-time.")
+        self.assertEqual(contracted, expanded)
+        self.assertIn(contracted, normalize(
+            "It was a toss-up; you would be working from the office full-time, and if not."
+        ))
+
+    def test_contraction_had_matches_i_d_to_i_had(self) -> None:
+        spoken = normalize_had("I'd already left when you arrived.")
+        written = normalize_had("I had already left when you arrived.")
+        self.assertEqual(spoken, written)
+        self.assertNotEqual(normalize("I'd already left."), normalize_had("I'd already left."))
+
+    def test_align_rows_keeps_middle_clause_after_you_would_expansion(self) -> None:
+        tossup = (
+            "It was a toss-up between two people in the end, and I picked you – "
+            "you would be working from the office full-time, and if you weren't a good fit "
+            "then at least we wouldn't see much of you."
+        )
+        article = [
+            _article(7, "You'd come over from New Zealand for a job."),
+            _article(8, tossup),
+            _article(9, "That turned out to be a fateful choice."),
+        ]
+        rows = [
+            _row(16, "It was a toss-up between two people in the end, and I picked you."),
+            _row(17, "You'd be working from the office full-time,"),
+            _row(18, "and if you weren't a good fit, then at least we wouldn't see much of you."),
+        ]
+        matches = align_rows(
+            rows=rows,
+            article=article,
+            threshold=0.55,
+            max_span=6,
+            force_keep=set(),
+            force_drop=set(),
+            reader_speaker_id=1,
+        )
+        by_idx = {m.row.idx: m for m in matches}
+        self.assertFalse(by_idx[17].off_script, msg=f"row 17 score={by_idx[17].similarity} span={by_idx[17].a_start}:{by_idx[17].a_end}")
+        self.assertEqual(by_idx[17].a_start, 1)
+        self.assertEqual(by_idx[17].a_end, 1)
+        self.assertGreaterEqual(by_idx[17].similarity, 0.55)
+
+        kept, _notes = select_kept(matches, force_keep=set(), article=article)
+        self.assertEqual([m.row.idx for m in kept], [16, 17, 18])
 
     def test_prefix_chunk_pair_rescues_lead_in_row(self) -> None:
         article = [
