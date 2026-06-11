@@ -13,12 +13,18 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from harness_episode_lib import REPO_ROOT, load_episode_state, save_episode_state, step_state
 from harness_output_files import find_edited_interview_mp4, find_intro_mp4
+from harness_overwrite_guard import refuse_overwrite
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Harness step 24: human transcript.")
     parser.add_argument("episode_folder", type=Path)
     parser.add_argument("--host", default="Ben", help="Host name (default: Ben).")
+    parser.add_argument(
+        "--allow-overwrite",
+        action="store_true",
+        help="Overwrite existing transcript in Output (requires user approval).",
+    )
     args = parser.parse_args()
 
     try:
@@ -30,6 +36,12 @@ def main() -> int:
 
         intro = find_intro_mp4(output_dir)
         interview = find_edited_interview_mp4(output_dir)
+
+        transcript_name = f"{args.host}-{guest} Transcript.txt"
+        refuse_overwrite(
+            output_dir / transcript_name,
+            allow_overwrite=args.allow_overwrite,
+        )
 
         cmd = [
             sys.executable,
@@ -48,7 +60,6 @@ def main() -> int:
                 f"create_human_transcript failed.\nstdout:\n{proc.stdout}\nstderr:\n{proc.stderr}"
             )
 
-        transcript_name = f"{args.host}-{guest} Transcript.txt"
         transcript_path = output_dir / transcript_name
         if not transcript_path.is_file():
             raise FileNotFoundError(f"Expected cleaned transcript: {transcript_path}")

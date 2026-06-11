@@ -32,6 +32,24 @@ All downstream skills use these four paths for the rest of the harness.
 
 ---
 
+## Hard rule: no overwrite without user verification
+
+**Never replace an existing file** without first checking with the user and getting explicit approval.
+
+This applies to **every harness step**, **every subordinate skill** the harness chains (podcast autocut, reading autocut, stitch, human transcript, conversation-sync, video prep, etc.), and **any** direct `python -m podcast_dsl` / stitch / converter run the agent performs on behalf of the user.
+
+**Before any write that would overwrite:**
+
+1. **List** which paths already exist and would be replaced (Output deliverables, Temp DSL/JSON, user DaVinci exports, transcripts, test renders, `Complete Episode.mp4`, etc.).
+2. **Stop and ask** the user — even when fixing bugs, re-running after a code change, or the user said “redo the render” without naming the output file.
+3. **After approval only:** pass **`--allow-overwrite`** on harness render/stitch/transcript commands, **or** write to a **new filename** if the user wants to keep the previous file.
+
+**Routine exceptions** (no approval needed): updating **`<name>-episode.json`** step metadata; ephemeral ffmpeg scratch under **Temp** (not named deliverables).
+
+Harness scripts that write deliverable outputs **exit with code 2** if the target already exists unless **`--allow-overwrite`** is passed.
+
+---
+
 ## Launch — Steps 1–3
 
 ### Step 1 — Launch
@@ -320,7 +338,7 @@ After step **15**, **`resume_at`** is **`16_reading_test_approval`** when readin
 
 Review **`1 Min Test Reading.mp4`** with the user. Troubleshoot using **Inkhaven-Reading-Autocut** parameters from step **14** (same segment, **`reading.dsl`**, Shorten, **`<reading-link>`**).
 
-**Never re-render without explicit user approval** for that render.
+**Never re-render without explicit user approval** for that render. If the target file already exists, list it and ask before overwriting; pass **`--allow-overwrite`** only after approval.
 
 | User intent | Action |
 |-------------|--------|
@@ -332,7 +350,7 @@ Review **`1 Min Test Reading.mp4`** with the user. Troubleshoot using **Inkhaven
 **Re-render 1-minute reading test** (only after user confirms):
 
 ```powershell
-python scripts/harness_reading_autocut_render.py "<episode_folder>" --mode test [--rebuild-dsl]
+python scripts/harness_reading_autocut_render.py "<episode_folder>" --mode test [--rebuild-dsl] [--allow-overwrite]
 ```
 
 **Mark step complete / skip:**
@@ -351,7 +369,7 @@ python scripts/harness_step_status.py "<episode_folder>" --skip-reading-chain --
 **Full render** (long job — confirm with user first; if `Full Reading.mp4` exists, ask before overwriting):
 
 ```powershell
-python scripts/harness_reading_autocut_render.py "<episode_folder>" --mode full [--rebuild-dsl]
+python scripts/harness_reading_autocut_render.py "<episode_folder>" --mode full [--rebuild-dsl] [--allow-overwrite]
 ```
 
 **Output:** **`<output>/Full Reading.mp4`**. Record as **`reading_final_mp4`**.
@@ -372,7 +390,7 @@ python scripts/harness_step_status.py "<episode_folder>" --step 17_reading_full_
 
 Review **`1 Min Test.mp4`**. Troubleshoot using **Inkhaven-Podcast-Autocut** parameters from step **15** (**`interview.dsl`**, segment **`main_segment_id`**).
 
-**Never re-render without explicit user approval.**
+**Never re-render without explicit user approval.** If the target file already exists, list it and ask before overwriting; pass **`--allow-overwrite`** only after approval.
 
 | User intent | Action |
 |-------------|--------|
@@ -384,7 +402,7 @@ Review **`1 Min Test.mp4`**. Troubleshoot using **Inkhaven-Podcast-Autocut** par
 **Re-render 1-minute interview test:**
 
 ```powershell
-python scripts/harness_podcast_autocut_render.py "<episode_folder>" --mode test [--rebuild-dsl]
+python scripts/harness_podcast_autocut_render.py "<episode_folder>" --mode test [--rebuild-dsl] [--allow-overwrite]
 ```
 
 ```powershell
@@ -401,7 +419,7 @@ Optional; only when the user requests a 5-minute test after step **18**.
 **Render** (confirm with user first):
 
 ```powershell
-python scripts/harness_podcast_autocut_render.py "<episode_folder>" --mode five_min [--rebuild-dsl]
+python scripts/harness_podcast_autocut_render.py "<episode_folder>" --mode five_min [--rebuild-dsl] [--allow-overwrite]
 ```
 
 **Output:** **`<output>/5 Min Test.mp4`**.
@@ -416,10 +434,10 @@ python scripts/harness_step_status.py "<episode_folder>" --step 19_interview_fiv
 
 ## Step 20 — Full interview render
 
-**Render** (long job — confirm with user first; if `Full Interview.mp4` exists, ask before overwriting):
+**Render** (long job — confirm with user first; see **no overwrite** hard rule):
 
 ```powershell
-python scripts/harness_podcast_autocut_render.py "<episode_folder>" --mode full [--rebuild-dsl]
+python scripts/harness_podcast_autocut_render.py "<episode_folder>" --mode full [--rebuild-dsl] [--allow-overwrite]
 ```
 
 **Output:** **`<output>/Full Interview.mp4`**.
@@ -459,7 +477,7 @@ python scripts/harness_step_status.py "<episode_folder>" --step 21_hand_edit_app
 Set-Location "<repo>"
 $env:TEMP = "<temp folder>"
 $env:TMP  = "<temp folder>"
-python scripts/harness_run_stitch.py "<episode_folder>"
+python scripts/harness_run_stitch.py "<episode_folder>" [--allow-overwrite]
 ```
 
 Wraps **`stitch_episode.py`** → **`<output>/Complete Episode.mp4`**.
@@ -486,7 +504,7 @@ Step **23** is marked **`skipped`** automatically (placeholder).
 ## Step 24 — Human transcript
 
 ```powershell
-python scripts/harness_run_human_transcript.py "<episode_folder>"
+python scripts/harness_run_human_transcript.py "<episode_folder>" [--allow-overwrite]
 ```
 
 Chains **create-human-transcript**:
@@ -552,6 +570,7 @@ Harness steps after **25** (Riverside/YouTube/SubStack publish, thumbnail, etc.)
 
 ## Human gates (always)
 
+- **No overwrite without user verification** (see hard rule above and **`AGENTS.md`**). Harness scripts exit unless **`--allow-overwrite`** is passed after the user approves.
 - Do not start long renders (> ~30 s) during debugging without user approval (see **`AGENTS.md`**).
 - Steps **16–20** require explicit user approval before every re-render (`harness_*_autocut_render.py`).
 - Full reading (**step 17**), full interview (**step 20**), and **stitch** (**step 22**) are long jobs — confirm before running.

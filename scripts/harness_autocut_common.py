@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 
 from harness_episode_lib import REPO_ROOT
+from harness_overwrite_guard import refuse_overwrite
 
 
 def run_cmd(cmd: list[str], *, cwd: Path | None = None, env: dict | None = None) -> None:
@@ -39,7 +40,9 @@ def render_dsl(
     *,
     max_seconds: int | None = None,
     workers: int = 6,
+    allow_overwrite: bool = False,
 ) -> None:
+    refuse_overwrite(output_mp4, allow_overwrite=allow_overwrite)
     cmd = [
         sys.executable,
         "-m",

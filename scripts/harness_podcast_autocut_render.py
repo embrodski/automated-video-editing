@@ -59,6 +59,11 @@ def main() -> int:
         action="store_true",
         help="Regenerate interview.dsl before render.",
     )
+    parser.add_argument(
+        "--allow-overwrite",
+        action="store_true",
+        help="Overwrite existing output MP4 (requires explicit user approval).",
+    )
     args = parser.parse_args()
 
     outputs = {
@@ -88,6 +93,7 @@ def main() -> int:
             out_mp4,
             temp,
             max_seconds=max_seconds,
+            allow_overwrite=args.allow_overwrite,
         )
 
         state["interview_dsl"] = str(interview_dsl)

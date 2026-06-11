@@ -29,8 +29,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 
 from harness_episode_lib import REPO_ROOT, load_episode_state, save_episode_state, step_state
-
 from harness_output_files import stitch_required_files
+from harness_overwrite_guard import refuse_overwrite
 
 
 
@@ -43,6 +43,11 @@ def main() -> int:
     parser.add_argument("episode_folder", type=Path)
 
     parser.add_argument("--video-encoder", default=None)
+    parser.add_argument(
+        "--allow-overwrite",
+        action="store_true",
+        help="Overwrite existing Complete Episode.mp4 (requires user approval).",
+    )
 
     args = parser.parse_args()
 
@@ -55,6 +60,11 @@ def main() -> int:
         output_dir = Path(state["paths"]["output"])
 
         temp_dir = Path(state["paths"]["temp"])
+
+        refuse_overwrite(
+            output_dir / "Complete Episode.mp4",
+            allow_overwrite=args.allow_overwrite,
+        )
 
         missing = []
 

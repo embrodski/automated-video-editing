@@ -13,6 +13,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+from harness_overwrite_guard import refuse_overwrite
 from harness_episode_lib import (
     REPO_ROOT,
     load_episode_state,
@@ -58,6 +59,11 @@ def _pick_interview_videos(prepped_videos: list[str]) -> tuple[Path, Path, Path]
 def main() -> int:
     parser = argparse.ArgumentParser(description="Harness step 15: podcast 1-min test.")
     parser.add_argument("episode_folder", type=Path)
+    parser.add_argument(
+        "--allow-overwrite",
+        action="store_true",
+        help="Overwrite existing test MP4 / Temp DSL artifacts (requires user approval).",
+    )
     args = parser.parse_args()
 
     try:
@@ -72,6 +78,9 @@ def main() -> int:
 
         simplified = temp / "interview_transcript_simplified.json"
         interview_dsl = temp / "interview.dsl"
+        out_mp4 = output_dir / "1 Min Test.mp4"
+        for path in (simplified, interview_dsl, out_mp4):
+            refuse_overwrite(path, allow_overwrite=args.allow_overwrite)
 
         _run(
             [
@@ -114,7 +123,6 @@ def main() -> int:
             ]
         )
 
-        out_mp4 = output_dir / "1 Min Test.mp4"
         env = os.environ.copy()
         env["TEMP"] = str(temp)
         env["TMP"] = str(temp)
