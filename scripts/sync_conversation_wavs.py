@@ -130,6 +130,72 @@ def _estimate_lag_samples(
     return lag_samples, peak_strength
 
 
+def _pick_analyze_start_seconds(
+    mono_a: np.ndarray,
+    mono_b: np.ndarray,
+    sr: int,
+    *,
+    intro_skip_seconds: float = 300.0,
+    intro_probe_seconds: float = 120.0,
+) -> tuple[float, dict]:
+    """
+    Compare offset detection at file start vs after intro_skip_seconds.
+
+    When the first minutes differ between recorders (extra chatter, one mic
+    late, etc.), correlation at t=0 can report a false multi-second lag. If a
+    later window is clearly more trustworthy, skip the intro for initial lag.
+    """
+    meta: dict = {"intro_skip_auto": "not_needed"}
+    need_samples = int((intro_skip_seconds + intro_probe_seconds) * sr)
+    if min(len(mono_a), len(mono_b)) < need_samples:
+        meta["intro_skip_auto"] = "skipped_short_file"
+        return 0.0, meta
+
+    try:
+        lag0, strength0 = _estimate_lag_samples(
+            mono_a, mono_b, sr, intro_probe_seconds, analyze_start_seconds=0.0
+        )
+        lag_skip, strength_skip = _estimate_lag_samples(
+            mono_a,
+            mono_b,
+            sr,
+            intro_probe_seconds,
+            analyze_start_seconds=intro_skip_seconds,
+        )
+    except ValueError:
+        meta["intro_skip_auto"] = "skipped_probe_failed"
+        return 0.0, meta
+
+    lag0_ms = lag0 / float(sr) * 1000.0
+    lag_skip_ms = lag_skip / float(sr) * 1000.0
+    lag_diff_ms = abs(lag0 - lag_skip) / float(sr) * 1000.0
+    strength_gain = strength_skip / max(strength0, 1e-9)
+
+    meta.update(
+        {
+            "intro_skip_probe_seconds": float(intro_skip_seconds),
+            "intro_skip_probe_window_seconds": float(intro_probe_seconds),
+            "intro_skip_probe_lag_ms_at_0": lag0_ms,
+            "intro_skip_probe_strength_at_0": strength0,
+            "intro_skip_probe_lag_ms_after_skip": lag_skip_ms,
+            "intro_skip_probe_strength_after_skip": strength_skip,
+            "intro_skip_probe_lag_diff_ms": lag_diff_ms,
+            "intro_skip_probe_strength_gain": strength_gain,
+        }
+    )
+
+    use_skip = (
+        (strength_skip >= 0.15 and strength_gain >= 2.0)
+        or (lag_diff_ms >= 5000.0 and strength_skip > strength0 * 1.3)
+        or (lag_diff_ms >= 10000.0 and strength_skip > strength0)
+    )
+    if use_skip:
+        meta["intro_skip_auto"] = "applied"
+        return float(intro_skip_seconds), meta
+
+    return 0.0, meta
+
+
 def _estimate_lag_at_window(
     mono_a: np.ndarray,
     mono_b: np.ndarray,
@@ -725,6 +791,9 @@ def sync_pair(
     *,
     analyze_seconds: float = 300.0,
     analyze_start_seconds: float = 0.0,
+    auto_skip_intro: bool = True,
+    intro_skip_seconds: float = 300.0,
+    intro_probe_seconds: float = 120.0,
     check_drift: bool = True,
     piecewise: bool = True,
     segment_seconds: float = 22.0,
@@ -777,15 +846,31 @@ def sync_pair(
 
     mono_a = _to_mono(a)
     mono_b = _to_mono(b)
+
+    chosen_start = analyze_start_seconds
+    if auto_skip_intro and chosen_start <= 0.0:
+        chosen_start, intro_meta = _pick_analyze_start_seconds(
+            mono_a,
+            mono_b,
+            sr_a,
+            intro_skip_seconds=intro_skip_seconds,
+            intro_probe_seconds=intro_probe_seconds,
+        )
+        report.update(intro_meta)
+    elif analyze_start_seconds > 0.0:
+        report["intro_skip_auto"] = "user_override"
+    else:
+        report["intro_skip_auto"] = "disabled"
+
     lag, strength = _estimate_lag_samples(
         mono_a,
         mono_b,
         sr_a,
         analyze_seconds,
-        analyze_start_seconds=analyze_start_seconds,
+        analyze_start_seconds=chosen_start,
     )
     report["correlation_peak_strength"] = strength
-    report["analyze_start_seconds"] = float(analyze_start_seconds)
+    report["analyze_start_seconds"] = float(chosen_start)
     report["lag_ms_initial"] = lag / float(sr_a) * 1000.0
 
     mono_a_full = mono_a
@@ -943,7 +1028,26 @@ def main() -> int:
         type=float,
         default=0.0,
         help="Skip this many seconds from the start before offset detection "
-        "(default: 0). Use when early audio differs between recorders.",
+        "(default: 0). When > 0, disables automatic intro skip.",
+    )
+    p.add_argument(
+        "--auto-skip-intro",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Probe lag at file start vs after --intro-skip-seconds and skip the "
+        "intro when early audio is misleading (default: on).",
+    )
+    p.add_argument(
+        "--intro-skip-seconds",
+        type=float,
+        default=300.0,
+        help="Seconds into the file to probe when auto-skipping intro (default: 300).",
+    )
+    p.add_argument(
+        "--intro-probe-seconds",
+        type=float,
+        default=120.0,
+        help="Analysis window length used for intro-mismatch probing (default: 120).",
     )
     p.add_argument(
         "--no-drift-check",
@@ -1046,6 +1150,9 @@ def main() -> int:
             args.wav_b.resolve(),
             analyze_seconds=args.analyze_seconds,
             analyze_start_seconds=args.analyze_start_seconds,
+            auto_skip_intro=args.auto_skip_intro,
+            intro_skip_seconds=args.intro_skip_seconds,
+            intro_probe_seconds=args.intro_probe_seconds,
             check_drift=not args.no_drift_check,
             piecewise=args.piecewise,
             segment_seconds=args.segment_seconds,
@@ -1076,6 +1183,15 @@ def main() -> int:
         print("  Mode:              global (single offset, start trim)")
         print(f"  Lag (B vs A):      {report['lag_ms']:.2f} ms")
     print(f"  Correlation peak:  {report['correlation_peak_strength']:.4f}")
+    intro_auto = report.get("intro_skip_auto")
+    if intro_auto == "applied":
+        print(
+            f"  Intro skip:        auto-applied at {report['analyze_start_seconds']:.0f} s "
+            f"(probe strength {report.get('intro_skip_probe_strength_at_0', 0.0):.4f} "
+            f"-> {report.get('intro_skip_probe_strength_after_skip', 0.0):.4f})"
+        )
+    elif intro_auto == "user_override" and report.get("analyze_start_seconds", 0.0) > 0.0:
+        print(f"  Intro skip:        manual start at {report['analyze_start_seconds']:.0f} s")
     if "drift_estimate_ms" in report:
         print(f"  Drift estimate:    {report['drift_estimate_ms']:.2f} ms (start vs end window)")
     if report.get("echo_suppress_strength"):
