@@ -11,7 +11,14 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from harness_autocut_common import render_dsl, run_cmd
-from harness_episode_lib import REPO_ROOT, load_episode_state, save_episode_state, should_skip_reading, step_state
+from harness_episode_lib import (
+    REPO_ROOT,
+    load_episode_state,
+    reading_keep_rows_cli_args,
+    save_episode_state,
+    should_skip_reading,
+    step_state,
+)
 
 def rebuild_reading_dsl(state: dict) -> Path:
     temp = Path(state["paths"]["temp"])
@@ -60,6 +67,7 @@ def rebuild_reading_dsl(state: dict) -> Path:
     reader_id = state.get("reader_speaker_id")
     if reader_id is not None:
         gen_cmd.extend(["--reader-speaker-id", str(reader_id)])
+    gen_cmd.extend(reading_keep_rows_cli_args(state))
     run_cmd(gen_cmd)
     run_cmd(
         [

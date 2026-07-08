@@ -17,6 +17,7 @@ from harness_episode_lib import (
     REPO_ROOT,
     load_episode_state,
     next_segment_id,
+    reading_keep_rows_cli_args,
     register_segment,
     save_episode_state,
     should_skip_reading,
@@ -138,20 +139,20 @@ def main() -> int:
             )
             state["reading_segment_id"] = segment_id
 
-        _run(
-            [
-                sys.executable,
-                str(REPO_ROOT / "generate_reading_dsl.py"),
-                str(simplified),
-                str(article_txt),
-                "--segment",
-                segment_id,
-                "--output",
-                str(reading_dsl),
-                "--reader-speaker-id",
-                str(state.get("reader_speaker_id", 1)),
-            ]
-        )
+        gen_cmd = [
+            sys.executable,
+            str(REPO_ROOT / "generate_reading_dsl.py"),
+            str(simplified),
+            str(article_txt),
+            "--segment",
+            segment_id,
+            "--output",
+            str(reading_dsl),
+            "--reader-speaker-id",
+            str(state.get("reader_speaker_id", 0)),
+        ]
+        gen_cmd.extend(reading_keep_rows_cli_args(state))
+        _run(gen_cmd)
         _run(
             [
                 sys.executable,

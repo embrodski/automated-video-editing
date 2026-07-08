@@ -843,6 +843,141 @@ SEGMENT_CONFIG = {
         },
         'transcript_file': r'E:\Inkhaven Avi\Temp\interview_transcript_simplified.json',
     },
+    # Tavi project — Tugi/Tavi interview
+    '47': {
+        'audio_file': r'e:\PodcastRoom\tavi\Input\Tugi Combined Audio-prepped.wav',
+        'audio_offset': 0,
+        'enable_color_match': False,
+        'video_files': {
+            'speaker_0': {
+                'file': r'e:\PodcastRoom\tavi\Input\Tugi host vid-prepped.mp4',
+                'offset': 0,
+            },
+            'speaker_1': {
+                'file': r'e:\PodcastRoom\tavi\Input\Tavi vid-prepped.mp4',
+                'offset': 0,
+            },
+            'wide': {
+                'file': r'e:\PodcastRoom\tavi\Input\Wide vid-prepped.mp4',
+                'offset': 0,
+            },
+        },
+        'transcript_file': r'e:\PodcastRoom\tavi\Temp\interview_transcript_simplified.json',
+    },
+    # Inkhaven harness Itsi — reading
+    '48': {
+        'audio_file': r'E:\Inkhaven Itsi\Input\Reading audio-prepped.wav',
+        'audio_offset': 0,
+        'use_video_embedded_audio': True,
+        'enable_color_match': False,
+        'video_files': {
+            'speaker_0': {
+                'file': r'E:\Inkhaven Itsi\Input\Reading front-prepped.mp4',
+                'offset': 0,
+            },
+            'speaker_1': {
+                'file': r'E:\Inkhaven Itsi\Input\Reading side-prepped.mp4',
+                'offset': 0,
+            },
+        },
+        'transcript_file': r'E:\Inkhaven Itsi\Temp\reading_transcript_simplified.json',
+    },
+    # Inkhaven harness Itsi — reading
+    '49': {
+        'audio_file': r'E:\Inkhaven Itsi\Input\Reading audio-prepped.wav',
+        'audio_offset': 0,
+        'use_video_embedded_audio': True,
+        'enable_color_match': False,
+        'video_files': {
+            'speaker_0': {
+                'file': r'E:\Inkhaven Itsi\Input\Reading front-prepped.mp4',
+                'offset': 0,
+            },
+            'speaker_1': {
+                'file': r'E:\Inkhaven Itsi\Input\Reading side-prepped.mp4',
+                'offset': 0,
+            },
+        },
+        'transcript_file': r'E:\Inkhaven Itsi\Temp\reading_transcript_simplified.json',
+    },
+    # Inkhaven harness Itsi — main interview
+    '50': {
+        'audio_file': r'E:\Inkhaven Itsi\Input\Main Clean Audio-prepped.wav',
+        'audio_offset': 0,
+        'enable_color_match': False,
+        'video_files': {
+            'speaker_0': {
+                'file': r'E:\Inkhaven Itsi\Input\Main Ben vid-prepped.mp4',
+                'offset': 0,
+            },
+            'speaker_1': {
+                'file': r'E:\Inkhaven Itsi\Input\Main Guest vid-prepped.mp4',
+                'offset': 0,
+            },
+            'wide': {
+                'file': r'E:\Inkhaven Itsi\Input\Main Wide vid-prepped.mp4',
+                'offset': 0,
+            },
+        },
+        'transcript_file': r'E:\Inkhaven Itsi\Temp\interview_transcript_simplified.json',
+    },
+    # Inkhaven harness Benjamin — reading
+    '51': {
+        'audio_file': r'E:\Inkhaven Benjamin\Input\Reading audio-prepped.wav',
+        'audio_offset': 0,
+        'use_video_embedded_audio': True,
+        'enable_color_match': False,
+        'video_files': {
+            'speaker_0': {
+                'file': r'E:\Inkhaven Benjamin\Input\Reading front-prepped.mp4',
+                'offset': 0,
+            },
+            'speaker_1': {
+                'file': r'E:\Inkhaven Benjamin\Input\Reading side-prepped.mp4',
+                'offset': 0,
+            },
+        },
+        'transcript_file': r'E:\Inkhaven Benjamin\Temp\reading_transcript_simplified.json',
+    },
+    # Inkhaven harness Benjamin — reading
+    '52': {
+        'audio_file': r'E:\Inkhaven Benjamin\Input\Reading audio-prepped.wav',
+        'audio_offset': 0,
+        'use_video_embedded_audio': True,
+        'enable_color_match': False,
+        'video_files': {
+            'speaker_0': {
+                'file': r'E:\Inkhaven Benjamin\Input\Reading front-prepped.mp4',
+                'offset': 0,
+            },
+            'speaker_1': {
+                'file': r'E:\Inkhaven Benjamin\Input\Reading side-prepped.mp4',
+                'offset': 0,
+            },
+        },
+        'transcript_file': r'E:\Inkhaven Benjamin\Temp\reading_transcript_simplified.json',
+    },
+    # Inkhaven harness Benjamin — main interview
+    '53': {
+        'audio_file': r'E:\Inkhaven Benjamin\Input\Main Clean Audio-prepped.wav',
+        'audio_offset': 0,
+        'enable_color_match': False,
+        'video_files': {
+            'speaker_0': {
+                'file': r'E:\Inkhaven Benjamin\Input\Main Ben vid-prepped.mp4',
+                'offset': 0,
+            },
+            'speaker_1': {
+                'file': r'E:\Inkhaven Benjamin\Input\Main Guest vid-prepped.mp4',
+                'offset': 0,
+            },
+            'wide': {
+                'file': r'E:\Inkhaven Benjamin\Input\Main Wide vid-prepped.mp4',
+                'offset': 0,
+            },
+        },
+        'transcript_file': r'E:\Inkhaven Benjamin\Temp\interview_transcript_simplified.json',
+    },
 }
 
 

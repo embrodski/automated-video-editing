@@ -70,6 +70,15 @@ ABBREVIATIONS = frozenset({
     "etc", "vs", "eg", "ie", "fig", "no", "vol", "ch",
 })
 
+# Token-coverage thresholds for stitch rescue and partial-coverage audits.
+PARTIAL_COVERAGE_THRESHOLD = 0.55
+STITCH_COVERAGE_GAIN = 0.05
+MAX_STITCH_GAP_ROWS = 4
+MIN_ARTICLE_WORDS_PARTIAL = 7
+SPURIOUS_COVERAGE_FLOOR = 0.20
+GAP_FILL_OFF_SCRIPT_MIN_SIM = 0.35
+GAP_FILL_MIDDLE_GAIN = 0.03
+
 
 @dataclass
 class ArticleSentence:
@@ -343,10 +352,119 @@ def _apply_contraction_expanders(text: str, expanders: Tuple[Tuple[str, str], ..
     return out
 
 
+_CARDINAL_ONES: Tuple[str, ...] = (
+    "zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine",
+)
+_CARDINAL_TEENS: Tuple[str, ...] = (
+    "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen",
+    "seventeen", "eighteen", "nineteen",
+)
+_CARDINAL_TENS: dict[int, str] = {
+    10: "ten",
+    20: "twenty",
+    30: "thirty",
+    40: "forty",
+    50: "fifty",
+    60: "sixty",
+    70: "seventy",
+    80: "eighty",
+    90: "ninety",
+}
+
+_ORDINAL_ONES: Tuple[str, ...] = (
+    "zeroth", "first", "second", "third", "fourth", "fifth", "sixth", "seventh",
+    "eighth", "ninth",
+)
+_ORDINAL_TEENS: Tuple[str, ...] = (
+    "tenth", "eleventh", "twelfth", "thirteenth", "fourteenth", "fifteenth",
+    "sixteenth", "seventeenth", "eighteenth", "nineteenth",
+)
+_ORDINAL_TENS: dict[int, str] = {
+    20: "twentieth",
+    30: "thirtieth",
+    40: "fortieth",
+    50: "fiftieth",
+    60: "sixtieth",
+    70: "seventieth",
+    80: "eightieth",
+    90: "ninetieth",
+    100: "hundredth",
+}
+
+
+def _cardinal_under_100_to_words(n: int) -> str:
+    if n < 0 or n > 99:
+        return str(n)
+    if n < 10:
+        return _CARDINAL_ONES[n]
+    if n < 20:
+        return _CARDINAL_TEENS[n - 10]
+    tens, ones = divmod(n, 10)
+    tens_word = _CARDINAL_TENS[tens * 10]
+    if ones == 0:
+        return tens_word
+    return f"{tens_word} {_CARDINAL_ONES[ones]}"
+
+
+def _ordinal_to_words(n: int) -> str:
+    if n <= 0 or n > 100:
+        return str(n)
+    if n < 10:
+        return _ORDINAL_ONES[n]
+    if n < 20:
+        return _ORDINAL_TEENS[n - 10]
+    if n % 10 == 0:
+        return _ORDINAL_TENS[n]
+    tens, ones = divmod(n, 10)
+    return f"{_CARDINAL_TENS[tens * 10]} {_ORDINAL_ONES[ones]}"
+
+
+def _year_to_words(n: int) -> str:
+    if 1900 <= n <= 1999:
+        tail = n % 100
+        if tail == 0:
+            return "nineteen hundred"
+        return f"nineteen {_cardinal_under_100_to_words(tail)}"
+    if 2000 <= n <= 2099:
+        tail = n % 100
+        if tail == 0:
+            return "two thousand"
+        return f"twenty {_cardinal_under_100_to_words(tail)}"
+    return str(n)
+
+
+def expand_numbers_in_text(text: str) -> str:
+    """Expand digit/ordinal forms so they match spoken transcript tokens."""
+    if not text:
+        return text
+
+    def _sub_ordinal(match: re.Match[str]) -> str:
+        return _ordinal_to_words(int(match.group(1)))
+
+    out = re.sub(r"\b(\d{1,3})(st|nd|rd|th)\b", _sub_ordinal, text)
+
+    def _sub_year(match: re.Match[str]) -> str:
+        return _year_to_words(int(match.group(0)))
+
+    out = re.sub(r"\b(20\d{2}|19\d{2})\b", _sub_year, out)
+
+    def _sub_two_digit(match: re.Match[str]) -> str:
+        return _cardinal_under_100_to_words(int(match.group(0)))
+
+    out = re.sub(r"\b(\d{2})\b", _sub_two_digit, out)
+
+    def _sub_one_digit(match: re.Match[str]) -> str:
+        return _CARDINAL_ONES[int(match.group(0))]
+
+    out = re.sub(r"\b(\d)\b", _sub_one_digit, out)
+    return out
+
+
 def normalize_base(text: str) -> str:
     """Lowercase, unify apostrophes, drop other punctuation, collapse whitespace."""
     text = text.lower().translate(_APOSTROPHE_VARIANTS)
     text = re.sub(r"[^a-z0-9' ]+", " ", text)
+    text = expand_numbers_in_text(text)
     return re.sub(r"\s+", " ", text).strip()
 
 
@@ -851,12 +969,230 @@ def align_rows(
 def _match_article_norm(m: RowMatch, article: List[ArticleSentence]) -> str:
     if m.a_start is None or m.a_end is None:
         return ""
+    if m.a_start < 0 or m.a_end >= len(article) or m.a_start > m.a_end:
+        return ""
     return " ".join(article[i].norm for i in range(m.a_start, m.a_end + 1))
 
 
 def _combined_rows_similarity(rows: List[TranscriptRow], article_norm: str) -> float:
     joined = normalize(" ".join(row.text for row in rows))
     return sim(joined, article_norm)
+
+
+def _article_span_tokens(
+    article: List[ArticleSentence],
+    a_start: int,
+    a_end: int,
+) -> List[str]:
+    if a_start < 0 or a_end >= len(article) or a_start > a_end:
+        return []
+    return normalize(
+        " ".join(article[i].text for i in range(a_start, a_end + 1))
+    ).split()
+
+
+def _row_tokens(row: TranscriptRow) -> List[str]:
+    return normalize(row.text).split()
+
+
+def _token_subsequence_coverage(
+    utterance_tokens: List[str],
+    article_tokens: List[str],
+) -> float:
+    """Fraction of article_tokens matched in order within utterance_tokens."""
+    if not article_tokens:
+        return 1.0
+    j = 0
+    for t in utterance_tokens:
+        if j < len(article_tokens) and t == article_tokens[j]:
+            j += 1
+    return j / len(article_tokens)
+
+
+def _first_matched_article_token_index(
+    utterance_tokens: List[str],
+    article_tokens: List[str],
+) -> Optional[int]:
+    j = 0
+    first_idx: Optional[int] = None
+    for t in utterance_tokens:
+        if j < len(article_tokens) and t == article_tokens[j]:
+            if first_idx is None:
+                first_idx = j
+            j += 1
+    return first_idx
+
+
+def _combined_match_tokens(matches: List[RowMatch]) -> List[str]:
+    ordered = sorted(matches, key=lambda m: m.row.idx)
+    return normalize(" ".join(m.row.text for m in ordered)).split()
+
+
+def _skip_stumble_tokens(tokens: List[str]) -> List[str]:
+    """Drop obvious false-start fragments that block ordered article matching."""
+    out: List[str] = []
+    for t in tokens:
+        if t in {"uh", "um", "er", "ah"}:
+            continue
+        if t.endswith("--"):
+            continue
+        out.append(t)
+    return out
+
+
+def _advance_article_cursor(
+    utterance_tokens: List[str],
+    article_tokens: List[str],
+    start_j: int = 0,
+) -> int:
+    j = start_j
+    for t in utterance_tokens:
+        if j < len(article_tokens) and t == article_tokens[j]:
+            j += 1
+    return j
+
+
+def _row_article_cursor(
+    match: RowMatch,
+    article_tokens: List[str],
+    start_j: int = 0,
+    *,
+    skip_stumbles: bool = True,
+) -> int:
+    tokens = _row_tokens(match.row)
+    if skip_stumbles:
+        tokens = _skip_stumble_tokens(tokens)
+    return _advance_article_cursor(tokens, article_tokens, start_j)
+
+
+def _ordered_span_coverage(
+    matches: List[RowMatch],
+    article_tokens: List[str],
+    *,
+    skip_stumbles: bool = True,
+) -> float:
+    """Fraction of article_tokens matched in order across rows (transcript order)."""
+    if not article_tokens:
+        return 1.0
+    j = 0
+    for m in sorted(matches, key=lambda x: x.row.idx):
+        tokens = _row_tokens(m.row)
+        if skip_stumbles:
+            tokens = _skip_stumble_tokens(tokens)
+        j = _advance_article_cursor(tokens, article_tokens, j)
+    return j / len(article_tokens)
+
+
+def _is_complementary_span_pair(
+    earlier: RowMatch,
+    later: RowMatch,
+    article_tokens: List[str],
+) -> bool:
+    """True when *later* continues *earlier* through the article (not a duplicate re-read)."""
+    if earlier.row.idx >= later.row.idx:
+        return False
+    if not article_tokens:
+        return False
+
+    j_e = _row_article_cursor(earlier, article_tokens, 0)
+    j_el = _row_article_cursor(later, article_tokens, j_e)
+    j_l = _row_article_cursor(later, article_tokens, 0)
+    n = len(article_tokens)
+
+    if j_el <= max(j_e, j_l) + 1:
+        return False
+    # Two full reads of the same span — keep only the stronger take.
+    if j_e >= 0.45 * n and j_l >= 0.45 * n and abs(j_e - j_l) <= 2:
+        return False
+
+    gain_frac = (j_el - max(j_e, j_l)) / n
+    if gain_frac >= STITCH_COVERAGE_GAIN:
+        return True
+    return j_e >= 3 and j_el > j_e + 1
+
+
+def _matches_span_coverage(
+    matches: List[RowMatch],
+    article: List[ArticleSentence],
+    a_start: int,
+    a_end: int,
+) -> float:
+    article_tokens = _article_span_tokens(article, a_start, a_end)
+    if not article_tokens:
+        return 1.0
+    ordered = _ordered_span_coverage(matches, article_tokens)
+    article_norm = _article_span_norm(article, a_start, a_end)
+    if not article_norm:
+        return ordered
+    sim = _combined_rows_similarity(
+        [m.row for m in sorted(matches, key=lambda x: x.row.idx)],
+        article_norm,
+    )
+    return max(ordered, sim)
+
+
+def _same_span_should_stitch(
+    earlier: RowMatch,
+    later: RowMatch,
+    article: List[ArticleSentence],
+) -> bool:
+    """True when two same-span rows complement each other (continuation), not duplicate re-reads."""
+    if earlier.a_start is None or later.a_start is None:
+        return False
+    if earlier.a_start != later.a_start or earlier.a_end != later.a_end:
+        return False
+    if earlier.row.idx >= later.row.idx:
+        return False
+
+    article_tokens = _article_span_tokens(article, earlier.a_start, earlier.a_end)
+    if len(article_tokens) < 4:
+        return False
+
+    return _is_complementary_span_pair(earlier, later, article_tokens)
+
+
+def _eligible_gap_fill_row(candidate: RowMatch, force_keep: set) -> bool:
+    if candidate.row.idx in force_keep or candidate.keep_anyway:
+        return True
+    if not candidate.off_script:
+        return True
+    return candidate.similarity >= GAP_FILL_OFF_SCRIPT_MIN_SIM
+
+
+def _can_rescue_stitch_candidate(
+    candidate: RowMatch,
+    kept_on_span: List[RowMatch],
+    article: List[ArticleSentence],
+    *,
+    force_keep: set,
+) -> bool:
+    if candidate.a_start is None or candidate.a_end is None:
+        return False
+    if candidate.row.idx in force_keep:
+        return True
+    a_start, a_end = candidate.a_start, candidate.a_end
+    article_tokens = _article_span_tokens(article, a_start, a_end)
+    if len(article_tokens) < 4:
+        return False
+
+    before_cov = _matches_span_coverage(kept_on_span, article, a_start, a_end)
+    trial = sorted(kept_on_span + [candidate], key=lambda m: m.row.idx)
+    after_cov = _matches_span_coverage(trial, article, a_start, a_end)
+    if after_cov <= before_cov + STITCH_COVERAGE_GAIN:
+        return False
+
+    if not _eligible_gap_fill_row(candidate, force_keep):
+        return False
+
+    for kept in kept_on_span:
+        earlier, later = (
+            (candidate, kept) if candidate.row.idx < kept.row.idx else (kept, candidate)
+        )
+        if earlier.row.idx == later.row.idx:
+            continue
+        if _is_complementary_span_pair(earlier, later, article_tokens):
+            return True
+    return after_cov > before_cov + STITCH_COVERAGE_GAIN
 
 
 def _tail_same_range_cluster(
@@ -889,7 +1225,8 @@ def _should_keep_split_chunk(
         return False
     if current.a_start is None or current.a_end is None:
         return False
-    if current.row.idx + 1 != tail_cluster[0].row.idx:
+    gap = tail_cluster[0].row.idx - current.row.idx
+    if gap < 1 or gap > MAX_STITCH_GAP_ROWS:
         return False
 
     article_norm = _match_article_norm(current, article)
@@ -906,6 +1243,17 @@ def _should_keep_split_chunk(
     return combined_score > existing_score + 0.08 and (
         not current.off_script or current.similarity >= 0.40
     )
+
+
+def _trailing_cursor_continuation(
+    prev_m: RowMatch,
+    candidate: RowMatch,
+    article_tokens: List[str],
+) -> bool:
+    """True when *candidate* continues the article cursor after *prev_m*."""
+    j_prev = _row_article_cursor(prev_m, article_tokens, 0)
+    j_after = _row_article_cursor(candidate, article_tokens, j_prev)
+    return j_after > j_prev + 1
 
 
 def _can_rescue_row_in_split_pair(
@@ -946,7 +1294,8 @@ def _augment_split_chunk_pairs(
             continue
         if left.a_start != right.a_start or left.a_end != right.a_end:
             continue
-        if right.row.idx != left.row.idx + 1:
+        gap = right.row.idx - left.row.idx
+        if gap < 1 or gap > MAX_STITCH_GAP_ROWS:
             continue
 
         left_kept = left.row.idx in kept_by_idx
@@ -981,6 +1330,8 @@ def _article_span_norm(
     a_start: int,
     a_end: int,
 ) -> str:
+    if a_start < 0 or a_end >= len(article) or a_start > a_end:
+        return ""
     return " ".join(article[i].norm for i in range(a_start, a_end + 1))
 
 
@@ -1036,7 +1387,8 @@ def _augment_prefix_chunk_pairs(
     for i in range(len(matches) - 1):
         prefix = matches[i]
         partner = matches[i + 1]
-        if partner.row.idx != prefix.row.idx + 1:
+        gap = partner.row.idx - prefix.row.idx
+        if gap < 1 or gap > MAX_STITCH_GAP_ROWS:
             continue
         if partner.row.idx not in kept_by_idx:
             continue
@@ -1086,23 +1438,34 @@ def _try_replace_same_span_weaker_match(
     kept_reversed: List[RowMatch],
     *,
     allow_adjacent: bool = False,
+    force_keep: Optional[set] = None,
+    article: Optional[List[ArticleSentence]] = None,
 ) -> Optional[str]:
     """If a later kept row matches the same article span, keep the higher-similarity row.
 
-    Returns ``"replaced"``, ``"dropped_weaker"``, or ``None`` when no same-span later row exists.
+    Returns ``"replaced"``, ``"dropped_weaker"``, ``"stitch"``, or ``None``.
     """
     if m.a_start is None or m.a_end is None:
         return None
+    fk = force_keep or set()
     for i, k in enumerate(kept_reversed):
         if k.a_start != m.a_start or k.a_end != m.a_end:
             continue
+        if article is not None and 1 <= abs(m.row.idx - k.row.idx) <= MAX_STITCH_GAP_ROWS:
+            earlier, later = (m, k) if m.row.idx < k.row.idx else (k, m)
+            if _same_span_should_stitch(earlier, later, article):
+                return "stitch"
         # Consecutive rows on one chunk are often one sentence split in two; let
         # split-chunk rescue decide instead of keeping only the higher-sim half.
         if not allow_adjacent and abs(m.row.idx - k.row.idx) == 1:
             return None
         if m.similarity > k.similarity + 1e-6:
+            if k.row.idx in fk:
+                return "dropped_weaker"
             kept_reversed[i] = m
             return "replaced"
+        if m.row.idx in fk:
+            return None
         return "dropped_weaker"
     return None
 
@@ -1132,10 +1495,19 @@ def select_kept(
         if m.a_start is None:
             continue
 
-        same_span = _try_replace_same_span_weaker_match(m, kept_reversed)
+        same_span = _try_replace_same_span_weaker_match(
+            m, kept_reversed, force_keep=force_keep, article=article,
+        )
         if same_span == "dropped_weaker":
             continue
         if same_span == "replaced":
+            continue
+        if same_span == "stitch":
+            kept_reversed.append(m)
+            selection_notes.append(
+                f"Stitched continuation: kept row {m.row.idx} with same-span partner(s) "
+                f"for article [{m.a_start}:{m.a_end}]"
+            )
             continue
 
         if _is_strictly_superseded_by_later_kept(m, kept_reversed):
@@ -1155,7 +1527,8 @@ def select_kept(
                 if abs(m.row.idx - tail_cluster[0].row.idx) == 1:
                     # Same chunk, consecutive rows, but not a complementary split → duplicate take.
                     same_span = _try_replace_same_span_weaker_match(
-                        m, kept_reversed, allow_adjacent=True,
+                        m, kept_reversed, allow_adjacent=True, force_keep=force_keep,
+                        article=article,
                     )
                     if same_span in ("dropped_weaker", "replaced"):
                         continue
@@ -1166,7 +1539,281 @@ def select_kept(
     kept_reversed.reverse()
     kept = _augment_split_chunk_pairs(matches, kept_reversed, article, selection_notes)
     kept = _augment_prefix_chunk_pairs(matches, kept, article, selection_notes)
+    kept = _augment_same_span_stitches(matches, kept, article, selection_notes, force_keep)
+    kept = _augment_gap_fill_rows(matches, kept, article, selection_notes, force_keep)
+    kept = _prune_spurious_kept_rows(kept, article, force_keep, selection_notes)
     return kept, selection_notes
+
+
+def _augment_same_span_stitches(
+    matches: List[RowMatch],
+    kept: List[RowMatch],
+    article: List[ArticleSentence],
+    selection_notes: List[str],
+    force_keep: set,
+) -> List[RowMatch]:
+    """Rescue dropped/off rows on the same article span when they fill coverage gaps."""
+    kept_by_idx = {m.row.idx: m for m in kept}
+    spans: dict[Tuple[int, int], List[RowMatch]] = {}
+    for m in kept:
+        if m.a_start is None or m.a_end is None:
+            continue
+        spans.setdefault((m.a_start, m.a_end), []).append(m)
+
+    for (a_start, a_end), kept_on_span in spans.items():
+        if a_start < 0 or a_end >= len(article):
+            continue
+        article_tokens = _article_span_tokens(article, a_start, a_end)
+        if len(article_tokens) < MIN_ARTICLE_WORDS_PARTIAL:
+            continue
+
+        current = sorted(kept_on_span, key=lambda m: m.row.idx)
+        coverage = _matches_span_coverage(current, article, a_start, a_end)
+        if coverage >= PARTIAL_COVERAGE_THRESHOLD:
+            continue
+
+        min_idx = current[0].row.idx
+        max_idx = current[-1].row.idx
+        candidates = [
+            m
+            for m in matches
+            if m.a_start == a_start
+            and m.a_end == a_end
+            and m.row.idx not in kept_by_idx
+            and min_idx - MAX_STITCH_GAP_ROWS <= m.row.idx <= max_idx + MAX_STITCH_GAP_ROWS
+        ]
+
+        improved = True
+        while improved and coverage < PARTIAL_COVERAGE_THRESHOLD:
+            improved = False
+            best: Optional[RowMatch] = None
+            best_cov = coverage
+            for cand in sorted(candidates, key=lambda m: m.row.idx):
+                if cand.row.idx in kept_by_idx:
+                    continue
+                if not _can_rescue_stitch_candidate(
+                    cand, current, article, force_keep=force_keep
+                ):
+                    continue
+                trial_cov = _matches_span_coverage(
+                    sorted(current + [cand], key=lambda m: m.row.idx),
+                    article,
+                    a_start,
+                    a_end,
+                )
+                if trial_cov > best_cov + STITCH_COVERAGE_GAIN:
+                    best = cand
+                    best_cov = trial_cov
+            if best is not None:
+                rescued = RowMatch(
+                    row=best.row,
+                    a_start=best.a_start,
+                    a_end=best.a_end,
+                    similarity=max(best.similarity, 0.88),
+                    off_script=False,
+                    keep_anyway=best.keep_anyway,
+                )
+                kept_by_idx[rescued.row.idx] = rescued
+                current = sorted(current + [rescued], key=lambda m: m.row.idx)
+                coverage = best_cov
+                improved = True
+                selection_notes.append(
+                    f"Rescued stitch row {rescued.row.idx} for article [{a_start}:{a_end}] "
+                    f"(coverage -> {coverage:.0%})"
+                )
+
+    return sorted(kept_by_idx.values(), key=lambda m: m.row.idx)
+
+
+def _augment_gap_fill_rows(
+    matches: List[RowMatch],
+    kept: List[RowMatch],
+    article: List[ArticleSentence],
+    selection_notes: List[str],
+    force_keep: set,
+) -> List[RowMatch]:
+    """Rescue dropped rows that sit in transcript gaps between kept same-span takes."""
+    kept_by_idx = {m.row.idx: m for m in kept}
+    match_by_idx = {m.row.idx: m for m in matches}
+
+    spans: dict[Tuple[int, int], List[RowMatch]] = {}
+    for m in kept:
+        if m.a_start is not None and m.a_end is not None:
+            spans.setdefault((m.a_start, m.a_end), []).append(m)
+
+    for (a_start, a_end), kept_on_span in spans.items():
+        article_tokens = _article_span_tokens(article, a_start, a_end)
+        if len(article_tokens) < 4:
+            continue
+
+        improved = True
+        while improved:
+            improved = False
+            span_kept = sorted(
+                [m for m in kept_by_idx.values() if m.a_start == a_start and m.a_end == a_end],
+                key=lambda m: m.row.idx,
+            )
+            if not span_kept:
+                break
+            kept_ids = {m.row.idx for m in span_kept}
+            coverage = _matches_span_coverage(span_kept, article, a_start, a_end)
+            min_idx = span_kept[0].row.idx
+            max_idx = span_kept[-1].row.idx
+
+            best: Optional[RowMatch] = None
+            best_cov = coverage
+            best_label = ""
+
+            for cand in matches:
+                if cand.row.idx in kept_by_idx:
+                    continue
+                if not _eligible_gap_fill_row(cand, force_keep):
+                    continue
+
+                prev_kept = max((i for i in kept_ids if i < cand.row.idx), default=None)
+                next_kept = min((i for i in kept_ids if i > cand.row.idx), default=None)
+
+                on_span = cand.a_start == a_start and cand.a_end == a_end
+                rescue_match = cand
+                if not on_span:
+                    if prev_kept is None:
+                        continue
+                    prev_m = kept_by_idx[prev_kept]
+                    if cand.row.idx - prev_kept > MAX_STITCH_GAP_ROWS:
+                        continue
+                    article_tokens = _article_span_tokens(article, prev_m.a_start, prev_m.a_end)
+                    if not (
+                        _can_rescue_row_in_split_pair(cand, [prev_m], article)
+                        or _trailing_cursor_continuation(prev_m, cand, article_tokens)
+                    ):
+                        continue
+                    rescue_match = RowMatch(
+                        row=cand.row,
+                        a_start=prev_m.a_start,
+                        a_end=prev_m.a_end,
+                        similarity=max(cand.similarity, 0.88),
+                        off_script=False,
+                        keep_anyway=cand.keep_anyway,
+                    )
+                    label = f"after row {prev_kept} (re-aligned span)"
+                elif prev_kept is not None and next_kept is not None:
+                    if not (prev_kept < cand.row.idx < next_kept):
+                        continue
+                    if cand.row.idx - prev_kept > MAX_STITCH_GAP_ROWS:
+                        continue
+                    if next_kept - cand.row.idx > MAX_STITCH_GAP_ROWS:
+                        continue
+                    label = f"between rows {prev_kept} and {next_kept}"
+                elif prev_kept is not None:
+                    gap = cand.row.idx - prev_kept
+                    if gap < 1 or gap > MAX_STITCH_GAP_ROWS:
+                        continue
+                    label = f"after row {prev_kept}"
+                elif next_kept is not None:
+                    gap = next_kept - cand.row.idx
+                    if gap < 1 or gap > MAX_STITCH_GAP_ROWS:
+                        continue
+                    label = f"before row {next_kept}"
+                else:
+                    continue
+
+                if cand.row.idx < min_idx - MAX_STITCH_GAP_ROWS or cand.row.idx > max_idx + MAX_STITCH_GAP_ROWS:
+                    continue
+
+                trial = sorted(span_kept + [rescue_match], key=lambda m: m.row.idx)
+                after_cov = _matches_span_coverage(trial, article, a_start, a_end)
+                needed_gain = STITCH_COVERAGE_GAIN
+                if (
+                    prev_kept is not None
+                    and next_kept is not None
+                    and prev_kept < cand.row.idx < next_kept
+                ):
+                    needed_gain = GAP_FILL_MIDDLE_GAIN
+                if after_cov <= best_cov + needed_gain:
+                    continue
+
+                if after_cov > best_cov + needed_gain:
+                    best = rescue_match
+                    best_cov = after_cov
+                    best_label = label
+
+            if best is not None:
+                rescued = RowMatch(
+                    row=best.row,
+                    a_start=best.a_start,
+                    a_end=best.a_end,
+                    similarity=max(best.similarity, 0.88),
+                    off_script=False,
+                    keep_anyway=best.keep_anyway,
+                )
+                kept_by_idx[rescued.row.idx] = rescued
+                improved = True
+                selection_notes.append(
+                    f"Gap-fill: kept row {rescued.row.idx} {best_label} "
+                    f"for article [{a_start}:{a_end}] (coverage -> {best_cov:.0%})"
+                )
+
+    return sorted(kept_by_idx.values(), key=lambda m: m.row.idx)
+
+
+def _prune_spurious_kept_rows(
+    kept: List[RowMatch],
+    article: List[ArticleSentence],
+    force_keep: set,
+    selection_notes: List[str],
+) -> List[RowMatch]:
+    """Drop kept rows that barely overlap their matched article span (e.g. footer junk)."""
+    by_span: dict[Tuple[int, int], List[RowMatch]] = {}
+    for m in kept:
+        if m.a_start is not None and m.a_end is not None:
+            by_span.setdefault((m.a_start, m.a_end), []).append(m)
+
+    pruned: List[RowMatch] = []
+    for m in kept:
+        if m.row.idx in force_keep or m.keep_anyway:
+            pruned.append(m)
+            continue
+        if m.a_start is None or m.a_end is None:
+            pruned.append(m)
+            continue
+        article_tokens = _article_span_tokens(article, m.a_start, m.a_end)
+        if not article_tokens:
+            selection_notes.append(
+                f"Pruned spurious kept row {m.row.idx} "
+                f"(invalid article span [{m.a_start}:{m.a_end}])"
+            )
+            continue
+
+        span_mates = [
+            k for k in by_span.get((m.a_start, m.a_end), [])
+            if k.row.idx != m.row.idx
+        ]
+        if span_mates:
+            with_cov = _matches_span_coverage(
+                span_mates + [m], article, m.a_start, m.a_end,
+            )
+            without_cov = _matches_span_coverage(
+                span_mates, article, m.a_start, m.a_end,
+            )
+            if with_cov > without_cov + STITCH_COVERAGE_GAIN:
+                pruned.append(m)
+                continue
+
+        cov = _token_subsequence_coverage(_row_tokens(m.row), article_tokens)
+        if cov >= SPURIOUS_COVERAGE_FLOOR:
+            pruned.append(m)
+            continue
+        if len(article_tokens) < MIN_ARTICLE_WORDS_PARTIAL:
+            selection_notes.append(
+                f"Pruned spurious kept row {m.row.idx} (coverage {cov:.0%} on "
+                f"short article [{m.a_start}:{m.a_end}])"
+            )
+            continue
+        selection_notes.append(
+            f"Pruned spurious kept row {m.row.idx} (coverage {cov:.0%} on "
+            f"article [{m.a_start}:{m.a_end}])"
+        )
+    return pruned
 
 
 def apply_overlap_tail_trim(
@@ -1946,6 +2593,39 @@ def build_sanity_report(
     def _entry(idx: int) -> dict:
         return {"idx": idx, "text": article[idx].text}
 
+    partial_coverage: List[dict] = []
+    span_groups: dict[int, List[RowMatch]] = {}
+    for m in kept:
+        if m.a_start is None or m.a_end is None or m.a_start != m.a_end:
+            continue
+        span_groups.setdefault(m.a_start, []).append(m)
+
+    for idx, group in span_groups.items():
+        if idx not in covered_set:
+            continue
+        article_tokens = _article_span_tokens(article, idx, idx)
+        if len(article_tokens) < MIN_ARTICLE_WORDS_PARTIAL:
+            continue
+        cov = _matches_span_coverage(group, article, idx, idx)
+        if cov < PARTIAL_COVERAGE_THRESHOLD:
+            partial_coverage.append({
+                "kind": "partial_coverage",
+                "idx": idx,
+                "coverage": round(cov, 3),
+                "kept_rows": [m.row.idx for m in sorted(group, key=lambda x: x.row.idx)],
+                "text": article[idx].text,
+            })
+
+    warnings = [
+        {
+            "kind": "missing_chunk",
+            "idx": idx,
+            "text": article[idx].text,
+        }
+        for idx in missing
+    ]
+    warnings.extend(partial_coverage)
+
     return {
         "version": 1,
         "article_path": str(article_path),
@@ -1956,21 +2636,16 @@ def build_sanity_report(
         # Missing chunks are allowed: the reader may skip sentences (including captions),
         # and the canonical article text may contain lines that were not spoken aloud.
         "blocking_issues": [],
-        "warnings": [
-            {
-                "kind": "missing_chunk",
-                "idx": idx,
-                "text": article[idx].text,
-            }
-            for idx in missing
-        ],
+        "warnings": warnings,
         "summary": {
             "covered_count": len(covered_chunks),
             "missing_count": len(missing),
             "internal_missing_count": len(internal_missing),
             "trailing_missing_count": len(trailing_missing),
+            "partial_coverage_count": len(partial_coverage),
         },
         "missing_chunks": [_entry(idx) for idx in missing],
+        "partial_coverage_chunks": partial_coverage,
     }
 
 
@@ -2060,6 +2735,22 @@ def main() -> int:
             print(f"  [{i}] {safe}")
         if len(missing) > 15:
             print(f"  ... and {len(missing) - 15} more")
+
+    partial = sanity_report.get("partial_coverage_chunks") or []
+    if partial:
+        print(f"Warning: {len(partial)} article chunk(s) with partial audio coverage:")
+        enc = getattr(sys.stdout, "encoding", None) or "utf-8"
+        for entry in partial[:15]:
+            txt = entry["text"]
+            if len(txt) > 70:
+                txt = txt[:67] + "..."
+            safe = txt.encode(enc, errors="replace").decode(enc, errors="replace")
+            print(
+                f"  [{entry['idx']}] {entry['coverage']:.0%} covered "
+                f"(rows {entry['kept_rows']}): {safe}"
+            )
+        if len(partial) > 15:
+            print(f"  ... and {len(partial) - 15} more")
 
     if args.verbose:
         print("\nPer-row matches:")

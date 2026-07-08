@@ -254,6 +254,21 @@ def find_clean_audio_files(
     return results
 
 
+def podcast_swap_speaker_ids_cli_args(state: dict) -> list[str]:
+    """CLI args for convert_transcript_json.py --swap-speaker-ids."""
+    if state.get("swap_speaker_ids"):
+        return ["--swap-speaker-ids"]
+    return []
+
+
+def reading_keep_rows_cli_args(state: dict) -> list[str]:
+    """CLI args for generate_reading_dsl.py --keep-rows from episode state."""
+    rows = state.get("reading_keep_rows")
+    if not rows:
+        return []
+    return ["--keep-rows", ",".join(str(int(r)) for r in rows)]
+
+
 def should_skip_reading(state: dict) -> bool:
     return bool(state.get("skip_reading"))
 

@@ -11,7 +11,13 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from harness_autocut_common import render_dsl, run_cmd
-from harness_episode_lib import REPO_ROOT, load_episode_state, save_episode_state, step_state
+from harness_episode_lib import (
+    REPO_ROOT,
+    load_episode_state,
+    podcast_swap_speaker_ids_cli_args,
+    save_episode_state,
+    step_state,
+)
 
 
 def rebuild_interview_dsl(state: dict) -> Path:
@@ -21,16 +27,15 @@ def rebuild_interview_dsl(state: dict) -> Path:
     segment_id = state["main_segment_id"]
     detail_json = Path(state["main_transcript_json"])
 
-    if not simplified.is_file():
-        run_cmd(
-            [
-                sys.executable,
-                str(REPO_ROOT / "convert_transcript_json.py"),
-                str(detail_json),
-                "-o",
-                str(simplified),
-            ]
-        )
+    convert_cmd = [
+        sys.executable,
+        str(REPO_ROOT / "convert_transcript_json.py"),
+        str(detail_json),
+        "-o",
+        str(simplified),
+    ]
+    convert_cmd.extend(podcast_swap_speaker_ids_cli_args(state))
+    run_cmd(convert_cmd)
     run_cmd(
         [
             sys.executable,

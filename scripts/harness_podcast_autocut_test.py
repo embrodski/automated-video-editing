@@ -18,6 +18,7 @@ from harness_episode_lib import (
     REPO_ROOT,
     load_episode_state,
     next_segment_id,
+    podcast_swap_speaker_ids_cli_args,
     register_segment,
     save_episode_state,
     should_skip_reading,
@@ -82,15 +83,15 @@ def main() -> int:
         for path in (simplified, interview_dsl, out_mp4):
             refuse_overwrite(path, allow_overwrite=args.allow_overwrite)
 
-        _run(
-            [
-                sys.executable,
-                str(REPO_ROOT / "convert_transcript_json.py"),
-                str(detail_json),
-                "-o",
-                str(simplified),
-            ]
-        )
+        convert_cmd = [
+            sys.executable,
+            str(REPO_ROOT / "convert_transcript_json.py"),
+            str(detail_json),
+            "-o",
+            str(simplified),
+        ]
+        convert_cmd.extend(podcast_swap_speaker_ids_cli_args(state))
+        _run(convert_cmd)
 
         segment_id = state.get("main_segment_id") or next_segment_id()
         if not state.get("main_segment_id"):

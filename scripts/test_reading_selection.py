@@ -104,6 +104,18 @@ class ReadingSelectionTests(unittest.TestCase):
         self.assertEqual(spoken, written)
         self.assertNotEqual(normalize("I'd already left."), normalize_had("I'd already left."))
 
+    def test_normalize_expands_digits_and_ordinals_for_spoken_match(self) -> None:
+        self.assertEqual(normalize("2026"), normalize("twenty twenty-six"))
+        self.assertEqual(normalize("2025"), normalize("twenty twenty-five"))
+        self.assertEqual(normalize("9th"), normalize("ninth"))
+        self.assertEqual(normalize("17th"), normalize("seventeenth"))
+        self.assertEqual(normalize("20th"), normalize("twentieth"))
+        self.assertEqual(normalize("100th"), normalize("hundredth"))
+        self.assertEqual(
+            normalize("released on the 9th of April 2026"),
+            normalize("released on the ninth of April, twenty twenty-six"),
+        )
+
     def test_align_rows_keeps_middle_clause_after_you_would_expansion(self) -> None:
         tossup = (
             "It was a toss-up between two people in the end, and I picked you – "
@@ -145,10 +157,10 @@ class ReadingSelectionTests(unittest.TestCase):
                 "If you are alone, that\u2019s okay\u2014four is ideal, but as few as two can do in a pinch.",
             ),
         ]
-        prefix = _match(63, "If you are alone, that's okay.", 75, 75, 0.51)
+        prefix = _match(63, "If you are alone, that's okay.", 0, 0, 0.51)
         prefix.off_script = True
         matches = [
-            _match(62, "each of you only needs to recruit one other person.", 58, 58, 0.60),
+            _match(62, "each of you only needs to recruit one other person.", 0, 0, 0.60),
             prefix,
             _match(64, "Four is ideal, but as few as two can do in a pinch.", 0, 0, 0.90),
         ]
@@ -156,7 +168,12 @@ class ReadingSelectionTests(unittest.TestCase):
         kept, notes = select_kept(matches, force_keep=set(), article=article)
 
         self.assertIn(63, {m.row.idx for m in kept})
-        self.assertTrue(any("prefix chunk" in note and "row 63" in note for note in notes))
+        self.assertTrue(
+            any(
+                ("prefix chunk" in note or "stitch" in note.lower()) and "row 63" in note
+                for note in notes
+            )
+        )
 
     def test_weak_late_header_match_does_not_drop_middle_paragraphs(self) -> None:
         """Regression: Viv-style flub matched only the section header must not erase rows 42-49."""
@@ -168,22 +185,22 @@ class ReadingSelectionTests(unittest.TestCase):
             _article(50, "therefore i think that when upstanding members encounter a bluetooth speaker person they should seize"),
         ]
         matches = [
-            _match(42, "finally what upstanding members of the public should do", 41, 41, 0.95),
-            _match(43, "despite the weakness of the foregoing arguments", 42, 42, 1.0),
-            _match(44, "perhaps you give the bluetooth speaker person a dirty look", 43, 43, 1.0),
-            _match(53, "probably it is because they too are very disagreeable", 49, 49, 1.0),
+            _match(42, "finally what upstanding members of the public should do", 0, 0, 0.95),
+            _match(43, "despite the weakness of the foregoing arguments", 1, 1, 1.0),
+            _match(44, "perhaps you give the bluetooth speaker person a dirty look", 2, 2, 1.0),
+            _match(53, "probably it is because they too are very disagreeable", 3, 3, 1.0),
             _match(
                 54,
                 "therefore i think that upstanding members should be able to do what they want",
-                41,
-                41,
+                0,
+                0,
                 0.58,
             ),
             _match(
                 55,
                 "therefore i think that when upstanding members encounter a bluetooth speaker person they should seize",
-                50,
-                50,
+                4,
+                4,
                 1.0,
             ),
         ]
@@ -275,6 +292,110 @@ class ReadingSelectionTests(unittest.TestCase):
 
         self.assertEqual([m.row.idx for m in kept], [100, 101, 102])
         self.assertTrue(any("row 101" in note for note in notes))
+
+    def test_keeps_stumbled_prefix_before_suffix_clause(self) -> None:
+        sentence = (
+            "Detecting when the model is emotionally distressed served as a potential signal "
+            "for harmful behaviours such as reward hacking."
+        )
+        article = [_article(0, sentence)]
+        stumble = _match(10, "Detecting when the model w-- is emotionally distressed", 0, 0, 0.84)
+        suffix = _match(11, "served as a potential signal for harmful behaviours such as reward hacking.", 0, 0, 0.90)
+
+        kept, notes = select_kept([stumble, suffix], force_keep=set(), article=article)
+
+        self.assertEqual([m.row.idx for m in kept], [10, 11])
+        self.assertTrue(any("stitch" in note.lower() or "gap-fill" in note.lower() for note in notes))
+
+    def test_gap_fill_keeps_middle_quotes_between_takes(self) -> None:
+        paragraph = (
+            "In an episode in which the model exploited the creation of another agent to escalate privileges, "
+            "AV explanations on code used to cover its tracks showed cleanup to avoid detection, "
+            "and the malicious config explicitly mirrors the original core section to avoid detection. "
+            "In a separate episode where the model had been leaked the ground truth answers, "
+            "AVs surfaced additional scheming."
+        )
+        article = [_article(0, paragraph)]
+        matches = [
+            _match(24, "In an episode in which the model exploited the creation of another agent to escalate privileges,", 0, 0, 0.90),
+            _match(25, "AV explanations on code used to cover its tracks showed cleanup to avoid detection,", 0, 0, 0.90),
+            _match(26, "and the malicious config explicitly mirrors the original core section", 0, 0, 0.90),
+            _match(27, "to avoid detection.", 0, 0, 0.90),
+            _match(28, "In a separate episode where the model had been leaked the ground truth answers,", 0, 0, 0.90),
+            _match(29, "AVs surfaced additional scheming.", 0, 0, 0.90),
+        ]
+
+        kept, notes = select_kept(matches, force_keep=set(), article=article)
+        kept_ids = {m.row.idx for m in kept}
+
+        self.assertIn(25, kept_ids)
+        self.assertIn(26, kept_ids)
+        self.assertTrue(any("gap-fill" in note.lower() for note in notes))
+        self.assertGreater(len(kept_ids & {24, 25, 26, 27, 28, 29}), 3)
+
+    def test_stitches_tail_with_earlier_prefix_on_same_span(self) -> None:
+        opening = (
+            "With the release of Claude Mythos, it feels like we are approaching the end-game "
+            "of AI safety, where the number of parties that can make a real impact shrinks down "
+            "to the handful of labs at the frontier, a few companies too critical to exclude "
+            "from the conversation, and the governments of China and the US."
+        )
+        article = [_article(5, opening), _article(6, "Given this, it feels hard.")]
+        matches = [
+            _match(2, "With the release of Claude Mythos, it feels like we're approaching some kind of endgame", 0, 0, 0.46),
+            _match(3, "of AI safety, where the number of parties that can make a real impact", 0, 0, 0.40),
+            _match(4, "shrinks down to the handful of labs at the frontier,", 0, 0, 0.90),
+            _match(5, "a few companies too critical to exclude from the conversation", 0, 0, 0.42),
+            _match(6, "conversation, and the governments of China and the US.", 0, 0, 0.90),
+            _match(7, "Given this, it feels hard.", 1, 1, 1.0),
+        ]
+        matches[0].off_script = True
+        matches[1].off_script = True
+        matches[3].off_script = True
+
+        kept, notes = select_kept(matches, force_keep=set(), article=article)
+        kept_ids = {m.row.idx for m in kept}
+
+        self.assertIn(4, kept_ids)
+        self.assertIn(6, kept_ids)
+        self.assertTrue(
+            any("stitch" in note.lower() or "split chunk" in note for note in notes)
+        )
+
+    def test_sanity_report_flags_partial_coverage(self) -> None:
+        opening = (
+            "With the release of Claude Mythos, it feels like we are approaching the end-game "
+            "of AI safety, where the number of parties that can make a real impact shrinks down "
+            "to the handful of labs at the frontier, a few companies too critical to exclude "
+            "from the conversation, and the governments of China and the US."
+        )
+        article = [_article(0, opening)]
+        kept = [_match(1, "conversation, and the governments of China and the US.", 0, 0, 0.90)]
+
+        report = build_sanity_report(
+            article=article,
+            kept=kept,
+            selection_notes=[],
+            article_path=Path("reading_article.txt"),
+            transcript_path=Path("reading_transcript_simplified.json"),
+        )
+
+        self.assertEqual(report["summary"]["partial_coverage_count"], 1)
+        self.assertEqual(report["partial_coverage_chunks"][0]["idx"], 0)
+        self.assertLess(report["partial_coverage_chunks"][0]["coverage"], 0.55)
+
+    def test_prunes_spurious_short_suffix_match(self) -> None:
+        article = [
+            _article(6, "Given this, it feels hard to make a difference."),
+            _article(61, "Comment"),
+        ]
+        spurious = _match(48, "content.", 1, 1, 0.71)
+        good = _match(49, "Given this, it feels hard to make a difference.", 0, 0, 1.0)
+
+        kept, notes = select_kept([spurious, good], force_keep=set(), article=article)
+
+        self.assertNotIn(48, {m.row.idx for m in kept})
+        self.assertTrue(any("Pruned spurious" in note for note in notes))
 
     def test_section_header_callouts_are_keep_anyway_rows(self) -> None:
         examples = [
