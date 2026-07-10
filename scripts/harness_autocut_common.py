@@ -7,6 +7,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+from episode_segments import podcast_dsl_segments_args, segments_path
 from harness_episode_lib import REPO_ROOT
 from harness_overwrite_guard import refuse_overwrite
 
@@ -30,6 +31,9 @@ def temp_env(temp_dir: Path) -> dict[str, str]:
     env = os.environ.copy()
     env["TEMP"] = str(temp_dir)
     env["TMP"] = str(temp_dir)
+    seg = segments_path(temp_dir)
+    if seg.is_file():
+        env["PODCAST_DSL_SEGMENTS_FILE"] = str(seg)
     return env
 
 
@@ -55,4 +59,5 @@ def render_dsl(
     ]
     if max_seconds is not None:
         cmd.extend(["--max-seconds", str(max_seconds)])
+    cmd.extend(podcast_dsl_segments_args(temp_dir))
     run_cmd(cmd, cwd=REPO_ROOT / "src", env=temp_env(temp_dir))

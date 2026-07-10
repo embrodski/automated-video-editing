@@ -19,7 +19,6 @@ READING_RE = re.compile(r"\breading\b", re.IGNORECASE)
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SYNC_SCRIPT = REPO_ROOT / "scripts" / "sync_conversation_wavs.py"
 ELEVENLABS_KEY_FILE = REPO_ROOT / "ElevenLabs 100k Key.txt"
-CONFIG_PATH = REPO_ROOT / "src" / "podcast_dsl" / "config.py"
 CLEAN_RE = re.compile(r"clean", re.IGNORECASE)
 WIDE_RE = re.compile(r"\bwide\b", re.IGNORECASE)
 FRONT_RE = re.compile(r"\bfront\b", re.IGNORECASE)
@@ -207,60 +206,6 @@ def read_elevenlabs_api_key() -> str:
     if not key:
         raise ValueError(f"API key file is empty: {ELEVENLABS_KEY_FILE}")
     return key
-
-
-def next_segment_id() -> str:
-    text = CONFIG_PATH.read_text(encoding="utf-8")
-    ids = [int(m.group(1)) for m in re.finditer(r"'(\d+)':\s*\{", text)]
-    if not ids:
-        raise RuntimeError("Could not find segment IDs in config.py")
-    return str(max(ids) + 1)
-
-
-def _py_path_literal(path: str | Path) -> str:
-    """Return a safe single-quoted Python path literal for config.py insertion."""
-    return repr(str(path))
-
-
-def register_segment(segment_id: str, entry: dict, *, comment: str) -> None:
-    """Append a segment entry to SEGMENT_CONFIG in config.py."""
-    lines = [
-        f"    # {comment}",
-        f"    '{segment_id}': {{",
-        f"        'audio_file': {_py_path_literal(entry['audio_file'])},",
-        f"        'audio_offset': {entry.get('audio_offset', 0)},",
-    ]
-    if entry.get("use_video_embedded_audio"):
-        lines.append("        'use_video_embedded_audio': True,")
-    if entry.get("enable_color_match"):
-        lines.append("        'enable_color_match': True,")
-    else:
-        lines.append("        'enable_color_match': False,")
-    lines.append("        'video_files': {")
-    for cam_key, cam in entry["video_files"].items():
-        lines.append(f"            '{cam_key}': {{")
-        lines.append(f"                'file': {_py_path_literal(cam['file'])},")
-        lines.append(f"                'offset': {cam.get('offset', 0)},")
-        lines.append("            },")
-    lines.append("        },")
-    lines.append(f"        'transcript_file': {_py_path_literal(entry['transcript_file'])},")
-    lines.append("    },")
-    block = "\n".join(lines) + "\n"
-    text = CONFIG_PATH.read_text(encoding="utf-8")
-    marker = "\n\n# Normalize media/transcript paths"
-    if marker not in text:
-        raise RuntimeError("config.py missing normalize marker")
-    if f"'{segment_id}':" in text:
-        raise ValueError(f"Segment {segment_id} already exists in config.py")
-    pos = text.rfind(marker)
-    prefix = text[:pos].rstrip()
-    suffix = text[pos:]
-    if not prefix.endswith("}"):
-        raise RuntimeError("Could not find SEGMENT_CONFIG closing brace before normalize marker")
-    prefix = prefix[:-1].rstrip()
-    if not prefix.endswith(","):
-        prefix = prefix + ","
-    CONFIG_PATH.write_text(prefix + "\n" + block + "}\n" + suffix, encoding="utf-8")
 
 
 def find_clean_audio_files(

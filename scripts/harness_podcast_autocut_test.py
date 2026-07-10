@@ -5,22 +5,20 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from harness_autocut_common import run_cmd
+from harness_autocut_common import render_dsl, run_cmd
 from harness_overwrite_guard import HarnessOverwriteError, OVERWRITE_EXIT_CODE, refuse_overwrite
+from episode_segments import MAIN_SEGMENT_KEY, segments_path, upsert_segment
 from harness_episode_lib import (
     BEN_HOST_RE,
     REPO_ROOT,
     WIDE_RE,
     load_episode_state,
-    next_segment_id,
     podcast_swap_speaker_ids_cli_args,
-    register_segment,
     save_episode_state,
     should_skip_reading,
     step_state,
@@ -76,24 +74,25 @@ def main() -> int:
         convert_cmd.extend(podcast_swap_speaker_ids_cli_args(state))
         run_cmd(convert_cmd)
 
-        segment_id = state.get("main_segment_id") or next_segment_id()
-        if not state.get("main_segment_id"):
-            register_segment(
-                segment_id,
-                {
-                    "audio_file": str(audio_wav),
-                    "audio_offset": 0,
-                    "enable_color_match": False,
-                    "video_files": {
-                        "speaker_0": {"file": str(ben), "offset": 0},
-                        "speaker_1": {"file": str(guest), "offset": 0},
-                        "wide": {"file": str(wide), "offset": 0},
-                    },
-                    "transcript_file": str(simplified),
+        segment_id = MAIN_SEGMENT_KEY
+        upsert_segment(
+            temp,
+            segment_id,
+            {
+                "audio_file": str(audio_wav),
+                "audio_offset": 0,
+                "enable_color_match": False,
+                "video_files": {
+                    "speaker_0": {"file": str(ben), "offset": 0},
+                    "speaker_1": {"file": str(guest), "offset": 0},
+                    "wide": {"file": str(wide), "offset": 0},
                 },
-                comment=f"Inkhaven harness {state['name']} — main interview",
-            )
-            state["main_segment_id"] = segment_id
+                "transcript_file": str(simplified),
+            },
+            allow_overwrite=args.allow_overwrite,
+        )
+        state["main_segment_id"] = segment_id
+        state["segments_file"] = str(segments_path(temp))
 
         run_cmd(
             [
@@ -107,24 +106,12 @@ def main() -> int:
             ]
         )
 
-        env = os.environ.copy()
-        env["TEMP"] = str(temp)
-        env["TMP"] = str(temp)
-        run_cmd(
-            [
-                sys.executable,
-                "-m",
-                "podcast_dsl",
-                str(interview_dsl),
-                "-o",
-                str(out_mp4),
-                "--workers",
-                "6",
-                "--max-seconds",
-                "60",
-            ],
-            cwd=REPO_ROOT / "src",
-            env=env,
+        render_dsl(
+            interview_dsl,
+            out_mp4,
+            temp,
+            max_seconds=60,
+            allow_overwrite=args.allow_overwrite,
         )
 
         state["podcast_autocut_test_mp4"] = str(out_mp4)
@@ -151,6 +138,9 @@ def main() -> int:
             state["resume_at"] = "16_reading_test_approval"
         save_episode_state(args.episode_folder, state)
     except HarnessOverwriteError:
+        return OVERWRITE_EXIT_CODE
+    except FileExistsError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
         return OVERWRITE_EXIT_CODE
     except (FileNotFoundError, RuntimeError, ValueError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)

@@ -7,7 +7,6 @@ import unittest
 from pathlib import Path
 
 from harness_episode_lib import (
-    _py_path_literal,
     audit_raw_source_inventory,
     combined_audio_output_name,
     extract_guest_name,
@@ -119,11 +118,31 @@ class RawInventoryTests(unittest.TestCase):
         self.assertTrue(audit["warnings"])
 
 
-class PathLiteralTests(unittest.TestCase):
-    def test_apostrophe_in_path(self) -> None:
-        path = r"E:\Inkhaven Guest's Room\file.wav"
-        literal = _py_path_literal(path)
-        self.assertEqual(eval(literal), path)
+class EpisodeSegmentsTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.temp = Path(self.tmp.name)
+
+    def tearDown(self) -> None:
+        self.tmp.cleanup()
+
+    def test_upsert_main_segment(self) -> None:
+        from episode_segments import MAIN_SEGMENT_KEY, load_segments_file, segments_path, upsert_segment
+
+        upsert_segment(
+            self.temp,
+            MAIN_SEGMENT_KEY,
+            {
+                "audio_file": str(self.temp / "a.wav"),
+                "audio_offset": 0,
+                "enable_color_match": False,
+                "video_files": {"speaker_0": {"file": str(self.temp / "b.mp4"), "offset": 0}},
+                "transcript_file": str(self.temp / "t.json"),
+            },
+        )
+        data = load_segments_file(segments_path(self.temp))
+        self.assertIn(MAIN_SEGMENT_KEY, data)
+        self.assertEqual(data[MAIN_SEGMENT_KEY]["audio_offset"], 0)
 
 
 class CombinedAudioNameTests(unittest.TestCase):
