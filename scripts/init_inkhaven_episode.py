@@ -5,68 +5,23 @@ from __future__ import annotations
 
 import argparse
 import json
-import re
 import shutil
 import sys
-from datetime import datetime, timezone
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-SUBFOLDERS = ("Raw", "Input", "Output", "Temp")
-RAW_NAME_RE = re.compile(r"raw", re.IGNORECASE)
-INKHAVEN_PREFIX_RE = re.compile(r"^inkhaven\s+(.+)$", re.IGNORECASE)
-
-
-def _utc_now_iso() -> str:
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
-
-
-def extract_guest_name(episode_folder: Path) -> str:
-    match = INKHAVEN_PREFIX_RE.match(episode_folder.name.strip())
-    if not match:
-        raise ValueError(
-            f"Episode folder name must start with 'Inkhaven ' "
-            f"(got {episode_folder.name!r})."
-        )
-    name = match.group(1).strip()
-    if not name:
-        raise ValueError(
-            f"Guest name is empty after 'Inkhaven ' in {episode_folder.name!r}."
-        )
-    return name
-
-
-def episode_json_path(episode_folder: Path, name: str) -> Path:
-    return episode_folder / f"{name}-episode.json"
-
-
-def _load_episode_state(path: Path) -> dict:
-    if not path.is_file():
-        return {}
-    with path.open(encoding="utf-8") as fh:
-        return json.load(fh)
-
-
-def _step_state(
-    existing: dict,
-    step_id: str,
-    *,
-    title: str,
-    status: str,
-    **extra: object,
-) -> dict:
-    prior = existing.get(step_id, {})
-    step = {
-        "id": step_id,
-        "title": title,
-        "status": status,
-        **extra,
-    }
-    if status == "completed":
-        step["completed_at"] = _utc_now_iso()
-    elif "completed_at" in prior and status != "completed":
-        step["completed_at"] = prior["completed_at"]
-    return step
+from harness_episode_lib import (
+    RAW_NAME_RE,
+    SUBFOLDERS,
+    audit_raw_source_inventory,
+    episode_json_path,
+    extract_guest_name,
+    load_episode_state_if_exists,
+    save_episode_state,
+    step_state,
+    utc_now_iso,
+)
 
 
 def is_raw_source_file(path: Path) -> bool:
@@ -80,7 +35,7 @@ def init_episode(episode_folder: Path, *, dry_run: bool = False) -> dict:
 
     name = extract_guest_name(episode_folder)
     json_path = episode_json_path(episode_folder, name)
-    prior = _load_episode_state(json_path)
+    prior = load_episode_state_if_exists(episode_folder)
 
     raw_dir = episode_folder / "Raw"
     input_dir = episode_folder / "Input"
@@ -124,16 +79,17 @@ def init_episode(episode_folder: Path, *, dry_run: bool = False) -> dict:
             if not dry_run:
                 shutil.move(str(closing_source), str(closing_dest))
 
-    now = _utc_now_iso()
+    raw_inventory = audit_raw_source_inventory(raw_dir)
+    now = utc_now_iso()
     steps = prior.get("steps", {})
-    steps["01_launch"] = _step_state(
+    steps["01_launch"] = step_state(
         steps,
         "01_launch",
         title="Launch",
         status="completed",
     )
     prep_status = "failed" if move_errors else "completed"
-    steps["02_prep_folders"] = _step_state(
+    steps["02_prep_folders"] = step_state(
         steps,
         "02_prep_folders",
         title="Prep folders and raw files",
@@ -142,9 +98,10 @@ def init_episode(episode_folder: Path, *, dry_run: bool = False) -> dict:
         raw_files_moved=moved_raw_files,
         closing_mp4_moved=closing_moved,
         errors=move_errors,
+        raw_inventory=raw_inventory,
     )
     if steps.get("03_reading_link", {}).get("status") != "completed":
-        steps["03_reading_link"] = _step_state(
+        steps["03_reading_link"] = step_state(
             steps,
             "03_reading_link",
             title="Reading source link",
@@ -154,7 +111,7 @@ def init_episode(episode_folder: Path, *, dry_run: bool = False) -> dict:
         "completed",
         "skipped",
     ):
-        steps["04_verify_reading_link"] = _step_state(
+        steps["04_verify_reading_link"] = step_state(
             steps,
             "04_verify_reading_link",
             title="Verify reading link",
@@ -179,9 +136,7 @@ def init_episode(episode_folder: Path, *, dry_run: bool = False) -> dict:
     }
 
     if not dry_run:
-        with json_path.open("w", encoding="utf-8") as fh:
-            json.dump(state, fh, indent=2)
-            fh.write("\n")
+        save_episode_state(episode_folder, state)
 
     state["episode_json"] = str(json_path)
     state["dry_run"] = dry_run
