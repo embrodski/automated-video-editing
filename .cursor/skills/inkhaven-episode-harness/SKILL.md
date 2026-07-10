@@ -467,7 +467,7 @@ Troubleshoot **`Edited Interview.mp4`** (and reading/intro exports) if the user 
 python scripts/harness_step_status.py "<episode_folder>" --step 21_hand_edit_approval --status completed --resume-at 22_podcast_stitch
 ```
 
-**Required in Output before stitch:** `Intro.mp4`, `Edited Reading.mp4`, `Edited Interview.mp4`, `Closing.mp4`. Harness step 22 resolves loosely named exports (e.g. stems containing `intro`, `edited`, `reading`) and passes those paths to `stitch_episode.py`; canonical names are preferred.
+**Required in Output before stitch:** `Intro.mp4`, `Edited Interview.mp4`, `Closing.mp4`, and `Edited Reading.mp4` unless **`skip_reading`** is true (harness uses a black Reading placeholder from Intro geometry). Harness step 22 resolves loosely named exports and passes explicit paths to `stitch_episode.py`.
 
 ---
 

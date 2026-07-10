@@ -17,10 +17,11 @@ from harness_episode_lib import (
     STITCH_TIMECODE_MARKER_RE,
     load_episode_state,
     save_episode_state,
+    should_skip_reading,
     step_state,
 )
-from harness_output_files import stitch_required_files
-from harness_overwrite_guard import refuse_overwrite
+from harness_output_files import resolve_stitch_input_files
+from harness_overwrite_guard import HarnessOverwriteError, OVERWRITE_EXIT_CODE, refuse_overwrite
 
 
 def main() -> int:
@@ -45,12 +46,22 @@ def main() -> int:
 
         missing = []
         try:
-            files = stitch_required_files(output_dir)
+            files = resolve_stitch_input_files(
+                output_dir,
+                skip_reading=should_skip_reading(state),
+                temp_dir=temp_dir,
+                allow_overwrite=args.allow_overwrite,
+            )
         except FileNotFoundError as exc:
             print(f"ERROR: {exc}", file=sys.stderr)
-            for name in ("Intro.mp4", "Edited Reading.mp4", "Edited Interview.mp4", "Closing.mp4"):
-                if not (output_dir / name).is_file():
-                    missing.append(name)
+            if not should_skip_reading(state):
+                for name in ("Intro.mp4", "Edited Reading.mp4", "Edited Interview.mp4", "Closing.mp4"):
+                    if not (output_dir / name).is_file():
+                        missing.append(name)
+            else:
+                for name in ("Intro.mp4", "Edited Interview.mp4", "Closing.mp4"):
+                    if not (output_dir / name).is_file():
+                        missing.append(name)
             steps = state.setdefault("steps", {})
             steps["22_podcast_stitch"] = step_state(
                 steps,
@@ -71,6 +82,14 @@ def main() -> int:
             str(REPO_ROOT / "stitch_episode.py"),
             "--output-dir",
             str(output_dir),
+            "--intro",
+            str(files["intro"]),
+            "--edited-reading",
+            str(files["edited_reading"]),
+            "--edited-interview",
+            str(files["edited_interview"]),
+            "--closing",
+            str(files["closing"]),
         ]
         if args.video_encoder:
             cmd.extend(["--video-encoder", args.video_encoder])
@@ -92,6 +111,9 @@ def main() -> int:
         ]
 
         steps = state.setdefault("steps", {})
+        stitch_extra: dict[str, object] = {}
+        if should_skip_reading(state):
+            stitch_extra["reading_placeholder"] = str(files["edited_reading"])
         steps["22_podcast_stitch"] = step_state(
             steps,
             "22_podcast_stitch",
@@ -101,6 +123,7 @@ def main() -> int:
             input_files={k: str(v) for k, v in files.items()},
             stitch_timecodes=markers,
             stitch_stdout=proc.stdout,
+            **stitch_extra,
         )
         steps["23_teaser_line"] = step_state(
             steps,
@@ -113,6 +136,8 @@ def main() -> int:
         state["stitch_timecodes"] = markers
         state["resume_at"] = "24_human_transcript"
         save_episode_state(args.episode_folder, state)
+    except HarnessOverwriteError:
+        return OVERWRITE_EXIT_CODE
     except (FileNotFoundError, RuntimeError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1

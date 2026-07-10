@@ -227,17 +227,34 @@ def stitch_episode(
     video_encoder: str,
     video_preset: str,
     video_quality: int,
+    input_files: list[Path] | None = None,
 ) -> Path:
-    missing = [name for name in REQUIRED_FILES if not (output_dir / name).exists()]
-    if missing:
-        missing_list = "\n".join(f"- {m}" for m in missing)
-        raise FileNotFoundError(
-            "Missing required file(s) in output folder:\n"
-            f"{missing_list}\n\n"
-            f"Output folder: {output_dir}"
-        )
-
-    inputs = [output_dir / name for name in REQUIRED_FILES]
+    if input_files is None:
+        missing = [name for name in REQUIRED_FILES if not (output_dir / name).exists()]
+        if missing:
+            missing_list = "\n".join(f"- {m}" for m in missing)
+            raise FileNotFoundError(
+                "Missing required file(s) in output folder:\n"
+                f"{missing_list}\n\n"
+                f"Output folder: {output_dir}"
+            )
+        inputs = [output_dir / name for name in REQUIRED_FILES]
+    else:
+        if len(input_files) != 4:
+            raise ValueError(
+                f"stitch_episode expects exactly 4 input files "
+                f"(intro, reading, interview, closing); got {len(input_files)}"
+            )
+        labels = ("Intro", "Edited Reading", "Edited Interview", "Closing")
+        missing = [f"{label} ({path})" for label, path in zip(labels, input_files) if not path.is_file()]
+        if missing:
+            missing_list = "\n".join(f"- {m}" for m in missing)
+            raise FileNotFoundError(
+                "Missing stitch input file(s):\n"
+                f"{missing_list}\n\n"
+                f"Output folder: {output_dir}"
+            )
+        inputs = [path.resolve() for path in input_files]
     infos = [_get_media_info(p) for p in inputs]
 
     # Use the first clip as the canonical output geometry/timebase.
@@ -387,6 +404,15 @@ def main() -> int:
     ap = argparse.ArgumentParser(description="Stitch Inkhaven episode parts into Complete Episode.mp4")
     ap.add_argument("--output-dir", required=True, help="Output folder containing the four required MP4 parts")
     ap.add_argument(
+        "--intro",
+        type=Path,
+        default=None,
+        help="Path to Intro segment (with --edited-reading, --edited-interview, --closing)",
+    )
+    ap.add_argument("--edited-reading", type=Path, default=None, help="Path to Edited Reading segment")
+    ap.add_argument("--edited-interview", type=Path, default=None, help="Path to Edited Interview segment")
+    ap.add_argument("--closing", type=Path, default=None, help="Path to Closing/Sponsor segment")
+    ap.add_argument(
         "--video-encoder",
         choices=VIDEO_ENCODER_CHOICES,
         default=DEFAULT_VIDEO_ENCODER,
@@ -425,6 +451,20 @@ def main() -> int:
         print(f"Error: output dir not found: {out_dir}", file=sys.stderr)
         return 2
 
+    overrides = (args.intro, args.edited_reading, args.edited_interview, args.closing)
+    input_files: list[Path] | None
+    if any(p is not None for p in overrides):
+        if not all(p is not None for p in overrides):
+            print(
+                "Error: when passing stitch input overrides, all four of "
+                "--intro, --edited-reading, --edited-interview, and --closing are required.",
+                file=sys.stderr,
+            )
+            return 2
+        input_files = [p.expanduser().resolve() for p in overrides]  # type: ignore[misc]
+    else:
+        input_files = None
+
     os.environ["PODCAST_DSL_VIDEO_ENCODER"] = args.video_encoder
     if args.hardware_encode:
         os.environ[VIDEO_HARDWARE_ENCODE_ENV] = "1"
@@ -438,6 +478,7 @@ def main() -> int:
             video_encoder=args.video_encoder,
             video_preset=_requested_video_preset(args.video_preset),
             video_quality=args.video_quality,
+            input_files=input_files,
         )
     except FileNotFoundError as e:
         print(str(e), file=sys.stderr)
