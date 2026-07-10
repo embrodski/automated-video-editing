@@ -2,14 +2,15 @@
 
 from __future__ import annotations
 
-import re
 from pathlib import Path
 
-INTRO_RE = re.compile(r"\bintro\b", re.IGNORECASE)
-READING_RE = re.compile(r"\breading\b", re.IGNORECASE)
-INTERVIEW_RE = re.compile(r"\binterview\b", re.IGNORECASE)
-EDITED_RE = re.compile(r"\bedited\b", re.IGNORECASE)
-CLOSING_RE = re.compile(r"\bclosing\b", re.IGNORECASE)
+from harness_episode_lib import (
+    CLOSING_RE,
+    EDITED_RE,
+    INTRO_RE,
+    INTERVIEW_RE,
+    READING_RE,
+)
 
 
 def _mp4s(output_dir: Path) -> list[Path]:
