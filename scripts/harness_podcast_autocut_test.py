@@ -12,7 +12,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from harness_autocut_common import run_cmd
-from harness_overwrite_guard import refuse_overwrite
+from harness_overwrite_guard import HarnessOverwriteError, OVERWRITE_EXIT_CODE, refuse_overwrite
 from harness_episode_lib import (
     BEN_HOST_RE,
     REPO_ROOT,
@@ -150,6 +150,8 @@ def main() -> int:
         else:
             state["resume_at"] = "16_reading_test_approval"
         save_episode_state(args.episode_folder, state)
+    except HarnessOverwriteError:
+        return OVERWRITE_EXIT_CODE
     except (FileNotFoundError, RuntimeError, ValueError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1

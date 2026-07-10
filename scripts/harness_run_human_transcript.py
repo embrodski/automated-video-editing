@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from harness_episode_lib import REPO_ROOT, load_episode_state, save_episode_state, step_state
 from harness_output_files import find_edited_interview_mp4, find_intro_mp4
-from harness_overwrite_guard import refuse_overwrite
+from harness_overwrite_guard import HarnessOverwriteError, OVERWRITE_EXIT_CODE, refuse_overwrite
 
 
 def main() -> int:
@@ -79,6 +79,8 @@ def main() -> int:
         state["human_transcript_txt"] = str(transcript_path)
         state["resume_at"] = "25_finalize_deliverables"
         save_episode_state(args.episode_folder, state)
+    except HarnessOverwriteError:
+        return OVERWRITE_EXIT_CODE
     except (FileNotFoundError, RuntimeError, ValueError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1

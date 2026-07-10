@@ -19,6 +19,7 @@ from harness_episode_lib import (
     VID_RE,
     WIDE_RE,
 )
+from harness_overwrite_guard import refuse_overwrite
 
 
 @dataclass
@@ -139,9 +140,19 @@ def run_video_sync(
     videos: list[Path],
     *,
     no_downscale_1080p: bool = False,
+    allow_overwrite: bool = False,
 ) -> dict:
     dirs = resolve_video_sync_dirs(raw_dir)
     synced_paths: list[Path] = []
+    predicted_prepped: list[Path] = []
+    anchor_wav = dirs.input_dir / prepped_wav_basename(audio_file)
+
+    for video in videos:
+        synced_name = synced_basename(video)
+        synced_path = dirs.sync_dir / synced_name
+        refuse_overwrite(synced_path, allow_overwrite=allow_overwrite)
+        predicted_prepped.append(dirs.input_dir / prepped_basename(synced_name))
+    refuse_overwrite(anchor_wav, allow_overwrite=allow_overwrite)
 
     for video in videos:
         synced_name = synced_basename(video)
@@ -160,6 +171,9 @@ def run_video_sync(
             ]
         )
         synced_paths.append(synced_path)
+
+    for prepped in predicted_prepped:
+        refuse_overwrite(prepped, allow_overwrite=allow_overwrite)
 
     prepped_paths: list[Path] = []
     anchor_prepped: Path | None = None

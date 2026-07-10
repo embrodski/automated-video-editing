@@ -19,6 +19,7 @@ from harness_episode_lib import (
     save_episode_state,
     step_state,
 )
+from harness_overwrite_guard import HarnessOverwriteError, OVERWRITE_EXIT_CODE, refuse_overwrite
 
 
 def _sync_pair(
@@ -26,8 +27,11 @@ def _sync_pair(
     *,
     intro: bool,
     label: str,
+    allow_overwrite: bool,
 ) -> dict:
     wav1, wav2 = find_conversation_wav_pair(raw_dir, intro=intro)
+    output = wav1.parent / combined_audio_output_name(wav1)
+    refuse_overwrite(output, allow_overwrite=allow_overwrite)
     output = run_conversation_sync(wav1, wav2)
     return {
         "label": label,
@@ -39,7 +43,7 @@ def _sync_pair(
     }
 
 
-def run_harness_conversation_sync(episode_folder: Path) -> dict:
+def run_harness_conversation_sync(episode_folder: Path, *, allow_overwrite: bool = False) -> dict:
     state = load_episode_state(episode_folder)
     raw_dir = Path(state["paths"]["raw"])
     steps = state.setdefault("steps", {})
@@ -52,7 +56,9 @@ def run_harness_conversation_sync(episode_folder: Path) -> dict:
             "Step 4 (verify reading link) must be completed or skipped first."
         )
 
-    main_result = _sync_pair(raw_dir, intro=False, label="main_combined_audio")
+    main_result = _sync_pair(
+        raw_dir, intro=False, label="main_combined_audio", allow_overwrite=allow_overwrite
+    )
     state["main_combined_audio"] = main_result["output"]
 
     steps["05_main_conversation_sync"] = step_state(
@@ -65,7 +71,9 @@ def run_harness_conversation_sync(episode_folder: Path) -> dict:
 
     intro_result = None
     if has_intro_audio_pair(raw_dir):
-        intro_result = _sync_pair(raw_dir, intro=True, label="intro_combined_audio")
+        intro_result = _sync_pair(
+            raw_dir, intro=True, label="intro_combined_audio", allow_overwrite=allow_overwrite
+        )
         state["intro_combined_audio"] = intro_result["output"]
         steps["06_intro_conversation_sync"] = step_state(
             steps,
@@ -106,10 +114,19 @@ def main() -> int:
         description="Harness steps 5–6: conversation-sync; sets step 7 awaiting user."
     )
     parser.add_argument("episode_folder", type=Path)
+    parser.add_argument(
+        "--allow-overwrite",
+        action="store_true",
+        help="Overwrite existing combined WAV outputs (requires user approval).",
+    )
     args = parser.parse_args()
 
     try:
-        state = run_harness_conversation_sync(args.episode_folder)
+        state = run_harness_conversation_sync(
+            args.episode_folder, allow_overwrite=args.allow_overwrite
+        )
+    except HarnessOverwriteError:
+        return OVERWRITE_EXIT_CODE
     except (FileNotFoundError, RuntimeError, ValueError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1

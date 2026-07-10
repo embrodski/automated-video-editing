@@ -18,6 +18,7 @@ from harness_episode_lib import (
     save_episode_state,
     step_state,
 )
+from harness_overwrite_guard import HarnessOverwriteError, OVERWRITE_EXIT_CODE
 
 
 def rebuild_interview_dsl(state: dict) -> Path:
@@ -144,6 +145,8 @@ def main() -> int:
             state["resume_at"] = "21_hand_edit_approval"
 
         save_episode_state(args.episode_folder, state)
+    except HarnessOverwriteError:
+        return OVERWRITE_EXIT_CODE
     except (FileNotFoundError, RuntimeError, ValueError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1

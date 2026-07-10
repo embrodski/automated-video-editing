@@ -19,6 +19,7 @@ from harness_episode_lib import (
     should_skip_reading,
     step_state,
 )
+from harness_overwrite_guard import HarnessOverwriteError, OVERWRITE_EXIT_CODE
 
 def rebuild_reading_dsl(state: dict) -> Path:
     temp = Path(state["paths"]["temp"])
@@ -169,6 +170,8 @@ def main() -> int:
             state["resume_at"] = "17_reading_full_approval"
 
         save_episode_state(args.episode_folder, state)
+    except HarnessOverwriteError:
+        return OVERWRITE_EXIT_CODE
     except (FileNotFoundError, RuntimeError, ValueError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
