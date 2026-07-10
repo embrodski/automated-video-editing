@@ -21,6 +21,16 @@ SYNC_SCRIPT = REPO_ROOT / "scripts" / "sync_conversation_wavs.py"
 ELEVENLABS_KEY_FILE = REPO_ROOT / "ElevenLabs 100k Key.txt"
 CONFIG_PATH = REPO_ROOT / "src" / "podcast_dsl" / "config.py"
 CLEAN_RE = re.compile(r"clean", re.IGNORECASE)
+WIDE_RE = re.compile(r"\bwide\b", re.IGNORECASE)
+FRONT_RE = re.compile(r"\bfront\b", re.IGNORECASE)
+SIDE_RE = re.compile(r"\bside\b", re.IGNORECASE)
+VID_RE = re.compile(r"\bvid\b|\bvideo\b", re.IGNORECASE)
+RAW_WORD_RE = re.compile(r"\braw\b", re.IGNORECASE)
+INTERVIEW_RE = re.compile(r"\binterview\b", re.IGNORECASE)
+EDITED_RE = re.compile(r"\bedited\b", re.IGNORECASE)
+CLOSING_RE = re.compile(r"\bclosing\b", re.IGNORECASE)
+# Stitch stdout markers: mm:ss Label (minutes unpadded when timeline >= 100 min).
+STITCH_TIMECODE_MARKER_RE = re.compile(r"^\d{1,3}:\d{2}\s+\S+\s*$")
 
 
 def utc_now_iso() -> str:
