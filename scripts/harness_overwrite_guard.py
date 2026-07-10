@@ -5,12 +5,19 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+OVERWRITE_EXIT_CODE = 2
+
+
+class HarnessOverwriteError(Exception):
+    """Raised when a harness script would overwrite an existing file without approval."""
+
 
 def refuse_overwrite(path: Path, *, allow_overwrite: bool, label: str | None = None) -> None:
     """
-    Exit with a clear error if ``path`` already exists and overwrite is not allowed.
+    Raise :class:`HarnessOverwriteError` if ``path`` exists and overwrite is not allowed.
 
     Harness agents must get explicit user approval before passing ``allow_overwrite=True``.
+    Callers should catch :class:`HarnessOverwriteError` and exit with :data:`OVERWRITE_EXIT_CODE`.
     """
     if allow_overwrite or not path.exists():
         return
@@ -22,4 +29,4 @@ def refuse_overwrite(path: Path, *, allow_overwrite: bool, label: str | None = N
         "  - write to a new filename.\n",
         file=sys.stderr,
     )
-    raise SystemExit(2)
+    raise HarnessOverwriteError(f"Refusing to overwrite existing {kind}: {path}")

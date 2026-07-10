@@ -68,6 +68,44 @@ def load_episode_state(episode_folder: Path) -> dict:
         return json.load(fh)
 
 
+def load_episode_state_if_exists(episode_folder: Path) -> dict:
+    """Return episode JSON dict, or ``{}`` when the state file has not been created yet."""
+    episode_folder = episode_folder.resolve()
+    path = episode_json_path(episode_folder)
+    if not path.is_file():
+        return {}
+    with path.open(encoding="utf-8") as fh:
+        return json.load(fh)
+
+
+def audit_raw_source_inventory(raw_dir: Path) -> dict[str, object]:
+    """
+    Warn when Raw does not contain the usual 8- or 13-file harness source set.
+
+    Counts files whose names contain ``raw`` (case-insensitive) with audio/video extensions.
+    """
+    if not raw_dir.is_dir():
+        return {"raw_file_count": 0, "warnings": [f"Raw folder not found: {raw_dir}"]}
+    exts = {".wav", ".mp4"}
+    names: list[str] = []
+    for path in raw_dir.iterdir():
+        if not path.is_file():
+            continue
+        if path.suffix.lower() not in exts:
+            continue
+        if RAW_NAME_RE.search(path.name) is None:
+            continue
+        names.append(path.name)
+    count = len(names)
+    warnings: list[str] = []
+    if count not in (8, 13):
+        warnings.append(
+            f"Expected 8 or 13 raw source media files in {raw_dir}, found {count}: "
+            f"{sorted(names, key=str.lower)}"
+        )
+    return {"raw_file_count": count, "raw_file_names": sorted(names, key=str.lower), "warnings": warnings}
+
+
 def save_episode_state(episode_folder: Path, state: dict) -> Path:
     episode_folder = episode_folder.resolve()
     state["updated_at"] = utc_now_iso()
@@ -179,12 +217,17 @@ def next_segment_id() -> str:
     return str(max(ids) + 1)
 
 
+def _py_path_literal(path: str | Path) -> str:
+    """Return a safe single-quoted Python path literal for config.py insertion."""
+    return repr(str(path))
+
+
 def register_segment(segment_id: str, entry: dict, *, comment: str) -> None:
     """Append a segment entry to SEGMENT_CONFIG in config.py."""
     lines = [
         f"    # {comment}",
         f"    '{segment_id}': {{",
-        f"        'audio_file': r'{entry['audio_file']}',",
+        f"        'audio_file': {_py_path_literal(entry['audio_file'])},",
         f"        'audio_offset': {entry.get('audio_offset', 0)},",
     ]
     if entry.get("use_video_embedded_audio"):
@@ -196,11 +239,11 @@ def register_segment(segment_id: str, entry: dict, *, comment: str) -> None:
     lines.append("        'video_files': {")
     for cam_key, cam in entry["video_files"].items():
         lines.append(f"            '{cam_key}': {{")
-        lines.append(f"                'file': r'{cam['file']}',")
+        lines.append(f"                'file': {_py_path_literal(cam['file'])},")
         lines.append(f"                'offset': {cam.get('offset', 0)},")
         lines.append("            },")
     lines.append("        },")
-    lines.append(f"        'transcript_file': r'{entry['transcript_file']}',")
+    lines.append(f"        'transcript_file': {_py_path_literal(entry['transcript_file'])},")
     lines.append("    },")
     block = "\n".join(lines) + "\n"
     text = CONFIG_PATH.read_text(encoding="utf-8")
