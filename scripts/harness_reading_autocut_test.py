@@ -6,15 +6,17 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import subprocess
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+from harness_autocut_common import run_cmd
 from harness_overwrite_guard import refuse_overwrite
 from harness_episode_lib import (
+    FRONT_RE,
     REPO_ROOT,
+    SIDE_RE,
     load_episode_state,
     next_segment_id,
     reading_keep_rows_cli_args,
@@ -23,24 +25,6 @@ from harness_episode_lib import (
     should_skip_reading,
     step_state,
 )
-
-FRONT_RE = __import__("re").compile(r"\bfront\b", __import__("re").IGNORECASE)
-SIDE_RE = __import__("re").compile(r"\bside\b", __import__("re").IGNORECASE)
-
-
-def _run(cmd: list[str], *, cwd: Path | None = None, env: dict | None = None) -> None:
-    proc = subprocess.run(
-        cmd,
-        cwd=str(cwd or REPO_ROOT),
-        capture_output=True,
-        text=True,
-        env=env,
-    )
-    if proc.returncode != 0:
-        raise RuntimeError(
-            f"Command failed ({proc.returncode}): {' '.join(cmd)}\n"
-            f"stdout:\n{proc.stdout}\nstderr:\n{proc.stderr}"
-        )
 
 
 def _pick_reading_videos(prepped_videos: list[str]) -> tuple[Path, Path]:
@@ -96,7 +80,7 @@ def main() -> int:
         for path in (simplified, article_txt, reading_dsl, out_mp4):
             refuse_overwrite(path, allow_overwrite=args.allow_overwrite)
 
-        _run(
+        run_cmd(
             [
                 sys.executable,
                 str(REPO_ROOT / "convert_transcript_json.py"),
@@ -109,7 +93,7 @@ def main() -> int:
                 "4",
             ]
         )
-        _run(
+        run_cmd(
             [
                 sys.executable,
                 str(REPO_ROOT / "fetch_article_to_reading_article.py"),
@@ -152,8 +136,8 @@ def main() -> int:
             str(state.get("reader_speaker_id", 0)),
         ]
         gen_cmd.extend(reading_keep_rows_cli_args(state))
-        _run(gen_cmd)
-        _run(
+        run_cmd(gen_cmd)
+        run_cmd(
             [
                 sys.executable,
                 str(REPO_ROOT / "shorten_reading_dsl_silences.py"),
@@ -166,7 +150,7 @@ def main() -> int:
         env = os.environ.copy()
         env["TEMP"] = str(temp)
         env["TMP"] = str(temp)
-        _run(
+        run_cmd(
             [
                 sys.executable,
                 "-m",

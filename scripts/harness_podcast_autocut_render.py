@@ -76,7 +76,7 @@ def main() -> int:
         "five_min": ("5 Min Test.mp4", 300, "19_interview_five_min_approval"),
         "full": ("Full Interview.mp4", None, "20_full_interview_render"),
     }
-    filename, max_seconds, step_key = outputs[args.mode]
+    filename, max_seconds, _ = outputs[args.mode]
 
     try:
         state = load_episode_state(args.episode_folder)

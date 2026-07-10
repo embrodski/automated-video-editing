@@ -6,16 +6,17 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import re
-import subprocess
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+from harness_autocut_common import run_cmd
 from harness_overwrite_guard import refuse_overwrite
 from harness_episode_lib import (
+    BEN_HOST_RE,
     REPO_ROOT,
+    WIDE_RE,
     load_episode_state,
     next_segment_id,
     podcast_swap_speaker_ids_cli_args,
@@ -24,24 +25,6 @@ from harness_episode_lib import (
     should_skip_reading,
     step_state,
 )
-
-BEN_HOST_RE = re.compile(r"\b(ben|host)\b", re.IGNORECASE)
-WIDE_RE = re.compile(r"\bwide\b", re.IGNORECASE)
-
-
-def _run(cmd: list[str], *, cwd: Path | None = None, env: dict | None = None) -> None:
-    proc = subprocess.run(
-        cmd,
-        cwd=str(cwd or REPO_ROOT),
-        capture_output=True,
-        text=True,
-        env=env,
-    )
-    if proc.returncode != 0:
-        raise RuntimeError(
-            f"Command failed ({proc.returncode}): {' '.join(cmd)}\n"
-            f"stdout:\n{proc.stdout}\nstderr:\n{proc.stderr}"
-        )
 
 
 def _pick_interview_videos(prepped_videos: list[str]) -> tuple[Path, Path, Path]:
@@ -91,7 +74,7 @@ def main() -> int:
             str(simplified),
         ]
         convert_cmd.extend(podcast_swap_speaker_ids_cli_args(state))
-        _run(convert_cmd)
+        run_cmd(convert_cmd)
 
         segment_id = state.get("main_segment_id") or next_segment_id()
         if not state.get("main_segment_id"):
@@ -112,7 +95,7 @@ def main() -> int:
             )
             state["main_segment_id"] = segment_id
 
-        _run(
+        run_cmd(
             [
                 sys.executable,
                 str(REPO_ROOT / "generate_full_dsl.py"),
@@ -127,7 +110,7 @@ def main() -> int:
         env = os.environ.copy()
         env["TEMP"] = str(temp)
         env["TMP"] = str(temp)
-        _run(
+        run_cmd(
             [
                 sys.executable,
                 "-m",

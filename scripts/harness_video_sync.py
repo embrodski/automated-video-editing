@@ -3,21 +3,22 @@
 from __future__ import annotations
 
 import re
-import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from harness_episode_lib import REPO_ROOT
-
-RAW_WORD_RE = re.compile(r"\braw\b", re.IGNORECASE)
-BEN_HOST_RE = re.compile(r"\b(ben|host)\b", re.IGNORECASE)
-INTRO_RE = re.compile(r"\bintro\b", re.IGNORECASE)
-READING_RE = re.compile(r"\breading\b", re.IGNORECASE)
-WIDE_RE = re.compile(r"\bwide\b", re.IGNORECASE)
-FRONT_RE = re.compile(r"\bfront\b", re.IGNORECASE)
-SIDE_RE = re.compile(r"\bside\b", re.IGNORECASE)
-VID_RE = re.compile(r"\bvid\b|\bvideo\b", re.IGNORECASE)
+from harness_autocut_common import run_cmd
+from harness_episode_lib import (
+    BEN_HOST_RE,
+    FRONT_RE,
+    INTRO_RE,
+    RAW_WORD_RE,
+    READING_RE,
+    REPO_ROOT,
+    SIDE_RE,
+    VID_RE,
+    WIDE_RE,
+)
 
 
 @dataclass
@@ -65,15 +66,6 @@ def resolve_video_sync_dirs(working_folder: Path) -> VideoSyncDirs:
     )
 
 
-def _run(cmd: list[str]) -> None:
-    proc = subprocess.run(cmd, cwd=str(REPO_ROOT), capture_output=True, text=True)
-    if proc.returncode != 0:
-        raise RuntimeError(
-            f"Command failed ({proc.returncode}): {' '.join(cmd)}\n"
-            f"stdout:\n{proc.stdout}\nstderr:\n{proc.stderr}"
-        )
-
-
 def synced_basename(video_path: Path) -> str:
     stem = sanitize_raw_stem(video_path.stem)
     return f"{stem}-synced.mp4"
@@ -93,20 +85,6 @@ def _list_raw_mp4(raw_dir: Path) -> list[Path]:
         (p for p in raw_dir.iterdir() if p.is_file() and p.suffix.lower() == ".mp4"),
         key=lambda p: p.name.lower(),
     )
-
-
-def _resolve_under(folder: Path, basename: str) -> Path:
-    direct = folder / basename
-    if direct.is_file():
-        return direct
-    raw = folder / "Raw" / basename
-    if raw.is_file():
-        return raw
-    matches = list(folder.rglob(basename))
-    if not matches:
-        raise FileNotFoundError(f"Could not find {basename!r} under {folder}")
-    raw_hits = [m for m in matches if m.parent.name.lower() == "raw"]
-    return raw_hits[0] if raw_hits else sorted(matches, key=lambda p: len(str(p)))[0]
 
 
 def find_scope_videos(raw_dir: Path, scope: str) -> list[Path]:
@@ -169,7 +147,7 @@ def run_video_sync(
         synced_name = synced_basename(video)
         synced_path = dirs.sync_dir / synced_name
         report_path = dirs.sync_dir / synced_name.replace(".mp4", ".json")
-        _run(
+        run_cmd(
             [
                 sys.executable,
                 str(REPO_ROOT / "scripts" / "sync_video_wav_replace.py"),
@@ -200,7 +178,7 @@ def run_video_sync(
         ]
         if no_downscale_1080p:
             mc_cmd.append("--no-downscale-1080p")
-        _run(mc_cmd)
+        run_cmd(mc_cmd)
         for synced in synced_paths:
             prepped = dirs.input_dir / prepped_basename(synced.name)
             if not prepped.is_file():
@@ -218,7 +196,7 @@ def run_video_sync(
         anchor_prepped = prepped_paths[0]
 
     wav_out = dirs.input_dir / prepped_wav_basename(audio_file)
-    _run(
+    run_cmd(
         [
             sys.executable,
             str(REPO_ROOT / "scripts" / "extract_mp4_audio_wav.py"),
