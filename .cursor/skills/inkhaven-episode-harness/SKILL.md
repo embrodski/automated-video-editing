@@ -307,7 +307,7 @@ Chains **Inkhaven-Reading-Autocut** (convert transcript, fetch **`<reading-link>
 python scripts/harness_reading_autocut_test.py "<episode_folder>"
 ```
 
-- **Working folder for renders:** episode **Input** path is used in `SEGMENT_CONFIG`; DSL/JSON under **Temp**
+- **Working folder for renders:** episode **Input** path is used in **`Temp/segments.json`**; DSL/JSON under **Temp**
 - **Output:** **`<output>/1 Min Test Reading.mp4`**
 
 Tell the user: **Reading 1 Min Test File is ready for review** (`1 Min Test Reading.mp4`). Continue to step 15.

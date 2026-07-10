@@ -1,6 +1,6 @@
 ---
 name: inkhaven-podcast-autocut
-description: Automates the Inkhaven multi-cam podcast workflow: convert a detail transcript JSON into per-sentence simplified JSON (in Temp), register a new segment in src/podcast_dsl/config.py using provided input media paths, generate interview.dsl in Temp with speaker-based camera cuts plus the dense-cuts→wide rule (default --camera-switch-offset-ms -250 on generate_full_dsl.py; user may say "adjust off" or "Adjust X ms"), write MP4 renders to Output, then render ONLY the 1-minute test MP4 and pause to ask whether to continue (5-minute + full render are opt-in). If the user's initial request includes "massive" or `--massive`, after the agreed full-episode render add `--massive` to `python -m podcast_dsl` so the same folder also gets Ben Render, Guest Render, and Wide Render (single-camera variants, encoded sequentially: Ben, then Guest, then Wide). Default to no color correction; enable it only if the user's initial request explicitly says "Use Color Correct", "Run Color Correct", or similar. Use when the user says “Inkhaven”, “podcast autocut”, “generate DSL”, “render interview”, or provides input/output folders with Ben/Guest/Wide videos + WAV + transcript JSON.
+description: Automates the Inkhaven multi-cam podcast workflow: convert a detail transcript JSON into per-sentence simplified JSON (in Temp), register the interview segment in Temp/segments.json (key main; do not edit config.py), generate interview.dsl in Temp with speaker-based camera cuts plus the dense-cuts→wide rule (default --camera-switch-offset-ms -250 on generate_full_dsl.py; user may say "adjust off" or "Adjust X ms"), write MP4 renders to Output, then render ONLY the 1-minute test MP4 and pause to ask whether to continue (5-minute + full render are opt-in). If the user's initial request includes "massive" or `--massive`, after the agreed full-episode render add `--massive` to `python -m podcast_dsl` so the same folder also gets Ben Render, Guest Render, and Wide Render (single-camera variants, encoded sequentially: Ben, then Guest, then Wide). Default to no color correction; enable it only if the user's initial request explicitly says "Use Color Correct", "Run Color Correct", or similar. Use when the user says “Inkhaven”, “podcast autocut”, “generate DSL”, “render interview”, or provides input/output folders with Ben/Guest/Wide videos + WAV + transcript JSON.
 ---
 
 # Inkhaven Podcast Autocut
@@ -57,6 +57,7 @@ Keep **`<output folder>`** for deliverable **`.mp4`** files only. Write **all ot
 | Artifact | Folder |
 |----------|--------|
 | `interview_transcript_simplified.json` | `<temp folder>` |
+| `segments.json` | `<temp folder>` |
 | `interview.dsl` | `<temp folder>` |
 | Massive variant `.dsl` files (`Ben Render.dsl`, etc.) | `<temp folder>` |
 | `1 Min Test.mp4`, `5 Min Test.mp4`, `Full Interview.mp4`, massive `.mp4` renders | `<output folder>` |
@@ -116,17 +117,37 @@ python convert_transcript_json.py "<input folder>/<detail transcript filename>" 
 
 Only if the user explicitly requests a Host/Guest camera swap: re-run step 2 with **`--swap-speaker-ids`**, then repeat steps 4–5 (regenerate DSL and re-render the 1-minute test).
 
-### 3) Register a new segment in `src/podcast_dsl/config.py`
+### 3) Register the interview segment in `<temp folder>/segments.json`
 
-Add a new segment entry with:
+Write **one** segment entry with key **`main`** (do **not** edit `src/podcast_dsl/config.py`).
 
-- `audio_file`: absolute path to the master audio
-- `audio_offset`: 0
-- `enable_color_match`: `True` only if the user's initial request explicitly asked for color correction; otherwise `False`
-- `video_files`: `speaker_0`, `speaker_1`, `wide` each with absolute `file` path and `offset` (default 0 unless user provided overrides)
-- `transcript_file`: `<temp folder>/interview_transcript_simplified.json` absolute path
+1. Save the segment object to a scratch file, e.g. `<temp folder>/segment_main.entry.json`:
 
-**Segment number policy**: choose the **next unused integer** segment key in `SEGMENT_CONFIG` (e.g. if `10` exists, use `11`).
+```json
+{
+  "audio_file": "<absolute path to master audio>",
+  "audio_offset": 0,
+  "enable_color_match": false,
+  "video_files": {
+    "speaker_0": { "file": "<Ben/Host prepped MP4>", "offset": 0 },
+    "speaker_1": { "file": "<Guest prepped MP4>", "offset": 0 },
+    "wide": { "file": "<Wide prepped MP4>", "offset": 0 }
+  },
+  "transcript_file": "<temp folder>/interview_transcript_simplified.json"
+}
+```
+
+Set `enable_color_match` to `true` only when the user explicitly requested color correction.
+
+2. Upsert into the episode segment registry:
+
+```bash
+python scripts/write_episode_segments.py --temp-dir "<temp folder>" --key main --entry-json "<temp folder>/segment_main.entry.json"
+```
+
+Re-run with `--allow-overwrite` only after explicit user approval if `main` already exists.
+
+**Segment key policy:** always use **`main`** for the interview segment. DSL commands use `$segmentmain/<id>`.
 
 ### 4) Generate the full DSL (camera + wide rule)
 
@@ -137,13 +158,13 @@ Use `generate_full_dsl.py` (now includes camera switching + wide rule by default
 Command template:
 
 ```bash
-python generate_full_dsl.py "<temp folder>/interview_transcript_simplified.json" --segment <SEGMENT_NUM> --output "<temp folder>/interview.dsl" [--camera-switch-offset-ms <NEGATIVE_MS>] [--no-camera-switch-offset]
+python generate_full_dsl.py "<temp folder>/interview_transcript_simplified.json" --segment main --output "<temp folder>/interview.dsl" [--camera-switch-offset-ms <NEGATIVE_MS>] [--no-camera-switch-offset]
 ```
 
 **Default** (`generate_full_dsl.py` applies **-250 ms** automatically; no extra flag needed unless the user said `adjust off` or overrides the amount):
 
 ```bash
-python generate_full_dsl.py "<temp folder>/interview_transcript_simplified.json" --segment <SEGMENT_NUM> --output "<temp folder>/interview.dsl"
+python generate_full_dsl.py "<temp folder>/interview_transcript_simplified.json" --segment main --output "<temp folder>/interview.dsl"
 ```
 
 If the user overrides with e.g. `Adjust -200 ms`, add `--camera-switch-offset-ms -200`. If they said `adjust off`, add `--no-camera-switch-offset`.
@@ -161,8 +182,9 @@ Render template (PowerShell-friendly; do not use `&&`):
 Set-Location "<repo>\\src"
 $env:TEMP = "<temp folder>"
 $env:TMP  = "<temp folder>"
+$env:PODCAST_DSL_SEGMENTS_FILE = "<temp folder>\segments.json"
 
-python -m podcast_dsl "<temp folder>\\interview.dsl" -o "<output folder>\\1 Min Test.mp4" --workers 6 --max-seconds 60
+python -m podcast_dsl "<temp folder>\interview.dsl" -o "<output folder>\1 Min Test.mp4" --workers 6 --max-seconds 60 --segments-file "<temp folder>\segments.json"
 ```
 
 After the 1-minute render completes, **pause** and report completion. **Always** include this note (verbatim intent; wording may be natural):
@@ -180,9 +202,10 @@ Then ask:
 Set-Location "<repo>\\src"
 $env:TEMP = "<temp folder>"
 $env:TMP  = "<temp folder>"
+$env:PODCAST_DSL_SEGMENTS_FILE = "<temp folder>\segments.json"
 
-python -m podcast_dsl "<temp folder>\\interview.dsl" -o "<output folder>\\5 Min Test.mp4" --workers 6 --max-seconds 300
-python -m podcast_dsl "<temp folder>\\interview.dsl" -o "<output folder>\\Full Interview.mp4" --workers 6
+python -m podcast_dsl "<temp folder>\interview.dsl" -o "<output folder>\5 Min Test.mp4" --workers 6 --max-seconds 300 --segments-file "<temp folder>\segments.json"
+python -m podcast_dsl "<temp folder>\interview.dsl" -o "<output folder>\Full Interview.mp4" --workers 6 --segments-file "<temp folder>\segments.json"
 ```
 
 If the user asked for **massive** on the full episode, use the same command with **`--massive`** appended (and keep any `--downscale-4k-to-1080p` / `--video-encoder` flags they requested):
@@ -212,7 +235,7 @@ Assistant (following this skill):
 
 - Uses `D:\Project\Input` for inputs, writes MP4s to `D:\Project\Output`, pipeline JSON/DSL to `D:\Project\Temp`, and redirects `TEMP/TMP` to `D:\Project\Temp`
 - Convert transcript to `D:\Project\Temp\interview_transcript_simplified.json`
-- Add a new `SEGMENT_CONFIG['<next>']` entry pointing to the provided files, with `enable_color_match: False` unless the initial request explicitly asked for color correction
+- Upsert segment **`main`** into `D:\Project\Temp\segments.json` via `scripts/write_episode_segments.py`
 - Generate `D:\Project\Temp\interview.dsl` (with dense-cuts→wide; default **-250 ms** camera-switch offset is built into `generate_full_dsl.py`)
 - Render ONLY `1 Min Test.mp4` into the output folder (DSL path `D:\Project\Temp\interview.dsl`) with `TEMP/TMP` redirected to `D:\Project\Temp`
 - Pause: confirm 1-minute render complete, **always** mention the optional Host/Guest swap (`--swap-speaker-ids`), then ask whether to continue with the 5-minute test and/or full render
