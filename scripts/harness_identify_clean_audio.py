@@ -38,6 +38,16 @@ def main() -> int:
             main_combined=main_combined,
             intro_combined=intro_combined if intro_combined and intro_combined.is_file() else None,
         )
+        intro_sync_completed = (
+            state.get("steps", {}).get("06_intro_conversation_sync", {}).get("status")
+            == "completed"
+        )
+        if intro_sync_completed and "intro_clean_audio" not in clean:
+            raise FileNotFoundError(
+                "Intro conversation-sync completed but no Intro clean WAV was found in Raw. "
+                "Export a DeRoomed file with 'Clean' in the filename and 'Intro' in the name, "
+                f"newer than {intro_combined.name if intro_combined else 'intro combined audio'}."
+            )
     except (FileNotFoundError, ValueError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1

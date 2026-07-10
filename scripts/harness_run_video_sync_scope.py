@@ -17,6 +17,7 @@ from harness_episode_lib import (
     should_skip_reading,
     step_state,
 )
+from harness_overwrite_guard import HarnessOverwriteError, OVERWRITE_EXIT_CODE
 from harness_video_sync import find_scope_videos, run_video_sync
 
 
@@ -42,6 +43,11 @@ def main() -> int:
         action="store_true",
         help="Pass --no-downscale-1080p to multicam (downscale off).",
     )
+    parser.add_argument(
+        "--allow-overwrite",
+        action="store_true",
+        help="Overwrite existing synced/prepped media (requires user approval).",
+    )
     args = parser.parse_args()
 
     try:
@@ -62,10 +68,16 @@ def main() -> int:
                 save_episode_state(args.episode_folder, state)
                 print(json.dumps(state, indent=2))
                 return 0
+            if not state.get("intro_clean_audio"):
+                raise FileNotFoundError(
+                    "intro_clean_audio missing from episode state; "
+                    "run harness_identify_clean_audio.py (step 8) first."
+                )
             audio = Path(state["intro_clean_audio"])
             videos = find_scope_videos(raw_dir, "intro")
             result = run_video_sync(
-                raw_dir, audio, videos, no_downscale_1080p=args.no_downscale_1080p
+                raw_dir, audio, videos, no_downscale_1080p=args.no_downscale_1080p,
+                allow_overwrite=args.allow_overwrite,
             )
             state["intro_prepped"] = result
             steps["09_intro_video_prep"] = step_state(
@@ -92,7 +104,8 @@ def main() -> int:
             audio = _resolve_reading_audio_raw(raw_dir)
             videos = find_scope_videos(raw_dir, "reading")
             result = run_video_sync(
-                raw_dir, audio, videos, no_downscale_1080p=args.no_downscale_1080p
+                raw_dir, audio, videos, no_downscale_1080p=args.no_downscale_1080p,
+                allow_overwrite=args.allow_overwrite,
             )
             state["reading_prepped"] = result
             steps["10_reading_video_prep"] = step_state(
@@ -105,10 +118,16 @@ def main() -> int:
             state["resume_at"] = "11_reading_transcript"
 
         else:
+            if not state.get("main_clean_audio"):
+                raise FileNotFoundError(
+                    "main_clean_audio missing from episode state; "
+                    "run harness_identify_clean_audio.py (step 8) first."
+                )
             audio = Path(state["main_clean_audio"])
             videos = find_scope_videos(raw_dir, "main")
             result = run_video_sync(
-                raw_dir, audio, videos, no_downscale_1080p=args.no_downscale_1080p
+                raw_dir, audio, videos, no_downscale_1080p=args.no_downscale_1080p,
+                allow_overwrite=args.allow_overwrite,
             )
             state["main_prepped"] = result
             steps["12_main_video_prep"] = step_state(
@@ -121,6 +140,8 @@ def main() -> int:
             state["resume_at"] = "13_main_transcript"
 
         save_episode_state(args.episode_folder, state)
+    except HarnessOverwriteError:
+        return OVERWRITE_EXIT_CODE
     except (FileNotFoundError, RuntimeError, ValueError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1

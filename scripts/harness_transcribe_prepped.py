@@ -19,9 +19,12 @@ from harness_episode_lib import (
     should_skip_reading,
     step_state,
 )
+from harness_overwrite_guard import HarnessOverwriteError, OVERWRITE_EXIT_CODE, refuse_overwrite
 
 
-def _run_transcribe(wav: Path, api_key: str) -> Path:
+def _run_transcribe(wav: Path, api_key: str, *, allow_overwrite: bool) -> Path:
+    transcript_json = wav.parent / f"{wav.stem} Transcript.json"
+    refuse_overwrite(transcript_json, allow_overwrite=allow_overwrite)
     cmd = [
         sys.executable,
         str(REPO_ROOT / "scripts" / "elevenlabs_transcribe_wav.py"),
@@ -36,16 +39,20 @@ def _run_transcribe(wav: Path, api_key: str) -> Path:
         raise RuntimeError(
             f"elevenlabs_transcribe_wav failed.\nstdout:\n{proc.stdout}\nstderr:\n{proc.stderr}"
         )
-    json_path = wav.parent / f"{wav.stem} Transcript.json"
-    if not json_path.is_file():
-        raise FileNotFoundError(f"Expected transcript JSON: {json_path}")
-    return json_path
+    if not transcript_json.is_file():
+        raise FileNotFoundError(f"Expected transcript JSON: {transcript_json}")
+    return transcript_json
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Harness transcribe prepped WAV.")
     parser.add_argument("episode_folder", type=Path)
     parser.add_argument("--scope", required=True, choices=("reading", "main"))
+    parser.add_argument(
+        "--allow-overwrite",
+        action="store_true",
+        help="Overwrite existing transcript JSON in Input (requires user approval).",
+    )
     args = parser.parse_args()
 
     try:
@@ -65,8 +72,14 @@ def main() -> int:
                 save_episode_state(args.episode_folder, state)
                 print(json.dumps(state, indent=2))
                 return 0
-            wav = Path(state["reading_prepped"]["prepped_audio_wav"])
-            transcript = _run_transcribe(wav, api_key)
+            prepped = state.get("reading_prepped")
+            if not prepped or not prepped.get("prepped_audio_wav"):
+                raise FileNotFoundError(
+                    "reading_prepped missing from episode state; "
+                    "run harness_run_video_sync_scope.py --scope reading (step 10) first."
+                )
+            wav = Path(prepped["prepped_audio_wav"])
+            transcript = _run_transcribe(wav, api_key, allow_overwrite=args.allow_overwrite)
             state["reading_transcript_json"] = str(transcript)
             steps["11_reading_transcript"] = step_state(
                 steps,
@@ -78,8 +91,14 @@ def main() -> int:
             )
             state["resume_at"] = "14_reading_autocut_test"
         else:
-            wav = Path(state["main_prepped"]["prepped_audio_wav"])
-            transcript = _run_transcribe(wav, api_key)
+            prepped = state.get("main_prepped")
+            if not prepped or not prepped.get("prepped_audio_wav"):
+                raise FileNotFoundError(
+                    "main_prepped missing from episode state; "
+                    "run harness_run_video_sync_scope.py --scope main (step 12) first."
+                )
+            wav = Path(prepped["prepped_audio_wav"])
+            transcript = _run_transcribe(wav, api_key, allow_overwrite=args.allow_overwrite)
             state["main_transcript_json"] = str(transcript)
             steps["13_main_transcript"] = step_state(
                 steps,
@@ -92,6 +111,8 @@ def main() -> int:
             state["resume_at"] = "15_podcast_autocut_test"
 
         save_episode_state(args.episode_folder, state)
+    except HarnessOverwriteError:
+        return OVERWRITE_EXIT_CODE
     except (FileNotFoundError, RuntimeError, ValueError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
