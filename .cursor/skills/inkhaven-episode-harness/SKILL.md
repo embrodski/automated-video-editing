@@ -262,7 +262,7 @@ python scripts/harness_run_video_sync_scope.py "<episode_folder>" --scope readin
 
 **Skip** when **`skip_reading`** is true.
 
-Uses **`scripts/elevenlabs_transcribe_wav.py`** (checklist name: `bs_transcribe_wav.py`) on the **Reading `*-prepped.wav`** from step **10** (not intro prepped audio).
+Uses **`scripts/elevenlabs_transcribe_wav.py`** on the **Reading `*-prepped.wav`** from step **10** (not intro prepped audio).
 
 ```powershell
 python scripts/harness_transcribe_prepped.py "<episode_folder>" --scope reading
@@ -467,7 +467,7 @@ Troubleshoot **`Edited Interview.mp4`** (and reading/intro exports) if the user 
 python scripts/harness_step_status.py "<episode_folder>" --step 21_hand_edit_approval --status completed --resume-at 22_podcast_stitch
 ```
 
-**Required in Output before stitch:** `Intro.mp4`, `Edited Reading.mp4`, `Edited Interview.mp4`, `Closing.mp4` (flexible filename matching if names differ slightly).
+**Required in Output before stitch:** `Intro.mp4`, `Edited Reading.mp4`, `Edited Interview.mp4`, `Closing.mp4`. Harness step 22 resolves loosely named exports (e.g. stems containing `intro`, `edited`, `reading`) and passes those paths to `stitch_episode.py`; canonical names are preferred.
 
 ---
 
@@ -552,7 +552,7 @@ Example resume after a successful test through step 7:
 
 ## READING-tagged steps
 
-When **`skip_reading`** is **true**, skip steps **10, 11, 14** (mark **`skipped`**).
+When **`skip_reading`** is **true**, skip all READING-tagged steps (mark **`skipped`**): **10, 11, 14, 16, 17**.
 
 | Step | READING |
 |------|---------|
