@@ -57,10 +57,11 @@ INTRO_WIDE_MAX_ROW_DURATION_SEC = 22.0
 
 def _get_sentence_meta(segment_id: str) -> Dict:
     """Transcript fields for one DSL segment id."""
-    from podcast_dsl import parse_segment_id, load_transcript, SEGMENT_CONFIG
+    from podcast_dsl import parse_segment_id, load_transcript
+    from podcast_dsl.config import get_segment_config
 
     segment_num, sentence_id = parse_segment_id(segment_id)
-    config = SEGMENT_CONFIG[segment_num]
+    config = get_segment_config(segment_num)
     transcript = load_transcript(config["transcript_file"])
 
     if sentence_id not in transcript:

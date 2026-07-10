@@ -2,6 +2,10 @@
 Configuration for podcast segments.
 """
 
+from __future__ import annotations
+
+import json
+import os
 from pathlib import Path
 
 
@@ -987,3 +991,76 @@ for segment in SEGMENT_CONFIG.values():
     segment['transcript_file'] = _resolve_repo_path(segment['transcript_file'])
     for camera in segment['video_files'].values():
         camera['file'] = _resolve_repo_path(camera['file'])
+
+
+# --- Per-episode segment overlay (Temp/segments.json) ---------------------------------
+
+SEGMENTS_FILE_ENV = "PODCAST_DSL_SEGMENTS_FILE"
+
+_segments_overlay: dict[str, dict] | None = None
+
+
+def _normalize_segment_entry(segment: dict) -> dict:
+    """Return a copy with repo-relative media paths resolved to absolute strings."""
+    out = dict(segment)
+    out["audio_file"] = _resolve_repo_path(str(out["audio_file"]))
+    out["transcript_file"] = _resolve_repo_path(str(out["transcript_file"]))
+    video_files = {}
+    for cam_key, cam in out.get("video_files", {}).items():
+        cam_copy = dict(cam)
+        cam_copy["file"] = _resolve_repo_path(str(cam_copy["file"]))
+        video_files[cam_key] = cam_copy
+    out["video_files"] = video_files
+    return out
+
+
+def load_segments_overlay(path: str | Path | None) -> None:
+    """Load per-episode segment definitions from ``Temp/segments.json`` (or similar)."""
+    global _segments_overlay
+    if path is None:
+        _segments_overlay = None
+        return
+    path = Path(path).expanduser().resolve()
+    if not path.is_file():
+        raise FileNotFoundError(f"Segments file not found: {path}")
+    with path.open(encoding="utf-8") as fh:
+        data = json.load(fh)
+    if not isinstance(data, dict):
+        raise ValueError(f"Segments file must contain a JSON object: {path}")
+    _segments_overlay = {
+        str(key): _normalize_segment_entry(entry)
+        for key, entry in data.items()
+        if isinstance(entry, dict)
+    }
+
+
+def clear_segments_overlay() -> None:
+    """Drop any in-memory episode overlay (tests and CLI isolation)."""
+    global _segments_overlay
+    _segments_overlay = None
+
+
+def _ensure_overlay_from_env() -> None:
+    if _segments_overlay is not None:
+        return
+    path = os.environ.get(SEGMENTS_FILE_ENV)
+    if path:
+        load_segments_overlay(path)
+
+
+def has_segment_config(segment_id: str) -> bool:
+    """True when ``segment_id`` exists in the episode overlay or legacy ``SEGMENT_CONFIG``."""
+    _ensure_overlay_from_env()
+    if _segments_overlay is not None and segment_id in _segments_overlay:
+        return True
+    return segment_id in SEGMENT_CONFIG
+
+
+def get_segment_config(segment_id: str) -> dict:
+    """Resolve segment media config: episode overlay first, then legacy ``SEGMENT_CONFIG``."""
+    _ensure_overlay_from_env()
+    if _segments_overlay is not None and segment_id in _segments_overlay:
+        return _segments_overlay[segment_id]
+    if segment_id not in SEGMENT_CONFIG:
+        raise KeyError(f"Unknown segment: {segment_id}")
+    return SEGMENT_CONFIG[segment_id]

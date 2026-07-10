@@ -14,9 +14,9 @@ from typing import List, Dict, Tuple, Optional
 from multiprocessing import Pool, cpu_count
 from functools import lru_cache
 from .config import (
-    SEGMENT_CONFIG,
     SHORTEN_JOIN_DEFAULT_CROSSFADE_MS,
     SHORTEN_JOIN_DEFAULT_PADDING_MS,
+    get_segment_config,
     is_reading_dsl_text,
     segment_uses_embedded_audio,
 )
@@ -465,7 +465,7 @@ def _get_segment_target_resolution(segment_num: str) -> Tuple[int, int]:
     Uses the largest width/height so lower-resolution cameras get normalized
     before concatenation with higher-resolution cameras.
     """
-    config = SEGMENT_CONFIG[segment_num]
+    config = get_segment_config(segment_num)
     dimensions = [
         _get_video_dimensions(camera_info['file'])
         for camera_info in config['video_files'].values()
@@ -489,7 +489,7 @@ def _segment_color_match_eq(segment_num: str, camera: str) -> str:
     if camera == 'wide':
         return ''
 
-    config = SEGMENT_CONFIG[segment_num]
+    config = get_segment_config(segment_num)
     if not config.get('enable_color_match', True):
         return ''
     cam_cfg = config['video_files'].get(camera, {})
@@ -1203,7 +1203,7 @@ def _extract_single_camera_group(segment_ids: List[str], clips_info: List[Dict],
 
     # Get the main audio file from segment config
     segment_num, _ = parse_segment_id(segment_ids[0])
-    config = SEGMENT_CONFIG[segment_num]
+    config = get_segment_config(segment_num)
     main_audio_file = config['audio_file']
     audio_offset_in_file = config.get('audio_offset', 0)
     target_width, target_height = _get_segment_target_resolution(segment_num)
@@ -1420,7 +1420,7 @@ def _build_camera_spans(group: List[Tuple[str, str, str, float, float, Optional[
 
     intervals = _build_playback_intervals(clip_infos, group_audio_start, group_audio_end)
 
-    config = SEGMENT_CONFIG[segment_num]
+    config = get_segment_config(segment_num)
     if snap_enabled() and _use_video_embedded_audio(config):
         _snap_playback_interval_boundaries(intervals)
 
@@ -1616,7 +1616,7 @@ def _extract_multi_camera_group(group: List[Tuple[str, str, str, float, float, O
 
     # Get the segment number (all segments in group should be from same segment)
     segment_num, _ = parse_segment_id(segment_ids[0])
-    config = SEGMENT_CONFIG[segment_num]
+    config = get_segment_config(segment_num)
     main_audio_file = config['audio_file']
     audio_offset_in_file = config.get('audio_offset', 0)
     use_video_embedded_audio = _use_video_embedded_audio(config)
@@ -1835,7 +1835,7 @@ def render_all_cams(dsl_file: str, output_file: str, dry_run: bool = False,
             continue
 
         segment_num, _ = parse_segment_id(segment_id)
-        config = SEGMENT_CONFIG[segment_num]
+        config = get_segment_config(segment_num)
         cameras.update(config['video_files'].keys())
 
     cameras = sorted(cameras)  # Sort for consistent ordering

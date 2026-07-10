@@ -6,7 +6,7 @@ including camera switches, cuts, fades, and segment playback.
 """
 
 # Export configuration
-from .config import SEGMENT_CONFIG
+from .config import SEGMENT_CONFIG, get_segment_config, has_segment_config, load_segments_overlay
 
 # Export command classes
 from .commands import (
@@ -47,6 +47,9 @@ from .color_match import (
 __all__ = [
     # Config
     'SEGMENT_CONFIG',
+    'get_segment_config',
+    'has_segment_config',
+    'load_segments_overlay',
 
     # Commands
     'DSLCommand',

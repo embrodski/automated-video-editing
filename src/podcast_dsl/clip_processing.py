@@ -6,9 +6,10 @@ import json
 from typing import List, Dict, Tuple, Optional
 
 from .config import (
-    SEGMENT_CONFIG,
     SHORTEN_JOIN_DEFAULT_CROSSFADE_MS,
     SHORTEN_JOIN_DEFAULT_PADDING_MS,
+    get_segment_config,
+    has_segment_config,
 )
 
 
@@ -27,7 +28,7 @@ def parse_segment_id(segment_id: str) -> Tuple[str, str]:
         raise ValueError(f"Invalid segment name: {segment_name}")
 
     segment_num = segment_name.replace('segment', '')
-    if segment_num not in SEGMENT_CONFIG:
+    if not has_segment_config(segment_num):
         raise ValueError(f"Unknown segment: {segment_num}")
 
     return segment_num, sentence_id
@@ -57,7 +58,7 @@ def get_clip_info(segment_id: str, camera_name: str, slice_start: float = None, 
         Dictionary with audio/video timing information, adjusted for slice parameters
     """
     segment_num, sentence_id = parse_segment_id(segment_id)
-    config = SEGMENT_CONFIG[segment_num]
+    config = get_segment_config(segment_num)
 
     # Load transcript
     transcript = load_transcript(config['transcript_file'])
@@ -170,7 +171,7 @@ def apply_shorten_join_clip_bounds(
         if prev_seg != curr_seg:
             continue
 
-        transcript = load_transcript(SEGMENT_CONFIG[prev_seg]['transcript_file'])
+        transcript = load_transcript(get_segment_config(prev_seg)['transcript_file'])
         prev_row = transcript[prev_sent]
         curr_row = transcript[curr_sent]
         _, prev_word_end = _row_spoken_bounds(prev_row)
@@ -263,7 +264,7 @@ def group_consecutive_clips(clips_to_render: List[Tuple[str, str, str, float, fl
             # Group consecutive clips regardless of camera to ensure audio continuity
             if same_segment and is_sequential:
                 # Load transcript to check timing
-                config = SEGMENT_CONFIG[prev_seg_num]
+                config = get_segment_config(prev_seg_num)
                 transcript = load_transcript(config['transcript_file'])
 
                 prev_end = transcript[prev_sent_id]['end']

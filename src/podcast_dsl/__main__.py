@@ -104,6 +104,12 @@ Examples:
         help='Downscale targets above 1080p to 1920x1080 for faster renders.',
     )
     parser.add_argument(
+        '--segments-file',
+        type=Path,
+        default=None,
+        help='Per-episode segments JSON (Temp/segments.json). Also honored via PODCAST_DSL_SEGMENTS_FILE.',
+    )
+    parser.add_argument(
         '--massive',
         action='store_true',
         help=(
@@ -144,6 +150,13 @@ Examples:
         os.environ[VIDEO_DOWNSCALE_4K_ENV] = '1'
     else:
         os.environ.pop(VIDEO_DOWNSCALE_4K_ENV, None)
+
+    from .config import SEGMENTS_FILE_ENV, load_segments_overlay
+
+    segments_path = args.segments_file or os.environ.get(SEGMENTS_FILE_ENV)
+    if segments_path:
+        load_segments_overlay(segments_path)
+        os.environ[SEGMENTS_FILE_ENV] = str(Path(segments_path).resolve())
 
     # Render all cams mode takes precedence
     if args.render_all_cams:

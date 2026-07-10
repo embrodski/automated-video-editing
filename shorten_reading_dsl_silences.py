@@ -92,7 +92,7 @@ def _commands_to_subclips(
         if not isinstance(cmd, SegmentCommand):
             continue
 
-        m = re.match(r"segment(\d+)/(\d+)", cmd.segment_id.strip(), re.I)
+        m = re.match(r"segment([^/]+)/(\d+)", cmd.segment_id.strip(), re.I)
         if not m:
             raise ValueError(f"Unrecognized segment id: {cmd.segment_id!r}")
         segment_num = m.group(1)
@@ -174,7 +174,7 @@ def main() -> int:
     seg_from_file: Optional[str] = None
     for cmd in commands:
         if isinstance(cmd, SegmentCommand):
-            m = re.match(r"segment(\d+)/", cmd.segment_id.strip(), re.I)
+            m = re.match(r"segment([^/]+)/", cmd.segment_id.strip(), re.I)
             if m:
                 seg_from_file = m.group(1)
                 break
@@ -186,11 +186,17 @@ def main() -> int:
     if args.transcript is not None:
         transcript_path = args.transcript
     else:
-        from podcast_dsl.config import SEGMENT_CONFIG
+        from podcast_dsl.config import SEGMENTS_FILE_ENV, get_segment_config, has_segment_config, load_segments_overlay
+        import os
 
-        if segment_num not in SEGMENT_CONFIG:
-            raise SystemExit(f"Segment {segment_num} not in SEGMENT_CONFIG; pass --transcript")
-        transcript_path = Path(SEGMENT_CONFIG[segment_num]["transcript_file"])
+        env_path = os.environ.get(SEGMENTS_FILE_ENV)
+        if env_path:
+            load_segments_overlay(env_path)
+        if not has_segment_config(segment_num):
+            raise SystemExit(
+                f"Segment {segment_num} not in segments overlay or SEGMENT_CONFIG; pass --transcript"
+            )
+        transcript_path = Path(get_segment_config(segment_num)["transcript_file"])
 
     rows = load_transcript(transcript_path)
     rows_by_idx = {r.idx: r for r in rows}
