@@ -57,6 +57,7 @@ from scipy import signal
 from scipy.io import wavfile
 
 AlignTo = Literal["earliest", "latest"]
+HARDWARE_ENCODERS = ("h264_nvenc", "h264_qsv", "h264_amf")
 
 
 def _run(cmd: list[str]) -> None:
@@ -167,7 +168,8 @@ def _trim_av_reencode(
     crf: int,
     audio_bitrate: str,
     downscale_1080p: bool,
-) -> None:
+    video_encoder: str,
+) -> str:
     # Apply trim first; optionally downscale video to 1080p max width for faster
     # renders / smaller uploads (useful for YouTube workflows).
     v_chain = f"trim=start={trim_sec},setpts=PTS-STARTPTS"
@@ -175,7 +177,7 @@ def _trim_av_reencode(
         # Keep aspect ratio; never upscale. Height becomes even via -2.
         v_chain += ",scale=w='min(1920,iw)':h=-2:flags=lanczos"
     fc = f"[0:v]{v_chain}[v];[0:a]atrim=start={trim_sec},asetpts=PTS-STARTPTS[a]"
-    cmd = [
+    cmd_prefix = [
         "ffmpeg",
         "-y",
         "-hide_banner",
@@ -190,19 +192,108 @@ def _trim_av_reencode(
         "[v]",
         "-map",
         "[a]",
-        "-c:v",
-        "libx264",
-        "-preset",
-        "fast",
-        "-crf",
-        str(crf),
-        "-c:a",
-        "aac",
-        "-b:a",
-        audio_bitrate,
-        str(out),
     ]
-    _run(cmd)
+    attempts = [video_encoder]
+    if video_encoder in HARDWARE_ENCODERS:
+        attempts.append("libx264")
+
+    for attempt_index, encoder in enumerate(attempts):
+        cmd = list(cmd_prefix)
+        cmd.extend(_video_encoder_args(encoder, crf))
+        cmd.extend(["-c:a", "aac", "-b:a", audio_bitrate, str(out)])
+        try:
+            _run(cmd)
+            return encoder
+        except RuntimeError:
+            out.unlink(missing_ok=True)
+            if attempt_index + 1 >= len(attempts):
+                raise
+            print(
+                f"Hardware encoder {encoder} failed for {inp.name}; "
+                "falling back to libx264 for this and remaining cameras.",
+                file=sys.stderr,
+            )
+    raise RuntimeError("No video encoder attempt was made.")
+
+
+def _video_encoder_args(video_encoder: str, quality: int) -> list[str]:
+    if video_encoder == "libx264":
+        return ["-c:v", "libx264", "-preset", "fast", "-crf", str(quality)]
+    if video_encoder == "h264_nvenc":
+        return [
+            "-c:v",
+            "h264_nvenc",
+            "-preset",
+            "fast",
+            "-tune",
+            "hq",
+            "-rc",
+            "vbr",
+            "-cq",
+            str(quality),
+            "-b:v",
+            "0",
+        ]
+    if video_encoder == "h264_qsv":
+        return [
+            "-c:v",
+            "h264_qsv",
+            "-preset",
+            "fast",
+            "-global_quality",
+            str(quality),
+        ]
+    if video_encoder == "h264_amf":
+        return [
+            "-c:v",
+            "h264_amf",
+            "-quality",
+            "speed",
+            "-rc",
+            "qvbr",
+            "-qvbr_quality_level",
+            str(quality),
+        ]
+    raise ValueError(f"Unsupported video encoder: {video_encoder}")
+
+
+def _encoder_is_usable(video_encoder: str) -> bool:
+    with tempfile.TemporaryDirectory(prefix="multicam-encoder-test-") as td:
+        output = Path(td) / "test.mp4"
+        cmd = [
+            "ffmpeg",
+            "-y",
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "color=c=black:s=1280x720:r=24000/1001:d=0.1",
+            "-frames:v",
+            "1",
+            *_video_encoder_args(video_encoder, 23),
+            "-pix_fmt",
+            "yuv420p",
+            "-an",
+            str(output),
+        ]
+        try:
+            _run(cmd)
+        except RuntimeError:
+            return False
+        return output.is_file() and output.stat().st_size > 0
+
+
+def _resolve_video_encoder(requested: str) -> str:
+    if requested != "auto":
+        return requested
+    for candidate in HARDWARE_ENCODERS:
+        if _encoder_is_usable(candidate):
+            print(f"Video encoder: {candidate} (hardware)")
+            return candidate
+    print("No usable hardware H.264 encoder found; using libx264.", file=sys.stderr)
+    return "libx264"
 
 
 def _multicam_output_basename(inp: Path, *, prepped_names: bool, suffix: str) -> str:
@@ -375,6 +466,15 @@ def main() -> int:
         help="H.264 CRF when re-encoding (default: 20; good YouTube upload default).",
     )
     p.add_argument(
+        "--video-encoder",
+        choices=("auto", "libx264", *HARDWARE_ENCODERS),
+        default="auto",
+        help=(
+            "H.264 encoder for frame-accurate trims (default: auto). Auto tries "
+            "NVENC, QSV, then AMF, with runtime fallback to libx264."
+        ),
+    )
+    p.add_argument(
         "--downscale-1080p",
         action=argparse.BooleanOptionalAction,
         default=True,
@@ -465,6 +565,14 @@ def main() -> int:
             print(f"Wrote {args.json_report}")
         return 0
 
+    active_video_encoder = (
+        "copy"
+        if args.stream_copy
+        else _resolve_video_encoder(args.video_encoder)
+    )
+    report["video_encoder_requested"] = args.video_encoder
+    report["video_encoder_initial"] = active_video_encoder
+
     for i, v in enumerate(videos):
         trim_sec = trims[i] / float(sr)
         out_basename = _multicam_output_basename(
@@ -507,19 +615,22 @@ def main() -> int:
                 tmp_path.unlink(missing_ok=True)
         else:
             try:
-                _trim_av_reencode(
+                active_video_encoder = _trim_av_reencode(
                     v,
                     tmp_path,
                     trim_sec=trim_sec,
                     crf=args.crf,
                     audio_bitrate=args.audio_bitrate,
                     downscale_1080p=bool(args.downscale_1080p),
+                    video_encoder=active_video_encoder,
                 )
+                meta[i]["video_encoder"] = active_video_encoder
                 _replace_file_atomic(tmp_path, out_path)
             finally:
                 tmp_path.unlink(missing_ok=True)
         print(f"Wrote {out_path}")
 
+    report["video_encoder_final"] = active_video_encoder
     if args.json_report:
         args.json_report.write_text(json.dumps(report, indent=2), encoding="utf-8")
         print(f"JSON report: {args.json_report}")

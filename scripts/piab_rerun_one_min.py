@@ -1,64 +1,36 @@
 #!/usr/bin/env python3
-"""Harness step 15: Inkhaven-Podcast-Autocut 1-minute test."""
+"""Re-render PIAB 1 Min Test after approval-loop fixes (e.g. speaker-id swap)."""
 
 from __future__ import annotations
 
 import argparse
-import json
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from harness_autocut_common import render_dsl, run_cmd
-from harness_overwrite_guard import HarnessOverwriteError, OVERWRITE_EXIT_CODE, refuse_overwrite
 from episode_segments import MAIN_SEGMENT_KEY, segments_path, upsert_segment
-from harness_episode_lib import (
-    BEN_HOST_RE,
-    REPO_ROOT,
-    WIDE_RE,
-    load_episode_state,
-    podcast_phrase_cli_args,
-    podcast_swap_speaker_ids_cli_args,
-    save_episode_state,
-    should_skip_reading,
-    step_state,
-)
-
-
-def _pick_interview_videos(prepped_videos: list[str]) -> tuple[Path, Path, Path]:
-    paths = [Path(p) for p in prepped_videos]
-    ben = next((p for p in paths if BEN_HOST_RE.search(p.name)), None)
-    wide = next((p for p in paths if WIDE_RE.search(p.name)), None)
-    guest = next(
-        (p for p in paths if not BEN_HOST_RE.search(p.name) and not WIDE_RE.search(p.name)),
-        None,
-    )
-    if not ben or not guest or not wide:
-        raise FileNotFoundError(f"Could not find Ben/Guest/Wide prepped in {prepped_videos}")
-    return ben, guest, wide
+from harness_autocut_common import render_dsl, run_cmd
+from harness_episode_lib import REPO_ROOT, podcast_phrase_cli_args, podcast_swap_speaker_ids_cli_args
+from harness_overwrite_guard import HarnessOverwriteError, OVERWRITE_EXIT_CODE, refuse_overwrite
+from harness_podcast_autocut_test import _pick_interview_videos
+from piab_lib import load_piab_state, mark_step, print_json, save_piab_state
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Harness step 15: podcast 1-min test.")
-    parser.add_argument("episode_folder", type=Path)
-    parser.add_argument(
-        "--allow-overwrite",
-        action="store_true",
-        help="Overwrite existing test MP4 / Temp DSL artifacts (requires user approval).",
-    )
+    parser = argparse.ArgumentParser(description="Re-render PIAB 1 Min Test.")
+    parser.add_argument("working_folder", type=Path)
+    parser.add_argument("--allow-overwrite", action="store_true")
     args = parser.parse_args()
+    working = args.working_folder.resolve()
 
     try:
-        state = load_episode_state(args.episode_folder)
+        state = load_piab_state(working)
         temp = Path(state["paths"]["temp"])
         output_dir = Path(state["paths"]["output"])
-        temp.mkdir(parents=True, exist_ok=True)
-
         ben, guest, wide = _pick_interview_videos(state["main_prepped"]["prepped_videos"])
         audio_wav = Path(state["main_prepped"]["prepped_audio_wav"])
         detail_json = Path(state["main_transcript_json"])
-
         simplified = temp / "interview_transcript_simplified.json"
         interview_dsl = temp / "interview.dsl"
         out_mp4 = output_dir / "1 Min Test.mp4"
@@ -75,7 +47,7 @@ def main() -> int:
         convert_cmd.extend(podcast_swap_speaker_ids_cli_args(state))
         run_cmd(convert_cmd)
 
-        segment_id = MAIN_SEGMENT_KEY
+        segment_id = state.get("main_segment_id") or MAIN_SEGMENT_KEY
         upsert_segment(
             temp,
             segment_id,
@@ -94,7 +66,6 @@ def main() -> int:
         )
         state["main_segment_id"] = segment_id
         state["segments_file"] = str(segments_path(temp))
-
         run_cmd(
             [
                 sys.executable,
@@ -107,7 +78,6 @@ def main() -> int:
                 *podcast_phrase_cli_args(state),
             ]
         )
-
         render_dsl(
             interview_dsl,
             out_mp4,
@@ -115,40 +85,30 @@ def main() -> int:
             max_seconds=60,
             allow_overwrite=args.allow_overwrite,
         )
-
         state["podcast_autocut_test_mp4"] = str(out_mp4)
-        steps = state.setdefault("steps", {})
-        steps["15_podcast_autocut_test"] = step_state(
-            steps,
-            "15_podcast_autocut_test",
+        state["interview_dsl"] = str(interview_dsl)
+        mark_step(
+            state,
+            "10_one_min_test",
             title="Podcast autocut 1-min test",
             status="completed",
             output_mp4=str(out_mp4),
-            interview_dsl=str(interview_dsl),
-            segment_id=segment_id,
         )
-        state["interview_dsl"] = str(interview_dsl)
-        steps["18_interview_test_approval"] = step_state(
-            steps,
-            "18_interview_test_approval",
-            title="Interview 1-min test approval",
+        mark_step(
+            state,
+            "11_one_min_approval",
+            title="1-min test approval",
             status="awaiting_user",
         )
-        if should_skip_reading(state):
-            state["resume_at"] = "18_interview_test_approval"
-        else:
-            state["resume_at"] = "16_reading_test_approval"
-        save_episode_state(args.episode_folder, state)
+        state["resume_at"] = "11_one_min_approval"
+        save_piab_state(working, state)
     except HarnessOverwriteError:
-        return OVERWRITE_EXIT_CODE
-    except FileExistsError as exc:
-        print(f"ERROR: {exc}", file=sys.stderr)
         return OVERWRITE_EXIT_CODE
     except (FileNotFoundError, RuntimeError, ValueError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
 
-    print(json.dumps(state, indent=2))
+    print_json({"one_min_test": str(out_mp4), "swap_speaker_ids": state.get("swap_speaker_ids")})
     return 0
 
 

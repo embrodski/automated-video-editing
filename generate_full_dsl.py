@@ -30,6 +30,7 @@ Use `--no-cameras` to reproduce the legacy behavior (no `!camera` lines, no wide
 import argparse
 import json
 import re
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Mapping, Optional, Tuple
@@ -62,6 +63,13 @@ _NORMALIZE_TEXT_RE = re.compile(r"[^a-z0-9\s\-]+")
 
 
 @dataclass(frozen=True)
+class WordToken:
+    text: str
+    start: float
+    end: float
+
+
+@dataclass(frozen=True)
 class Row:
     idx: int
     start: float
@@ -69,6 +77,56 @@ class Row:
     text: str
     speaker_id: int
     speaker_name: str
+    words: Tuple[WordToken, ...] = ()
+
+
+@dataclass(frozen=True)
+class FlatWord:
+    row_i: int
+    word_i: int
+    token: str
+    start: float
+    end: float
+
+
+@dataclass(frozen=True)
+class StartPhraseCut:
+    rows: List[Row]
+    first_slice_start: Optional[float]
+    content_start_abs: float
+    matched_phrase: str
+    next_word_text: str
+    host_speaker_id: int
+
+
+@dataclass(frozen=True)
+class EndPhraseCut:
+    rows: List[Row]
+    last_slice_end: Optional[float]
+    content_end_abs: float
+    matched_phrase: str
+    last_word_text: str
+
+
+@dataclass
+class Piece:
+    """One emitted clip derived from a transcript row (possibly sliced)."""
+
+    row: Row
+    slice_start: Optional[float] = None
+    slice_end: Optional[float] = None
+    force_cam: Optional[str] = None
+    seam_after_pause: bool = False
+
+
+@dataclass(frozen=True)
+class PausePair:
+    pause_start_i: int
+    pause_end_i: int  # exclusive flat index
+    unpause_start_i: int
+    unpause_end_i: int  # exclusive
+    pause_phrase: str
+    unpause_phrase: str
 
 
 def parse_args() -> argparse.Namespace:
@@ -163,7 +221,97 @@ def parse_args() -> argparse.Namespace:
         help="Map speaker_id 3 to the wide camera (--wide-camera, default wide). "
              "Off by default for normal two-speaker interviews.",
     )
+    parser.add_argument(
+        "--start-phrase",
+        default=None,
+        help=(
+            "Drop everything through this phrase (case/punctuation-insensitive). "
+            "The first cut begins --start-preroll-sec before the first word after "
+            "the phrase. Requires word-level timestamps in the simplified transcript."
+        ),
+    )
+    parser.add_argument(
+        "--start-preroll-sec",
+        type=float,
+        default=1.0,
+        help="Seconds before the first post-start-phrase word to begin (default: 1.0).",
+    )
+    parser.add_argument(
+        "--end-phrase",
+        default=None,
+        help=(
+            "Drop this phrase and everything after it. The last cut ends "
+            "--end-postroll-sec after the last word before the phrase. Requires "
+            "word-level timestamps in the simplified transcript."
+        ),
+    )
+    parser.add_argument(
+        "--end-postroll-sec",
+        type=float,
+        default=2.0,
+        help="Seconds after the last pre-end-phrase word to keep (default: 2.0).",
+    )
+    parser.add_argument(
+        "--pause-phrase",
+        default=None,
+        help=(
+            "Pause cue phrase. Matched Pause→Unpause pairs remove the cues and "
+            "everything between them (unless --abort-phrase is present anywhere)."
+        ),
+    )
+    parser.add_argument(
+        "--unpause-phrase",
+        action="append",
+        default=None,
+        help=(
+            "Unpause cue phrase (repeatable; any match ends a pause). "
+            "Example: --unpause-phrase 'Computer Resume Program' "
+            "--unpause-phrase 'Computer Unfreeze Program'."
+        ),
+    )
+    parser.add_argument(
+        "--abort-phrase",
+        default=None,
+        help=(
+            "If this phrase appears anywhere in the full transcript, all Pause/Unpause "
+            "pairs are ignored for the episode."
+        ),
+    )
+    parser.add_argument(
+        "--pause-preroll-sec",
+        type=float,
+        default=0.25,
+        help="Seconds to keep after the last word before a Pause cue (default: 0.25).",
+    )
+    parser.add_argument(
+        "--pause-postroll-sec",
+        type=float,
+        default=0.7,
+        help=(
+            "Seconds before the first word after an Unpause cue to resume "
+            "(default: 0.7)."
+        ),
+    )
     return parser.parse_args()
+
+
+def _load_word_tokens(raw_words: object) -> Tuple[WordToken, ...]:
+    if not isinstance(raw_words, list):
+        return ()
+    words: List[WordToken] = []
+    for w in raw_words:
+        if not isinstance(w, dict):
+            continue
+        text = str(w.get("text", "") or "").strip()
+        if not text:
+            continue
+        try:
+            start = float(w.get("start", w.get("start_time")))
+            end = float(w.get("end", w.get("end_time")))
+        except (TypeError, ValueError):
+            continue
+        words.append(WordToken(text=text, start=start, end=end))
+    return tuple(words)
 
 
 def _load_rows(transcript: Dict[str, Dict]) -> List[Row]:
@@ -179,9 +327,376 @@ def _load_rows(transcript: Dict[str, Dict]) -> List[Row]:
                 text=str(v.get("text", "")),
                 speaker_id=int(v.get("speaker_id", 0)),
                 speaker_name=str(v.get("speaker_name", "") or ""),
+                words=_load_word_tokens(v.get("words")),
             )
         )
     return rows
+
+
+def _normalize_match_token(text: str) -> str:
+    t = text.strip().lower()
+    # Treat dashes as word separators so "override - Eject" matches spoken words.
+    t = t.replace("—", " ").replace("–", " ").replace("-", " ")
+    t = _NORMALIZE_TEXT_RE.sub("", t)
+    t = re.sub(r"\s+", " ", t).strip()
+    return t
+
+
+def _tokenize_phrase(phrase: str) -> List[str]:
+    tokens = [t for t in _normalize_match_token(phrase).split() if t]
+    if not tokens:
+        raise ValueError(f"Phrase is empty after normalization: {phrase!r}")
+    return tokens
+
+
+def _flatten_match_words(rows: List[Row]) -> List[FlatWord]:
+    flat: List[FlatWord] = []
+    for row_i, row in enumerate(rows):
+        for word_i, word in enumerate(row.words):
+            token = _normalize_match_token(word.text)
+            if not token:
+                continue
+            flat.append(
+                FlatWord(
+                    row_i=row_i,
+                    word_i=word_i,
+                    token=token,
+                    start=float(word.start),
+                    end=float(word.end),
+                )
+            )
+    return flat
+
+
+def _find_phrase_start_index(flat: List[FlatWord], phrase_tokens: List[str]) -> int:
+    n = len(phrase_tokens)
+    if n == 0:
+        raise ValueError("Phrase token list is empty.")
+    for i in range(0, len(flat) - n + 1):
+        if all(flat[i + j].token == phrase_tokens[j] for j in range(n)):
+            return i
+    raise ValueError(
+        "Phrase not found in word-timed transcript: "
+        + " ".join(phrase_tokens)
+    )
+
+
+def _apply_start_phrase(
+    rows: List[Row],
+    phrase: str,
+    *,
+    preroll_sec: float,
+) -> StartPhraseCut:
+    if preroll_sec < 0:
+        raise ValueError("--start-preroll-sec must be >= 0")
+    flat = _flatten_match_words(rows)
+    if not flat:
+        raise ValueError(
+            "--start-phrase requires word-level timestamps on simplified transcript rows."
+        )
+    phrase_tokens = _tokenize_phrase(phrase)
+    match_i = _find_phrase_start_index(flat, phrase_tokens)
+    after_i = match_i + len(phrase_tokens)
+    if after_i >= len(flat):
+        raise ValueError(
+            f"Start phrase {' '.join(phrase_tokens)!r} was found, but no timed word follows it."
+        )
+    next_word = flat[after_i]
+    host_speaker_id = int(rows[flat[match_i].row_i].speaker_id)
+    kept = rows[next_word.row_i :]
+    if not kept:
+        raise ValueError("Start phrase left no transcript rows to keep.")
+    first = kept[0]
+    rel = float(next_word.start) - float(first.start)
+    first_slice_start = rel if rel > 1e-6 else None
+    return StartPhraseCut(
+        rows=kept,
+        first_slice_start=first_slice_start,
+        content_start_abs=float(next_word.start),
+        matched_phrase=" ".join(phrase_tokens),
+        next_word_text=next_word.token,
+        host_speaker_id=host_speaker_id,
+    )
+
+
+def _cam_by_speaker_with_host(
+    host_speaker_id: int,
+    base: Mapping[int, str],
+) -> Dict[int, str]:
+    """
+    Map the start-phrase speaker to Host camera (speaker_0).
+
+    Other close-mic speaker IDs that previously mapped to speaker_0/speaker_1
+    become Guest (speaker_1). Wide / special mappings are preserved.
+    """
+    out: Dict[int, str] = dict(base)
+    out[int(host_speaker_id)] = "speaker_0"
+    for sid, cam in list(out.items()):
+        if int(sid) == int(host_speaker_id):
+            continue
+        if cam in ("speaker_0", "speaker_1"):
+            out[int(sid)] = "speaker_1"
+    return out
+
+
+def _apply_end_phrase(
+    rows: List[Row],
+    phrase: str,
+    *,
+    postroll_sec: float,
+) -> EndPhraseCut:
+    if postroll_sec < 0:
+        raise ValueError("--end-postroll-sec must be >= 0")
+    flat = _flatten_match_words(rows)
+    if not flat:
+        raise ValueError(
+            "--end-phrase requires word-level timestamps on simplified transcript rows."
+        )
+    phrase_tokens = _tokenize_phrase(phrase)
+    match_i = _find_phrase_start_index(flat, phrase_tokens)
+    if match_i <= 0:
+        raise ValueError(
+            f"End phrase {' '.join(phrase_tokens)!r} was found, but no timed word precedes it."
+        )
+    last_word = flat[match_i - 1]
+    kept = rows[: last_word.row_i + 1]
+    if not kept:
+        raise ValueError("End phrase left no transcript rows to keep.")
+    last = kept[-1]
+    content_end_abs = float(last_word.end) + float(postroll_sec)
+    rel_end = content_end_abs - float(last.start)
+    # Keep at least through the last content word if postroll is tiny.
+    rel_end = max(rel_end, float(last_word.end) - float(last.start))
+    last_slice_end = rel_end
+    return EndPhraseCut(
+        rows=kept,
+        last_slice_end=last_slice_end,
+        content_end_abs=content_end_abs,
+        matched_phrase=" ".join(phrase_tokens),
+        last_word_text=last_word.token,
+    )
+
+
+def _phrase_exists(rows: List[Row], phrase: str) -> bool:
+    flat = _flatten_match_words(rows)
+    if not flat:
+        return False
+    try:
+        _find_phrase_start_index(flat, _tokenize_phrase(phrase))
+        return True
+    except ValueError:
+        return False
+
+
+def _find_all_phrase_starts(flat: List[FlatWord], phrase_tokens: List[str]) -> List[int]:
+    n = len(phrase_tokens)
+    if n == 0:
+        return []
+    hits: List[int] = []
+    i = 0
+    while i <= len(flat) - n:
+        if all(flat[i + j].token == phrase_tokens[j] for j in range(n)):
+            hits.append(i)
+            i += n
+        else:
+            i += 1
+    return hits
+
+
+def _match_pause_unpause_pairs(
+    flat: List[FlatWord],
+    pause_phrase: str,
+    unpause_phrases: List[str],
+) -> List[PausePair]:
+    pause_tokens = _tokenize_phrase(pause_phrase)
+    unpause_token_lists = [_tokenize_phrase(p) for p in unpause_phrases]
+    pairs: List[PausePair] = []
+    search_from = 0
+    while search_from < len(flat):
+        pause_hits = [
+            i
+            for i in _find_all_phrase_starts(flat, pause_tokens)
+            if i >= search_from
+        ]
+        if not pause_hits:
+            break
+        pause_i = pause_hits[0]
+        pause_end = pause_i + len(pause_tokens)
+        best: Optional[Tuple[int, int, str]] = None
+        for tokens in unpause_token_lists:
+            for u_i in _find_all_phrase_starts(flat, tokens):
+                if u_i < pause_end:
+                    continue
+                cand = (u_i, u_i + len(tokens), " ".join(tokens))
+                if best is None or cand[0] < best[0]:
+                    best = cand
+        if best is None:
+            # Unmatched pause: leave it in the video; keep scanning after it.
+            search_from = pause_i + 1
+            continue
+        u_i, u_end, u_phrase = best
+        pairs.append(
+            PausePair(
+                pause_start_i=pause_i,
+                pause_end_i=pause_end,
+                unpause_start_i=u_i,
+                unpause_end_i=u_end,
+                pause_phrase=" ".join(pause_tokens),
+                unpause_phrase=u_phrase,
+            )
+        )
+        search_from = u_end
+    return pairs
+
+
+def _rel_slice_start(row: Row, abs_time: float) -> Optional[float]:
+    rel = float(abs_time) - float(row.start)
+    if rel <= 1e-6:
+        return None
+    return rel
+
+
+def _rel_slice_end(row: Row, abs_time: float) -> float:
+    return max(0.0, float(abs_time) - float(row.start))
+
+
+def _build_pieces_from_rows(
+    rows: List[Row],
+    *,
+    first_slice_start: Optional[float],
+    last_slice_end: Optional[float],
+) -> List[Piece]:
+    pieces: List[Piece] = []
+    last_i = len(rows) - 1
+    for i, row in enumerate(rows):
+        pieces.append(
+            Piece(
+                row=row,
+                slice_start=first_slice_start if i == 0 else None,
+                slice_end=last_slice_end if i == last_i else None,
+            )
+        )
+    return pieces
+
+
+def _apply_pause_unpause_to_pieces(
+    rows: List[Row],
+    *,
+    pause_phrase: str,
+    unpause_phrases: List[str],
+    preroll_sec: float,
+    postroll_sec: float,
+    first_slice_start: Optional[float],
+    last_slice_end: Optional[float],
+) -> Tuple[List[Piece], List[str]]:
+    """
+    Remove matched Pause→Unpause spans from rows and return emit pieces.
+
+    Seam rolls: keep ``preroll_sec`` after the last word before Pause, and resume
+    ``postroll_sec`` before the first word after Unpause.
+    """
+    if preroll_sec < 0 or postroll_sec < 0:
+        raise ValueError("Pause preroll/postroll must be >= 0")
+    if not unpause_phrases:
+        raise ValueError("--pause-phrase requires at least one --unpause-phrase")
+
+    flat = _flatten_match_words(rows)
+    if not flat:
+        raise ValueError(
+            "--pause-phrase requires word-level timestamps on simplified transcript rows."
+        )
+    pairs = _match_pause_unpause_pairs(flat, pause_phrase, unpause_phrases)
+    if not pairs:
+        return (
+            _build_pieces_from_rows(
+                rows,
+                first_slice_start=first_slice_start,
+                last_slice_end=last_slice_end,
+            ),
+            [],
+        )
+
+    # Keep intervals in absolute time: [keep_lo, keep_hi).
+    keep_intervals: List[Tuple[float, float]] = []
+    notes: List[str] = []
+    cursor_abs = float(rows[0].start)
+    if first_slice_start is not None:
+        cursor_abs = float(rows[0].start) + float(first_slice_start)
+
+    seam_force_at_abs: List[Tuple[float, str]] = []  # (resume_abs, forced_cam)
+
+    for pair in pairs:
+        if pair.pause_start_i <= 0:
+            # Nowhere to attach preroll; skip this pair (treat like unmatched).
+            notes.append(
+                f"Skipped pause {pair.pause_phrase!r}: nothing before it to keep."
+            )
+            continue
+        last_before = flat[pair.pause_start_i - 1]
+        if pair.unpause_end_i >= len(flat):
+            notes.append(
+                f"Skipped pause {pair.pause_phrase!r}: no word after unpause "
+                f"{pair.unpause_phrase!r}."
+            )
+            continue
+        first_after = flat[pair.unpause_end_i]
+        cut_end_abs = float(last_before.end) + float(preroll_sec)
+        resume_abs = float(first_after.start) - float(postroll_sec)
+        if resume_abs < cut_end_abs:
+            # Degenerate / overlapping rolls — hard join at midpoint.
+            mid = 0.5 * (float(last_before.end) + float(first_after.start))
+            cut_end_abs = mid
+            resume_abs = mid
+
+        keep_intervals.append((cursor_abs, cut_end_abs))
+        seam_force_at_abs.append((resume_abs, ""))  # marker only; cam resolved later
+        notes.append(
+            f"Pause {pair.pause_phrase!r} → Unpause {pair.unpause_phrase!r}: "
+            f"drop {float(last_before.end):.3f}s..{float(first_after.start):.3f}s"
+        )
+        cursor_abs = resume_abs
+
+    # Trailing keep through end of content.
+    end_abs = float(rows[-1].end)
+    if last_slice_end is not None:
+        end_abs = float(rows[-1].start) + float(last_slice_end)
+    keep_intervals.append((cursor_abs, end_abs))
+
+    pieces: List[Piece] = []
+    for keep_lo, keep_hi in keep_intervals:
+        if keep_hi <= keep_lo + 1e-6:
+            continue
+        for row in rows:
+            overlap_lo = max(float(row.start), keep_lo)
+            overlap_hi = min(float(row.end), keep_hi)
+            if overlap_hi <= overlap_lo + 1e-6:
+                continue
+            slice_start = _rel_slice_start(row, overlap_lo)
+            # If we keep through the natural row end, omit slice_end unless this
+            # is an intentional early end inside the row.
+            if abs(overlap_hi - float(row.end)) <= 1e-6 and keep_hi >= float(row.end) - 1e-6:
+                slice_end = None
+            else:
+                slice_end = _rel_slice_end(row, overlap_hi)
+            force = None
+            seam_after = False
+            for resume_abs, _ignored in seam_force_at_abs:
+                if abs(overlap_lo - resume_abs) <= 1e-3:
+                    seam_after = True
+                    break
+            pieces.append(
+                Piece(
+                    row=row,
+                    slice_start=slice_start,
+                    slice_end=slice_end,
+                    force_cam=force,
+                    seam_after_pause=seam_after,
+                )
+            )
+
+    if not pieces:
+        raise ValueError("Pause/Unpause removal left no transcript pieces to keep.")
+    return pieces, notes
 
 
 def _normalize_interjection_text(text: str) -> str:
@@ -274,12 +789,20 @@ def _row_overlaps_interval(r: Row, lo: float, hi: float) -> bool:
     return float(r.start) < float(hi) and float(r.end) > float(lo)
 
 
-def _apply_open_ben_lock(rows: List[Row], cams: List[str], open_sec: float) -> None:
-    """Force speaker_0 on every row overlapping [0, open_sec) (no cut off Ben during that window)."""
+def _apply_open_ben_lock(
+    rows: List[Row],
+    cams: List[str],
+    open_sec: float,
+    *,
+    lock_start: float = 0.0,
+) -> None:
+    """Force speaker_0 on every row overlapping [lock_start, lock_start + open_sec)."""
     if open_sec <= 0.0 or not rows:
         return
+    lo = float(lock_start)
+    hi = lo + float(open_sec)
     for i, r in enumerate(rows):
-        if _row_overlaps_interval(r, 0.0, open_sec):
+        if _row_overlaps_interval(r, lo, hi):
             cams[i] = "speaker_0"
 
 
@@ -325,10 +848,11 @@ def _trim_wide_spans_for_ben_locks(
     open_sec: float,
     tail_sec: float,
     final_shot_tail_sec: float,
+    open_lock_start: float = 0.0,
 ) -> List[Tuple[int, int]]:
     """
-    Remove wide coverage from the open-Ben window [0, open_sec) and from the tail-Ben
-    window [T - tail_sec, T] (row-aligned).
+    Remove wide coverage from the open-Ben window [open_lock_start, open_lock_start + open_sec)
+    and from the tail-Ben window [T - tail_sec, T] (row-aligned).
     """
     if not spans:
         return []
@@ -339,11 +863,13 @@ def _trim_wide_spans_for_ben_locks(
     tail_row0 = (
         _first_row_overlapping_tail(rows, t_cut, T_end) if tail_sec > 0 else len(rows)
     )
+    open_lo = float(open_lock_start)
+    open_hi = open_lo + float(open_sec)
     out: List[Tuple[int, int]] = []
     for s, e in spans:
         ss, ee = s, e
         if open_sec > 0:
-            while ss < ee and _row_overlaps_interval(rows[ss], 0.0, open_sec):
+            while ss < ee and _row_overlaps_interval(rows[ss], open_lo, open_hi):
                 ss += 1
         if ss >= ee:
             continue
@@ -514,6 +1040,14 @@ def _apply_camera_switch_offset(
 
 
 def main() -> int:
+    try:
+        return _main_impl()
+    except ValueError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 1
+
+
+def _main_impl() -> int:
     args = parse_args()
 
     transcript_path = Path(args.transcript_json)
@@ -523,21 +1057,99 @@ def main() -> int:
         transcript = json.load(f)
 
     segment_num = str(args.segment)
-    rows = _load_rows(transcript)
+    full_rows = _load_rows(transcript)
+    rows = list(full_rows)
     if args.max_start is not None:
         rows = [r for r in rows if r.start < float(args.max_start)]
+
+    start_cut: Optional[StartPhraseCut] = None
+    end_cut: Optional[EndPhraseCut] = None
+    first_slice_start: Optional[float] = None
+    last_slice_end: Optional[float] = None
+    content_start_abs = 0.0
+    pause_notes: List[str] = []
+    abort_triggered = False
+
+    if args.abort_phrase and _phrase_exists(full_rows, str(args.abort_phrase)):
+        abort_triggered = True
+
+    if args.start_phrase:
+        start_cut = _apply_start_phrase(
+            rows,
+            str(args.start_phrase),
+            preroll_sec=float(args.start_preroll_sec),
+        )
+        rows = start_cut.rows
+        first_slice_start = start_cut.first_slice_start
+        content_start_abs = start_cut.content_start_abs
+
+    if args.end_phrase:
+        end_cut = _apply_end_phrase(
+            rows,
+            str(args.end_phrase),
+            postroll_sec=float(args.end_postroll_sec),
+        )
+        rows = end_cut.rows
+        last_slice_end = end_cut.last_slice_end
+        if (
+            start_cut is not None
+            and end_cut.content_end_abs <= start_cut.content_start_abs
+        ):
+            raise ValueError(
+                "End phrase content ends at or before the start-phrase content start. "
+                f"start={start_cut.content_start_abs:.3f}s end={end_cut.content_end_abs:.3f}s"
+            )
+
+    cam_by_speaker: Dict[int, str] = dict(CAM_BY_SPEAKER_ID)
+    if args.speaker_2_to_wide:
+        cam_by_speaker[2] = str(args.wide_camera)
+    if args.speaker_3_to_wide:
+        cam_by_speaker[3] = str(args.wide_camera)
+    if start_cut is not None:
+        cam_by_speaker = _cam_by_speaker_with_host(
+            start_cut.host_speaker_id, cam_by_speaker
+        )
+
+    unpause_phrases = list(args.unpause_phrase or [])
+    if args.pause_phrase and not abort_triggered:
+        pieces, pause_notes = _apply_pause_unpause_to_pieces(
+            rows,
+            pause_phrase=str(args.pause_phrase),
+            unpause_phrases=unpause_phrases,
+            preroll_sec=float(args.pause_preroll_sec),
+            postroll_sec=float(args.pause_postroll_sec),
+            first_slice_start=first_slice_start,
+            last_slice_end=last_slice_end,
+        )
+    else:
+        pieces = _build_pieces_from_rows(
+            rows,
+            first_slice_start=first_slice_start,
+            last_slice_end=last_slice_end,
+        )
+        if abort_triggered and args.pause_phrase:
+            pause_notes.append(
+                f"Abort phrase present; ignoring Pause/Unpause "
+                f"({args.abort_phrase!r})."
+            )
+
     lines: List[str] = []
 
     if args.no_cameras:
-        last_idx = len(rows) - 1
-        for idx, r in enumerate(rows):
+        if start_cut is not None and float(args.start_preroll_sec) > 0:
+            preroll_ms = int(round(float(args.start_preroll_sec) * 1000.0))
+            lines.append(f"!opening {preroll_ms}")
+        last_i = len(pieces) - 1
+        for idx, piece in enumerate(pieces):
             lines.append(
                 _row_segment_line(
-                    r,
+                    piece.row,
                     segment_num,
                     include_fallback_speaker=False,
-                    is_last=idx == last_idx,
+                    is_last=idx == last_i and piece.slice_end is None and last_slice_end is None,
                     final_shot_tail_sec=float(args.final_shot_tail_sec),
+                    slice_start=piece.slice_start,
+                    slice_end=piece.slice_end,
                 )
             )
         output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -545,37 +1157,126 @@ def main() -> int:
         print(f"Wrote {len(lines)} DSL lines to {output_path}")
         return 0
 
-    cam_by_speaker: Dict[int, str] = dict(CAM_BY_SPEAKER_ID)
-    if args.speaker_2_to_wide:
-        cam_by_speaker[2] = str(args.wide_camera)
-    if args.speaker_3_to_wide:
-        cam_by_speaker[3] = str(args.wide_camera)
-
-    cams = _intended_camera(rows, cam_by_speaker)
-    _apply_open_ben_lock(rows, cams, float(args.open_ben_sec))
-    _apply_tail_ben_lock(rows, cams, float(args.tail_ben_sec), float(args.final_shot_tail_sec))
+    piece_rows = [p.row for p in pieces]
+    cams = _intended_camera(piece_rows, cam_by_speaker)
+    _apply_open_ben_lock(
+        piece_rows,
+        cams,
+        float(args.open_ben_sec),
+        lock_start=content_start_abs,
+    )
+    _apply_tail_ben_lock(
+        piece_rows, cams, float(args.tail_ben_sec), float(args.final_shot_tail_sec)
+    )
     spans = _find_wide_spans(
-        rows,
+        piece_rows,
         cams,
         window_sec=float(args.cut_window_sec),
         min_wide_sec=float(args.min_wide_sec),
     )
     spans = _trim_wide_spans_for_ben_locks(
-        rows,
+        piece_rows,
         spans,
         open_sec=float(args.open_ben_sec),
         tail_sec=float(args.tail_ben_sec),
         final_shot_tail_sec=float(args.final_shot_tail_sec),
+        open_lock_start=content_start_abs,
     )
     override_map = _spans_to_override_map(spans)
 
+    last_piece_i = len(pieces) - 1
+    events: List[dict] = []
+    i = 0
+    while i < len(pieces):
+        if i in override_map:
+            end_i = override_map[i]
+            for j in range(i, end_i):
+                events.append(
+                    {
+                        "cam": str(args.wide_camera),
+                        "piece_i": j,
+                        "slice_start": pieces[j].slice_start,
+                        "slice_end": pieces[j].slice_end,
+                    }
+                )
+            i = end_i
+            continue
+
+        events.append(
+            {
+                "cam": str(cams[i]),
+                "piece_i": i,
+                "slice_start": pieces[i].slice_start,
+                "slice_end": pieces[i].slice_end,
+            }
+        )
+        i += 1
+
+    # Pause-seam camera overrides win over dense-wide / intended cams.
+    for ev_i, ev in enumerate(events):
+        piece = pieces[int(ev["piece_i"])]
+        if not piece.seam_after_pause or ev_i == 0:
+            continue
+        before_cam = str(events[ev_i - 1]["cam"])
+        after_speaker_cam = cam_by_speaker.get(piece.row.speaker_id, "speaker_0")
+        if before_cam == str(args.wide_camera):
+            ev["cam"] = after_speaker_cam
+        else:
+            ev["cam"] = str(args.wide_camera)
+        piece.force_cam = str(ev["cam"])
+        pause_notes.append(
+            f"Pause seam after row {piece.row.idx}: {before_cam} → {ev['cam']}"
+        )
+
+    camera_switch_offset_ms = (
+        0.0 if args.no_camera_switch_offset else float(args.camera_switch_offset_ms)
+    )
+    offset_rows = piece_rows
+    offset_events = [
+        {
+            "cam": ev["cam"],
+            "row_i": int(ev["piece_i"]),
+            "slice_start": ev.get("slice_start"),
+            "slice_end": ev.get("slice_end"),
+        }
+        for ev in events
+    ]
+    offset_events = _apply_camera_switch_offset(
+        offset_rows,
+        offset_events,
+        offset_sec=camera_switch_offset_ms / 1000.0,
+    )
+    for ev, off in zip(events, offset_events):
+        piece = pieces[int(ev["piece_i"])]
+        if piece.seam_after_pause:
+            ev["slice_start"] = piece.slice_start
+            ev["slice_end"] = piece.slice_end
+            continue
+        ev["slice_start"] = off.get("slice_start")
+        ev["slice_end"] = off.get("slice_end")
+
     lines.append("// Generated DSL")
-    spk_hdr = "Speaker 0 -> speaker_0, Speaker 1 -> speaker_1"
-    if args.speaker_2_to_wide:
-        spk_hdr += f", Speaker 2 -> {args.wide_camera}"
-    if args.speaker_3_to_wide:
-        spk_hdr += f", Speaker 3 -> {args.wide_camera}"
+    spk_bits = [
+        f"Speaker {sid} -> {cam}"
+        for sid, cam in sorted(cam_by_speaker.items(), key=lambda kv: kv[0])
+    ]
+    spk_hdr = ", ".join(spk_bits) if spk_bits else "Speaker 0 -> speaker_0, Speaker 1 -> speaker_1"
     lines.append(f"// segment{segment_num} | {spk_hdr}")
+    if start_cut is not None:
+        lines.append(
+            f"// Start phrase: {start_cut.matched_phrase!r} -> begin "
+            f"{float(args.start_preroll_sec):.1f}s before {start_cut.next_word_text!r} "
+            f"(abs {start_cut.content_start_abs:.3f}s); "
+            f"Host = transcript speaker_id {start_cut.host_speaker_id} -> speaker_0"
+        )
+    if end_cut is not None:
+        lines.append(
+            f"// End phrase: {end_cut.matched_phrase!r} -> end "
+            f"{float(args.end_postroll_sec):.1f}s after {end_cut.last_word_text!r} "
+            f"(abs {end_cut.content_end_abs:.3f}s)"
+        )
+    for note in pause_notes:
+        lines.append(f"// {note}")
     lines.append(
         f"// Open: first {float(args.open_ben_sec):.1f}s on speaker_0 (no cuts off Ben before then); "
         f"tail: last {float(args.tail_ben_sec):.1f}s on speaker_0 (timeline includes "
@@ -585,56 +1286,38 @@ def main() -> int:
         f"// Wide rule: if >1 camera cut in {float(args.cut_window_sec):.1f}s, force !camera {args.wide_camera} "
         f"for >= {float(args.min_wide_sec):.1f}s (sentence-aligned), extend if another cut within {float(args.cut_window_sec):.1f}s"
     )
-    camera_switch_offset_ms = (
-        0.0 if args.no_camera_switch_offset else float(args.camera_switch_offset_ms)
-    )
     if camera_switch_offset_ms != 0.0:
-        # When pulling camera switches earlier via slice(negative_start:), the renderer's default
-        # clip padding can cause visible "replay" overlaps. Make this deterministic by disabling
-        # padding for the whole render when a global switch offset is requested.
         lines.append(
             f"// camera-switch-offset-ms={camera_switch_offset_ms:.1f}; "
             "disabling cut padding to avoid overlap artifacts"
         )
         lines.append("!cut 0 0")
+    if start_cut is not None and float(args.start_preroll_sec) > 0:
+        preroll_ms = int(round(float(args.start_preroll_sec) * 1000.0))
+        lines.append(f"!opening {preroll_ms}")
     lines.append("")
 
     current_cam: Optional[str] = None
-    last_idx = len(rows) - 1
-    events: List[dict] = []
-    i = 0
-    while i < len(rows):
-        if i in override_map:
-            end_i = override_map[i]
-            for j in range(i, end_i):
-                events.append({"cam": str(args.wide_camera), "row_i": j, "slice_start": None, "slice_end": None})
-            i = end_i
-            continue
-
-        events.append({"cam": str(cams[i]), "row_i": i, "slice_start": None, "slice_end": None})
-        i += 1
-
-    events = _apply_camera_switch_offset(
-        rows,
-        events,
-        offset_sec=camera_switch_offset_ms / 1000.0,
-    )
-
-    # Emit !camera lines + segment refs.
     for ev_i, ev in enumerate(events):
         cam = ev["cam"]
         if current_cam != cam:
             lines.append(f"!camera {cam}")
             current_cam = cam
 
-        row_i = int(ev["row_i"])
-        r = rows[row_i]
+        piece_i = int(ev["piece_i"])
+        piece = pieces[piece_i]
+        is_last_event = ev_i == (len(events) - 1)
         lines.append(
             _row_segment_line(
-                r,
+                piece.row,
                 segment_num,
                 include_fallback_speaker=True,
-                is_last=ev_i == (len(events) - 1) and row_i == last_idx,
+                is_last=(
+                    is_last_event
+                    and piece_i == last_piece_i
+                    and piece.slice_end is None
+                    and last_slice_end is None
+                ),
                 final_shot_tail_sec=float(args.final_shot_tail_sec),
                 slice_start=ev.get("slice_start"),
                 slice_end=ev.get("slice_end"),
@@ -643,7 +1326,7 @@ def main() -> int:
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
-    print(f"Wrote {len(rows)} DSL lines to {output_path}")
+    print(f"Wrote {len(events)} DSL clip lines to {output_path}")
     return 0
 
 

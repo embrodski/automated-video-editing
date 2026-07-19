@@ -13,6 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from harness_autocut_common import render_dsl, run_cmd
 from harness_episode_lib import (
     REPO_ROOT,
+    apply_episode_reading_spoken_expansions,
     load_episode_state,
     reading_keep_rows_cli_args,
     save_episode_state,
@@ -55,6 +56,11 @@ def rebuild_reading_dsl(state: dict) -> Path:
                 str(temp),
             ]
         )
+    apply_episode_reading_spoken_expansions(
+        state,
+        article_txt=article_txt,
+        simplified_json=simplified,
+    )
     gen_cmd = [
         sys.executable,
         str(REPO_ROOT / "generate_reading_dsl.py"),

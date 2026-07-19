@@ -50,6 +50,19 @@ Harness scripts that write deliverable outputs **exit with code 2** if the targe
 
 ---
 
+## Hard rule: 5-minute checks while rendering-class jobs run
+
+When a long harness job is running in the background (video-sync / multicam prep, reading or interview renders, stitch, or a chained prep→transcript→1-min-test pipeline):
+
+1. Confirm once that it started and give an estimate.
+2. **Check status about every 5 minutes** until completion or failure (do not busy-wait with sub-minute polling).
+3. On each check, note progress briefly when useful (current step / newest outputs).
+4. **Notify the user immediately** on completion or failure.
+
+This matches project **`AGENTS.md`**.
+
+---
+
 ## Launch — Steps 1–3
 
 ### Step 1 — Launch

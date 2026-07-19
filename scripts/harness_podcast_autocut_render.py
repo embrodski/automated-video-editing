@@ -14,6 +14,7 @@ from harness_autocut_common import render_dsl, run_cmd
 from harness_episode_lib import (
     REPO_ROOT,
     load_episode_state,
+    podcast_phrase_cli_args,
     podcast_swap_speaker_ids_cli_args,
     save_episode_state,
     step_state,
@@ -46,6 +47,7 @@ def rebuild_interview_dsl(state: dict) -> Path:
             segment_id,
             "--output",
             str(interview_dsl),
+            *podcast_phrase_cli_args(state),
         ]
     )
     return interview_dsl

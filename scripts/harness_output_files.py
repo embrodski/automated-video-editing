@@ -29,8 +29,18 @@ def find_intro_mp4(output_dir: Path) -> Path:
     exact = output_dir / "Intro.mp4"
     if exact.is_file():
         return exact
+    edited_exact = output_dir / "Edited Intro.mp4"
+    if edited_exact.is_file():
+        return edited_exact
     for path in _mp4s(output_dir):
         if path.name.lower() == "intro.mp4":
+            return path
+        if path.name.lower() == "edited intro.mp4":
+            return path
+        # Prefer an Edited Intro export (common DaVinci name) over raw Intro.
+        if INTRO_RE.search(path.stem) and EDITED_RE.search(path.stem):
+            if READING_RE.search(path.stem) or INTERVIEW_RE.search(path.stem):
+                continue
             return path
         if INTRO_RE.search(path.stem) and not EDITED_RE.search(path.stem):
             if READING_RE.search(path.stem) or INTERVIEW_RE.search(path.stem):

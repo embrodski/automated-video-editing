@@ -95,6 +95,16 @@ class OutputMp4DiscoveryTests(unittest.TestCase):
         path.write_bytes(b"mp4")
         self.assertEqual(find_intro_mp4(self.output), path)
 
+    def test_edited_intro_accepted(self) -> None:
+        path = self.output / "Edited Intro.mp4"
+        path.write_bytes(b"mp4")
+        self.assertEqual(find_intro_mp4(self.output), path)
+
+    def test_full_edited_interview_accepted(self) -> None:
+        path = self.output / "Full Edited Interview.mp4"
+        path.write_bytes(b"mp4")
+        self.assertEqual(find_edited_interview_mp4(self.output), path)
+
     def test_stitch_required_files_exact(self) -> None:
         names = ("Intro.mp4", "Edited Reading.mp4", "Edited Interview.mp4", "Closing.mp4")
         for name in names:

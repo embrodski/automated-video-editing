@@ -11,6 +11,7 @@ from pathlib import Path
 
 
 SUBFOLDERS = ("Raw", "Input", "Output", "Temp")
+PIAB_STATE_FILENAME = "podcast-in-a-box.json"
 RAW_NAME_RE = re.compile(r"raw", re.IGNORECASE)
 INKHAVEN_PREFIX_RE = re.compile(r"^inkhaven\s+(.+)$", re.IGNORECASE)
 BEN_HOST_RE = re.compile(r"\b(ben|host)\b", re.IGNORECASE)
@@ -51,7 +52,19 @@ def extract_guest_name(episode_folder: Path) -> str:
     return name
 
 
+def piab_state_path(episode_folder: Path) -> Path:
+    return episode_folder.resolve() / PIAB_STATE_FILENAME
+
+
+def is_piab_folder(episode_folder: Path) -> bool:
+    return piab_state_path(episode_folder).is_file()
+
+
 def episode_json_path(episode_folder: Path, name: str | None = None) -> Path:
+    episode_folder = episode_folder.resolve()
+    piab = piab_state_path(episode_folder)
+    if piab.is_file():
+        return piab
     guest = name or extract_guest_name(episode_folder)
     return episode_folder / f"{guest}-episode.json"
 
@@ -61,7 +74,8 @@ def load_episode_state(episode_folder: Path) -> dict:
     path = episode_json_path(episode_folder)
     if not path.is_file():
         raise FileNotFoundError(
-            f"Episode state not found ({path}). Run init_inkhaven_episode.py first."
+            f"Episode state not found ({path}). Run init_inkhaven_episode.py "
+            f"or piab_init_session.py first."
         )
     with path.open(encoding="utf-8") as fh:
         return json.load(fh)
@@ -70,7 +84,14 @@ def load_episode_state(episode_folder: Path) -> dict:
 def load_episode_state_if_exists(episode_folder: Path) -> dict:
     """Return episode JSON dict, or ``{}`` when the state file has not been created yet."""
     episode_folder = episode_folder.resolve()
-    path = episode_json_path(episode_folder)
+    piab = piab_state_path(episode_folder)
+    if piab.is_file():
+        with piab.open(encoding="utf-8") as fh:
+            return json.load(fh)
+    try:
+        path = episode_json_path(episode_folder)
+    except ValueError:
+        return {}
     if not path.is_file():
         return {}
     with path.open(encoding="utf-8") as fh:
@@ -108,7 +129,10 @@ def audit_raw_source_inventory(raw_dir: Path) -> dict[str, object]:
 def save_episode_state(episode_folder: Path, state: dict) -> Path:
     episode_folder = episode_folder.resolve()
     state["updated_at"] = utc_now_iso()
-    path = episode_json_path(episode_folder, state.get("name"))
+    if state.get("kind") == "podcast_in_a_box" or is_piab_folder(episode_folder):
+        path = piab_state_path(episode_folder)
+    else:
+        path = episode_json_path(episode_folder, state.get("name"))
     with path.open("w", encoding="utf-8") as fh:
         json.dump(state, fh, indent=2)
         fh.write("\n")
@@ -259,12 +283,142 @@ def podcast_swap_speaker_ids_cli_args(state: dict) -> list[str]:
     return []
 
 
+def podcast_phrase_cli_args(state: dict) -> list[str]:
+    """CLI args for generate_full_dsl.py start/end/pause phrase options."""
+    out: list[str] = []
+    start_phrase = state.get("start_phrase")
+    if start_phrase:
+        out.extend(["--start-phrase", str(start_phrase)])
+        if state.get("start_preroll_sec") is not None:
+            out.extend(["--start-preroll-sec", str(state["start_preroll_sec"])])
+    end_phrase = state.get("end_phrase")
+    if end_phrase:
+        out.extend(["--end-phrase", str(end_phrase)])
+        if state.get("end_postroll_sec") is not None:
+            out.extend(["--end-postroll-sec", str(state["end_postroll_sec"])])
+    pause_phrase = state.get("pause_phrase")
+    if pause_phrase:
+        out.extend(["--pause-phrase", str(pause_phrase)])
+        unpause = state.get("unpause_phrases") or state.get("unpause_phrase")
+        if isinstance(unpause, str):
+            unpause = [unpause]
+        for phrase in unpause or []:
+            out.extend(["--unpause-phrase", str(phrase)])
+        if state.get("pause_preroll_sec") is not None:
+            out.extend(["--pause-preroll-sec", str(state["pause_preroll_sec"])])
+        if state.get("pause_postroll_sec") is not None:
+            out.extend(["--pause-postroll-sec", str(state["pause_postroll_sec"])])
+    abort_phrase = state.get("abort_phrase")
+    if abort_phrase:
+        out.extend(["--abort-phrase", str(abort_phrase)])
+    return out
+
+
 def reading_keep_rows_cli_args(state: dict) -> list[str]:
     """CLI args for generate_reading_dsl.py --keep-rows from episode state."""
     rows = state.get("reading_keep_rows")
     if not rows:
         return []
     return ["--keep-rows", ",".join(str(int(r)) for r in rows)]
+
+
+def reading_spoken_expansions(state: dict) -> dict[str, str]:
+    """Episode-only spoken expansions from reading_dsl_notes.normalize_expansions."""
+    notes = state.get("reading_dsl_notes")
+    if not isinstance(notes, dict):
+        return {}
+    raw = notes.get("normalize_expansions")
+    if not isinstance(raw, dict):
+        return {}
+    out: dict[str, str] = {}
+    for key, value in raw.items():
+        k = str(key).strip()
+        v = str(value).strip()
+        if k and v:
+            out[k] = v
+    return out
+
+
+def apply_spoken_text_expansions(text: str, expansions: dict[str, str]) -> str:
+    """Rewrite article/transcript text using episode-specific spoken expansions.
+
+    Does not touch the shared reading normalizer. ``pp`` uses word boundaries so
+    it does not expand inside words like ``app``.
+    """
+    if not text or not expansions:
+        return text
+    out = text
+    less_than = expansions.get("<")
+    if less_than:
+        out = out.replace("<", f" {less_than} ")
+    percentage_points = expansions.get("pp")
+    if percentage_points:
+        out = re.sub(
+            r"\bpp\b",
+            f" {percentage_points} ",
+            out,
+            flags=re.IGNORECASE,
+        )
+    # Collapse horizontal whitespace but keep newlines (article line structure).
+    out = re.sub(r"[^\S\n]+", " ", out)
+    out = "\n".join(line.strip() for line in out.split("\n"))
+    return out
+
+
+def apply_episode_reading_spoken_expansions(
+    state: dict,
+    *,
+    article_txt: Path | None = None,
+    simplified_json: Path | None = None,
+) -> list[str]:
+    """Apply episode-only expansions to reading article and/or simplified transcript.
+
+    Returns the list of paths rewritten (empty if no expansions configured).
+    """
+    expansions = reading_spoken_expansions(state)
+    if not expansions:
+        return []
+
+    rewritten: list[str] = []
+    if article_txt is not None and article_txt.is_file():
+        original = article_txt.read_text(encoding="utf-8")
+        updated = apply_spoken_text_expansions(original, expansions)
+        if updated != original:
+            article_txt.write_text(updated, encoding="utf-8")
+            rewritten.append(str(article_txt))
+
+    if simplified_json is not None and simplified_json.is_file():
+        data = json.loads(simplified_json.read_text(encoding="utf-8"))
+        changed = False
+        if isinstance(data, dict):
+            for row in data.values():
+                if not isinstance(row, dict):
+                    continue
+                text = row.get("text")
+                if isinstance(text, str):
+                    new_text = apply_spoken_text_expansions(text, expansions)
+                    if new_text != text:
+                        row["text"] = new_text
+                        changed = True
+                words = row.get("words")
+                if isinstance(words, list):
+                    for word in words:
+                        if not isinstance(word, dict):
+                            continue
+                        wtext = word.get("text")
+                        if isinstance(wtext, str):
+                            new_wtext = apply_spoken_text_expansions(wtext, expansions)
+                            if new_wtext != wtext:
+                                word["text"] = new_wtext
+                                changed = True
+        if changed:
+            simplified_json.write_text(
+                json.dumps(data, indent=2, ensure_ascii=False) + "\n",
+                encoding="utf-8",
+            )
+            rewritten.append(str(simplified_json))
+
+    return rewritten
 
 
 def should_skip_reading(state: dict) -> bool:

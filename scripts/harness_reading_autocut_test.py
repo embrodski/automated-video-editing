@@ -17,6 +17,7 @@ from harness_episode_lib import (
     FRONT_RE,
     REPO_ROOT,
     SIDE_RE,
+    apply_episode_reading_spoken_expansions,
     load_episode_state,
     reading_keep_rows_cli_args,
     save_episode_state,
@@ -100,6 +101,11 @@ def main() -> int:
                 "--output-dir",
                 str(temp),
             ]
+        )
+        apply_episode_reading_spoken_expansions(
+            state,
+            article_txt=article_txt,
+            simplified_json=simplified,
         )
 
         segment_id = READING_SEGMENT_KEY

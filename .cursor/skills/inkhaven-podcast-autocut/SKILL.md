@@ -48,6 +48,17 @@ In all commands below, substitute **`<input folder>`**, **`<output folder>`**, a
   - **Opt out:** if the initial request includes **`adjust off`** (case-insensitive; e.g. `Adjust off`, `no adjust`), add **`--no-camera-switch-offset`** to `generate_full_dsl.py` (or `--camera-switch-offset-ms 0`).
   - **Override amount:** if the initial request includes **`Adjust <N> ms`** (or `Adjust <N>ms`, case-insensitive; e.g. `Adjust -200 ms`), use `--camera-switch-offset-ms <N>` instead of the default (parse `<N>` as a signed integer milliseconds value).
   - Current implementation supports **negative values only** (switch earlier). Positive values intentionally error out.
+- **Start / End phrases** (optional): when generating `interview.dsl`, pass phrase gates if the user provided them:
+  - `--start-phrase "..."` drops everything through that phrase; the cut begins **1s before** the first word after it (`--start-preroll-sec`, default 1.0).
+  - `--end-phrase "..."` drops that phrase and everything after; the cut ends **2s after** the last word before it (`--end-postroll-sec`, default 2.0).
+  - Matching is case/punctuation-insensitive and requires word timestamps in the simplified transcript.
+  - **Host from start phrase:** the transcript speaker who says `--start-phrase` is treated as Host for camera mapping (`speaker_0` = Host close cam). The other close-mic speaker maps to `speaker_1` (Guest). Without a start phrase, mapping stays the default 0→Host / 1→Guest.
+  - Persist on episode/PIAB state as `start_phrase` / `end_phrase` (and optional preroll/postroll) so rebuilds keep them.
+- **Pause / Unpause / Abort** (optional): applied **after** Start/End, only inside the remaining span:
+  - `--pause-phrase` / repeatable `--unpause-phrase`: each matched Pause→Unpause pair drops the cues and everything between them. Keep **0.25s** after the last word before Pause (`--pause-preroll-sec`) and resume **0.7s** before the first word after Unpause (`--pause-postroll-sec`). Unmatched Pause stays; unmatched Unpause is ignored.
+  - Seam camera: if the shot before the seam was a speaker cam → Wide after; if Wide → speaker of the post-Unpause speech.
+  - `--abort-phrase` anywhere in the **full** transcript disables all Pause/Unpause for the episode.
+  - Persist on state as `pause_phrase`, `unpause_phrases` (list), `abort_phrase`, optional `pause_preroll_sec` / `pause_postroll_sec`.
 - **Massive renders**: if the user's initial run request includes `massive`, `--massive`, or equivalent (e.g. “run massive”, “massive test”), then when they agree to the **full episode** render, append **`--massive`** to that `python -m podcast_dsl` command (same flags otherwise). That produces **`Ben Render.mp4`**, **`Guest Render.mp4`**, and **`Wide Render.mp4`** in **`<output folder>`** (same folder as `-o`), plus matching **`.dsl`** siblings in **`<temp folder>`** (same directory as `interview.dsl`), each the same timeline as `interview.dsl` but forced to `speaker_0`, `speaker_1`, or `wide` respectively; `massive_renderer.py` runs those three encodes **one after another** (Ben, then Guest, then Wide) to avoid overloading the machine. Do **not** add `--massive` to 1-minute or 5-minute test commands (`--max-seconds` is incompatible with `--massive`).
 
 ### Artifact layout (Output vs Temp)
@@ -72,7 +83,9 @@ Ensure **`<temp folder>`** exists before writing JSON/DSL. Do **not** place tran
 - **Speaker 1 = Guest = `speaker_1`**
 - Wide camera is `wide`
 
-**ElevenLabs diarization is not Ben/Guest-aware.** Word-level `speaker_0` / `speaker_1` in the detail JSON are arbitrary cluster IDs that can differ per WAV. `convert_transcript_json.py` maps `speaker_N` → integer `N`; `generate_full_dsl.py` maps integer `0` → Ben’s camera and `1` → Guest’s. Do **not** auto-detect or swap speakers; only add **`--swap-speaker-ids`** on step 2 when the user explicitly asks to swap Host/Guest cameras.
+**ElevenLabs diarization is not Ben/Guest-aware.** Word-level `speaker_0` / `speaker_1` in the detail JSON are arbitrary cluster IDs that can differ per WAV. `convert_transcript_json.py` maps `speaker_N` → integer `N`; `generate_full_dsl.py` maps integer `0` → Ben’s camera and `1` → Guest’s **by default**.
+
+**Exception:** when `--start-phrase` is set, `generate_full_dsl.py` identifies the speaker who said that phrase as Host and maps that transcript `speaker_id` → `speaker_0` (Host/Ben camera), with the other close-mic speaker → `speaker_1`. Manual **`--swap-speaker-ids`** on convert is only needed when there is no start phrase (or the user still wants to force a swap).
 
 ### Open and close on Ben (`generate_full_dsl.py`)
 
