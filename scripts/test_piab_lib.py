@@ -5,17 +5,21 @@ from __future__ import annotations
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from piab_lib import (
     MediaInfo,
+    _max_window_rms,
     cluster_session_files,
     estimate_full_render,
     estimate_prep_through_one_min,
+    resolve_scan_dir,
     role_to_audio_name,
     role_to_video_name,
     validate_audio_labels,
     validate_video_labels,
 )
+import numpy as np
 
 
 def _info(name: str, kind: str, mtime: float, duration: float) -> MediaInfo:
@@ -27,6 +31,46 @@ def _info(name: str, kind: str, mtime: float, duration: float) -> MediaInfo:
         mtime_iso="2026-07-10T16:49:00",
         duration_sec=duration,
     )
+
+
+class AudibleContentTests(unittest.TestCase):
+    def test_max_window_rms_detects_silence(self) -> None:
+        rate = 16000
+        silent = np.zeros(rate * 2, dtype=np.float32)
+        loud = np.zeros(rate * 2, dtype=np.float32)
+        loud[rate : rate + 8000] = 0.5
+        self.assertLess(_max_window_rms(silent, rate), 0.008)
+        self.assertGreater(_max_window_rms(loud, rate), 0.008)
+
+
+class ResolveScanDirTests(unittest.TestCase):
+    def test_prefers_working_folder_when_it_has_sources(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            working = root / "Jessiah"
+            working.mkdir()
+
+            def fake_list(path: Path, skipped=None) -> list[MediaInfo]:
+                if path == working.resolve():
+                    return [_info("child.mp4", "video", 1, 100)]
+                return [_info("parent.mp4", "video", 1, 100)]
+
+            with patch("piab_lib.list_top_level_multicorder", side_effect=fake_list):
+                self.assertEqual(resolve_scan_dir(root=root, working=working), working.resolve())
+
+    def test_falls_back_to_root_for_empty_working_folder(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            working = root / "Viv"
+            working.mkdir()
+
+            def fake_list(path: Path, skipped=None) -> list[MediaInfo]:
+                if path == working.resolve():
+                    return []
+                return [_info("parent.mp4", "video", 1, 100)]
+
+            with patch("piab_lib.list_top_level_multicorder", side_effect=fake_list):
+                self.assertEqual(resolve_scan_dir(root=root, working=working), root.resolve())
 
 
 class ClusterTests(unittest.TestCase):

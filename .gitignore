@@ -31,6 +31,9 @@ env/
 ENV/
 .env
 .env.*
+.frameio-oauth.json
+.frameio-oauth-pending.json
+.frameio-oauth-capture.json
 
 # OS files
 .DS_Store

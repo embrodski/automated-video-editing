@@ -14,9 +14,12 @@ from generate_full_dsl import (
     WordToken,
     _apply_end_phrase,
     _apply_start_phrase,
+    _apply_start_phrase_countdown,
+    _find_latest_end_phrase_match,
     _find_wide_spans,
     _intended_camera,
     _row_segment_line,
+    _start_phrase_exists,
 )
 
 
@@ -164,6 +167,231 @@ class StartEndPhraseTests(unittest.TestCase):
         self.assertEqual(cut.next_word_text, "jolly")
         self.assertEqual(cut.host_speaker_id, 0)
 
+    def _oath_countdown_rows(self, *, oath_words, countdown_words, next_word) -> list[Row]:
+        words = list(oath_words) + list(countdown_words) + [next_word]
+        return [
+            Row(
+                idx=0,
+                start=10.0,
+                end=20.0,
+                text=" ".join(w[0] for w in words),
+                speaker_id=0,
+                speaker_name="Host",
+                words=_words(*words),
+            )
+        ]
+
+    def test_start_phrase_countdown_skips_missing_numbers(self) -> None:
+        rows = self._oath_countdown_rows(
+            oath_words=[
+                ("I", 10.0, 10.1),
+                ("solemnly", 10.2, 10.5),
+                ("swear", 10.6, 10.9),
+                ("I", 11.0, 11.1),
+                ("am", 11.2, 11.3),
+                ("up", 11.4, 11.5),
+                ("to", 11.6, 11.7),
+                ("no", 11.8, 11.9),
+                ("good,", 12.0, 12.3),
+                ("in", 12.4, 12.5),
+            ],
+            countdown_words=[
+                ("five", 12.6, 12.8),
+                ("three", 12.9, 13.1),
+                ("two", 13.2, 13.4),
+            ],
+            next_word=("Perfect.", 13.8, 14.2),
+        )
+        cut = _apply_start_phrase_countdown(
+            rows,
+            "I solemnly swear I'm up to no good, in five four three two",
+            countdown_tokens=["five", "four", "three", "two"],
+            countdown_suffix_tokens=["one", "zero"],
+            preroll_sec=1.0,
+        )
+        self.assertEqual(cut.next_word_text, "perfect")
+        self.assertIn("five", cut.matched_phrase)
+        self.assertIn("two", cut.matched_phrase)
+        self.assertNotIn("four", cut.matched_phrase)
+
+    def test_start_phrase_countdown_includes_one_zero_when_spoken(self) -> None:
+        rows = self._oath_countdown_rows(
+            oath_words=[
+                ("I", 10.0, 10.1),
+                ("solemnly", 10.2, 10.5),
+                ("swear", 10.6, 10.9),
+                ("I'm", 11.0, 11.2),
+                ("up", 11.4, 11.5),
+                ("to", 11.6, 11.7),
+                ("no", 11.8, 11.9),
+                ("good,", 12.0, 12.3),
+                ("in", 12.4, 12.5),
+            ],
+            countdown_words=[
+                ("five", 12.6, 12.8),
+                ("four", 12.9, 13.0),
+                ("three", 13.1, 13.2),
+                ("two", 13.3, 13.4),
+                ("one", 13.5, 13.6),
+                ("zero", 13.7, 13.8),
+            ],
+            next_word=("Welcome.", 14.0, 14.4),
+        )
+        cut = _apply_start_phrase_countdown(
+            rows,
+            "I solemnly swear I'm up to no good, in five four three two",
+            countdown_tokens=["five", "four", "three", "two"],
+            countdown_suffix_tokens=["one", "zero"],
+            preroll_sec=1.0,
+        )
+        self.assertEqual(cut.next_word_text, "welcome")
+        self.assertIn("one", cut.matched_phrase)
+        self.assertIn("zero", cut.matched_phrase)
+
+    def test_start_phrase_countdown_omits_in_before_countdown(self) -> None:
+        rows = self._oath_countdown_rows(
+            oath_words=[
+                ("I", 10.0, 10.1),
+                ("solemnly", 10.2, 10.5),
+                ("swear", 10.6, 10.9),
+                ("I'm", 11.0, 11.2),
+                ("up", 11.4, 11.5),
+                ("to", 11.6, 11.7),
+                ("no", 11.8, 11.9),
+                ("good,", 12.0, 12.3),
+            ],
+            countdown_words=[
+                ("five", 12.6, 12.8),
+                ("four", 12.9, 13.0),
+                ("three", 13.1, 13.2),
+                ("two", 13.3, 13.4),
+            ],
+            next_word=("Perfect.", 13.8, 14.2),
+        )
+        cut = _apply_start_phrase_countdown(
+            rows,
+            "I solemnly swear I'm up to no good, in five four three two",
+            countdown_tokens=["five", "four", "three", "two"],
+            countdown_suffix_tokens=["one", "zero"],
+            preroll_sec=1.0,
+        )
+        self.assertEqual(cut.next_word_text, "perfect")
+        self.assertNotIn("in", cut.matched_phrase.split()[-4:])
+
+    def test_start_phrase_countdown_i_am_prefix(self) -> None:
+        rows = self._oath_countdown_rows(
+            oath_words=[
+                ("I", 10.0, 10.1),
+                ("solemnly", 10.2, 10.5),
+                ("swear", 10.6, 10.9),
+                ("I", 11.0, 11.1),
+                ("am", 11.2, 11.3),
+                ("up", 11.4, 11.5),
+                ("to", 11.6, 11.7),
+                ("no", 11.8, 11.9),
+                ("good,", 12.0, 12.3),
+                ("in", 12.4, 12.5),
+                ("five", 12.6, 12.8),
+                ("four", 12.9, 13.0),
+                ("three", 13.1, 13.2),
+                ("two", 13.3, 13.4),
+            ],
+            countdown_words=[],
+            next_word=("Go.", 13.8, 14.0),
+        )
+        self.assertTrue(
+            _start_phrase_exists(
+                rows,
+                "I solemnly swear I'm up to no good, in five four three two",
+                countdown_tokens=["five", "four", "three", "two"],
+                countdown_suffix_tokens=["one", "zero"],
+            )
+        )
+
+    def test_start_phrase_countdown_skips_entire_tail_including_in(self) -> None:
+        """Oath only, no ``in`` or numbers spoken (Jessiah-style)."""
+        rows = [
+            Row(
+                idx=39,
+                start=62.44,
+                end=63.24,
+                text="Here's the intro phrase.",
+                speaker_id=0,
+                speaker_name="Host",
+                words=_words(("Here's", 62.44, 62.73), ("the", 62.78, 62.8)),
+            ),
+            Row(
+                idx=40,
+                start=64.0,
+                end=65.839,
+                text="I solemnly swear I am up to no good.",
+                speaker_id=0,
+                speaker_name="Host",
+                words=_words(
+                    ("I", 64.0, 64.019),
+                    ("solemnly", 64.08, 64.46),
+                    ("swear", 64.56, 64.82),
+                    ("I", 64.94, 64.96),
+                    ("am", 65.0, 65.099),
+                    ("up", 65.16, 65.26),
+                    ("to", 65.3, 65.36),
+                    ("no", 65.4, 65.48),
+                    ("good.", 65.58, 65.839),
+                ),
+            ),
+            Row(
+                idx=41,
+                start=68.26,
+                end=68.72,
+                text="Perfect.",
+                speaker_id=1,
+                speaker_name="Guest",
+                words=_words(("Perfect.", 68.26, 68.72)),
+            ),
+        ]
+        cut = _apply_start_phrase_countdown(
+            rows,
+            "I solemnly swear I'm up to no good, in five four three two",
+            countdown_tokens=["five", "four", "three", "two"],
+            countdown_suffix_tokens=["one", "zero"],
+            preroll_sec=1.0,
+        )
+        self.assertEqual(cut.next_word_text, "perfect")
+        self.assertEqual([r.idx for r in cut.rows], [41])
+        self.assertIn("good", cut.matched_phrase)
+        self.assertNotIn("in", cut.matched_phrase)
+        self.assertNotIn("five", cut.matched_phrase)
+
+    def test_start_phrase_countdown_skips_in_but_keeps_spoken_numbers(self) -> None:
+        rows = self._oath_countdown_rows(
+            oath_words=[
+                ("I", 10.0, 10.1),
+                ("solemnly", 10.2, 10.5),
+                ("swear", 10.6, 10.9),
+                ("I'm", 11.0, 11.2),
+                ("up", 11.4, 11.5),
+                ("to", 11.6, 11.7),
+                ("no", 11.8, 11.9),
+                ("good,", 12.0, 12.3),
+            ],
+            countdown_words=[
+                ("five", 12.6, 12.8),
+                ("two", 13.2, 13.4),
+            ],
+            next_word=("Perfect.", 13.8, 14.2),
+        )
+        cut = _apply_start_phrase_countdown(
+            rows,
+            "I solemnly swear I'm up to no good, in five four three two",
+            countdown_tokens=["five", "four", "three", "two"],
+            countdown_suffix_tokens=["one", "zero"],
+            preroll_sec=1.0,
+        )
+        self.assertEqual(cut.next_word_text, "perfect")
+        self.assertIn("five", cut.matched_phrase)
+        self.assertIn("two", cut.matched_phrase)
+        self.assertNotIn("in", cut.matched_phrase)
+
     def test_start_phrase_speaker_becomes_host_camera(self) -> None:
         from generate_full_dsl import _cam_by_speaker_with_host, _main_impl
         import sys as _sys
@@ -258,9 +486,73 @@ class StartEndPhraseTests(unittest.TestCase):
         self.assertAlmostEqual(cut.content_end_abs, 22.0)
         self.assertAlmostEqual(cut.last_slice_end or -1.0, 2.0)
 
+    def test_latest_end_phrase_wins_among_alternates(self) -> None:
+        started = _apply_start_phrase(
+            self.rows,
+            "Hut of brown, now sit down.",
+            preroll_sec=1.0,
+        )
+        latest = _find_latest_end_phrase_match(
+            started.rows,
+            [
+                "Be excellent to each other and party on dudes",
+                "Hut of brown, now stand up.",
+            ],
+        )
+        self.assertIsNotNone(latest)
+        phrase, _match_i = latest or ("", -1)
+        self.assertEqual(phrase, "Hut of brown, now stand up.")
+
     def test_missing_start_phrase_errors(self) -> None:
         with self.assertRaises(ValueError):
             _apply_start_phrase(self.rows, "this phrase does not exist", preroll_sec=1.0)
+
+    def test_main_skips_missing_start_phrase_without_error(self) -> None:
+        from generate_full_dsl import _main_impl
+        import sys as _sys
+
+        transcript = {
+            "0": {
+                "start": 0.0,
+                "end": 2.0,
+                "text": "Hello world.",
+                "speaker_id": 0,
+                "speaker_name": "Host",
+                "words": [
+                    {"text": "Hello", "start": 0.0, "end": 0.5},
+                    {"text": "world.", "start": 0.6, "end": 1.0},
+                ],
+            }
+        }
+        with tempfile.TemporaryDirectory() as td:
+            src = Path(td) / "t.json"
+            out = Path(td) / "out.dsl"
+            src.write_text(json.dumps(transcript), encoding="utf-8")
+            argv = [
+                "generate_full_dsl.py",
+                str(src),
+                "--segment",
+                "main",
+                "--output",
+                str(out),
+                "--start-phrase",
+                "this phrase does not exist",
+                "--no-camera-switch-offset",
+                "--open-ben-sec",
+                "0",
+                "--tail-ben-sec",
+                "0",
+            ]
+            old = _sys.argv
+            try:
+                _sys.argv = argv
+                rc = _main_impl()
+            finally:
+                _sys.argv = old
+            self.assertEqual(rc, 0)
+            text = out.read_text(encoding="utf-8")
+            self.assertIn("Start phrase not found", text)
+            self.assertIn("$segmentmain/0", text)
 
     def test_cli_emits_opening_and_slice(self) -> None:
         transcript = {
@@ -395,6 +687,283 @@ class PauseUnpauseTests(unittest.TestCase):
         self.assertIn("Welcome", texts)
         # Seam piece is the resume side.
         self.assertTrue(any(p.seam_after_pause for p in pieces))
+        seam_pieces = [p for p in pieces if p.seam_after_pause]
+        self.assertEqual(len(seam_pieces), 1)
+        self.assertIn("Welcome", seam_pieces[0].row.text)
+
+    def test_pause_seam_marks_first_piece_when_postroll_precedes_row_start(self) -> None:
+        """Resume abs can fall before the first kept row start (postroll gap)."""
+        from generate_full_dsl import _apply_pause_unpause_to_pieces
+
+        rows = [
+            Row(
+                idx=0,
+                start=2460.0,
+                end=2469.0,
+                text="This is what I got for now.",
+                speaker_id=1,
+                speaker_name="Guest",
+                words=_words(
+                    ("This", 2460.0, 2460.3),
+                    ("is", 2460.4, 2460.5),
+                    ("what", 2460.6, 2460.7),
+                    ("I", 2460.8, 2460.9),
+                    ("got", 2461.0, 2461.1),
+                    ("for", 2461.2, 2461.3),
+                    ("now.", 2468.452, 2468.541),
+                ),
+            ),
+            Row(
+                idx=1,
+                start=2469.832,
+                end=2472.0,
+                text="Computer Freeze Program. Ah, that's the pause phrase.",
+                speaker_id=0,
+                speaker_name="Host",
+                words=_words(
+                    ("Computer", 2469.832, 2470.192),
+                    ("Freeze", 2470.312, 2470.512),
+                    ("Program.", 2470.592, 2471.092),
+                ),
+            ),
+            Row(
+                idx=2,
+                start=2477.152,
+                end=2485.0,
+                text="Computer Resume Program. Okay. Uh, you then go on.",
+                speaker_id=0,
+                speaker_name="Host",
+                words=_words(
+                    ("Computer", 2477.152, 2477.452),
+                    ("Resume", 2479.792, 2480.112),
+                    ("Program.", 2480.192, 2480.731),
+                    ("Okay.", 2482.552, 2482.812),
+                    ("Uh,", 2483.172, 2483.552),
+                    ("you", 2483.562, 2483.662),
+                ),
+            ),
+        ]
+        pieces, _notes = _apply_pause_unpause_to_pieces(
+            rows,
+            pause_phrase="Computer Freeze Program.",
+            unpause_phrases=["Computer Resume Program"],
+            preroll_sec=0.25,
+            postroll_sec=0.7,
+            first_slice_start=None,
+            last_slice_end=None,
+        )
+        seam_pieces = [p for p in pieces if p.seam_after_pause]
+        self.assertEqual(len(seam_pieces), 1)
+        self.assertIn("Okay.", seam_pieces[0].row.text)
+        # Postroll falls mid-row (resume phrase + Okay share a row) -> positive slice_start.
+        self.assertAlmostEqual(seam_pieces[0].slice_start or 0.0, 4.7)
+
+    def test_pause_postroll_negative_lead_in_when_row_starts_after_resume(self) -> None:
+        from generate_full_dsl import _apply_pause_unpause_to_pieces
+
+        rows = [
+            Row(
+                idx=0,
+                start=2460.0,
+                end=2469.0,
+                text="This is what I got for now.",
+                speaker_id=1,
+                speaker_name="Guest",
+                words=_words(("now.", 2468.452, 2468.541)),
+            ),
+            Row(
+                idx=1,
+                start=2469.832,
+                end=2472.0,
+                text="Computer Freeze Program.",
+                speaker_id=0,
+                speaker_name="Host",
+                words=_words(
+                    ("Computer", 2469.832, 2470.192),
+                    ("Freeze", 2470.312, 2470.512),
+                    ("Program.", 2470.592, 2471.092),
+                ),
+            ),
+            Row(
+                idx=2,
+                start=2477.792,
+                end=2480.731,
+                text="Computer Resume Program.",
+                speaker_id=0,
+                speaker_name="Host",
+                words=_words(
+                    ("Computer", 2479.252, 2479.662),
+                    ("Resume", 2479.792, 2480.112),
+                    ("Program.", 2480.192, 2480.731),
+                ),
+            ),
+            Row(
+                idx=3,
+                start=2482.552,
+                end=2482.812,
+                text="Okay.",
+                speaker_id=0,
+                speaker_name="Host",
+                words=_words(("Okay.", 2482.552, 2482.812)),
+            ),
+        ]
+        pieces, _notes = _apply_pause_unpause_to_pieces(
+            rows,
+            pause_phrase="Computer Freeze Program.",
+            unpause_phrases=["Computer Resume Program"],
+            preroll_sec=0.25,
+            postroll_sec=0.7,
+            first_slice_start=None,
+            last_slice_end=None,
+        )
+        seam_pieces = [p for p in pieces if p.seam_after_pause]
+        self.assertEqual(len(seam_pieces), 1)
+        self.assertEqual(seam_pieces[0].row.idx, 3)
+        self.assertAlmostEqual(seam_pieces[0].slice_start or 0.0, -0.7)
+
+    def test_pause_preroll_extends_last_pre_pause_piece(self) -> None:
+        from generate_full_dsl import _apply_pause_unpause_to_pieces
+
+        rows = [
+            Row(
+                idx=0,
+                start=2460.0,
+                end=2469.0,
+                text="This is what I got for now.",
+                speaker_id=1,
+                speaker_name="Guest",
+                words=_words(
+                    ("This", 2460.0, 2460.3),
+                    ("now.", 2468.452, 2468.541),
+                ),
+            ),
+            Row(
+                idx=1,
+                start=2469.832,
+                end=2472.0,
+                text="Computer Freeze Program.",
+                speaker_id=0,
+                speaker_name="Host",
+                words=_words(
+                    ("Computer", 2469.832, 2470.192),
+                    ("Freeze", 2470.312, 2470.512),
+                    ("Program.", 2470.592, 2471.092),
+                ),
+            ),
+            Row(
+                idx=2,
+                start=2477.152,
+                end=2485.0,
+                text="Computer Resume Program. Okay.",
+                speaker_id=0,
+                speaker_name="Host",
+                words=_words(
+                    ("Computer", 2477.152, 2477.452),
+                    ("Resume", 2479.792, 2480.112),
+                    ("Program.", 2480.192, 2480.731),
+                    ("Okay.", 2482.552, 2482.812),
+                ),
+            ),
+        ]
+        pieces, _notes = _apply_pause_unpause_to_pieces(
+            rows,
+            pause_phrase="Computer Freeze Program.",
+            unpause_phrases=["Computer Resume Program"],
+            preroll_sec=0.25,
+            postroll_sec=0.7,
+            first_slice_start=None,
+            last_slice_end=None,
+        )
+        pre_pause = [p for p in pieces if p.row.idx == 0]
+        self.assertEqual(len(pre_pause), 1)
+        # now. ends 2468.541; +0.25s preroll => slice_end 8.791 from row start 2460.0
+        self.assertAlmostEqual(pre_pause[0].slice_end or -1.0, 8.791)
+
+    def test_pause_path_preserves_end_postroll_on_last_piece(self) -> None:
+        from generate_full_dsl import _apply_end_phrase, _apply_pause_unpause_to_pieces
+
+        rows = [
+            Row(
+                idx=0,
+                start=0.0,
+                end=5.0,
+                text="Hello friend.",
+                speaker_id=0,
+                speaker_name="Host",
+                words=_words(
+                    ("Hello", 0.0, 0.4),
+                    ("friend.", 0.5, 1.3),
+                ),
+            ),
+            Row(
+                idx=1,
+                start=5.0,
+                end=12.0,
+                text="Computer Freeze Program. Secret stuff here.",
+                speaker_id=0,
+                speaker_name="Host",
+                words=_words(
+                    ("Computer", 5.0, 5.4),
+                    ("Freeze", 5.5, 5.9),
+                    ("Program.", 6.0, 6.5),
+                    ("Secret", 7.0, 7.4),
+                    ("stuff", 7.5, 7.9),
+                    ("here.", 8.0, 8.4),
+                ),
+            ),
+            Row(
+                idx=2,
+                start=12.0,
+                end=20.0,
+                text="Computer Resume Program. Welcome back everyone.",
+                speaker_id=1,
+                speaker_name="Guest",
+                words=_words(
+                    ("Computer", 12.0, 12.4),
+                    ("Resume", 12.5, 12.9),
+                    ("Program.", 13.0, 13.5),
+                    ("Welcome", 14.0, 14.4),
+                    ("back", 14.5, 14.8),
+                    ("everyone.", 14.9, 15.5),
+                ),
+            ),
+            Row(
+                idx=3,
+                start=20.0,
+                end=24.0,
+                text="Thanks friend. Hut of brown now stand up.",
+                speaker_id=1,
+                speaker_name="Guest",
+                words=_words(
+                    ("Thanks", 20.0, 20.4),
+                    ("friend.", 20.5, 21.0),
+                    ("Hut", 22.0, 22.2),
+                    ("of", 22.3, 22.4),
+                    ("brown", 22.5, 22.7),
+                    ("now", 22.8, 22.9),
+                    ("stand", 23.0, 23.2),
+                    ("up.", 23.3, 23.5),
+                ),
+            ),
+        ]
+        ended = _apply_end_phrase(
+            rows,
+            "Hut of brown now stand up.",
+            postroll_sec=1.0,
+        )
+        pieces, _notes = _apply_pause_unpause_to_pieces(
+            ended.rows,
+            pause_phrase="Computer Freeze Program.",
+            unpause_phrases=["Computer Resume Program"],
+            preroll_sec=0.25,
+            postroll_sec=0.7,
+            first_slice_start=None,
+            last_slice_end=ended.last_slice_end,
+        )
+        last = pieces[-1]
+        self.assertEqual(last.row.idx, 3)
+        # friend. ends 21.0; +1s postroll => abs 22.0; row starts 20.0 => slice_end 2.0
+        self.assertAlmostEqual(last.slice_end or -1.0, 2.0)
 
     def test_unmatched_pause_left_in(self) -> None:
         from generate_full_dsl import _apply_pause_unpause_to_pieces

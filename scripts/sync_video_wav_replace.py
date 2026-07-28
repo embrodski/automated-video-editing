@@ -7,6 +7,10 @@ Video is the reference timeline (lip-sync / picture clock). Positive lag means
 the external file is delayed vs the video's audio; we skip the start of the
 external file. Negative lag prepends silence before the external audio.
 
+When correlation peak strength is below ``--min-correlation-strength`` (default
+0.35), or when ``--assume-start-aligned`` is set, the external WAV is muxed at
+sample 0 with no lag shift (MultiCorder-style shared record start).
+
 Requires: ffmpeg/ffprobe on PATH, numpy, scipy.
 """
 from __future__ import annotations
@@ -22,6 +26,8 @@ from pathlib import Path
 import numpy as np
 from scipy import signal
 from scipy.io import wavfile
+
+DEFAULT_MIN_CORRELATION_STRENGTH = 0.35
 
 
 def _run(cmd: list[str]) -> None:
@@ -186,6 +192,25 @@ def _drift_ms(
     return drift, lag2
 
 
+def _shift_external_to_lag(
+    ext_rs: np.ndarray,
+    lag: int,
+    n_ref: int,
+) -> np.ndarray:
+    if lag >= 0:
+        ext_adj = ext_rs[lag:]
+    else:
+        pad = np.zeros((-lag, ext_rs.shape[1]), dtype=np.float32)
+        ext_adj = np.vstack([pad, ext_rs])
+
+    if len(ext_adj) < n_ref:
+        pad_end = np.zeros((n_ref - len(ext_adj), ext_adj.shape[1]), dtype=np.float32)
+        ext_adj = np.vstack([ext_adj, pad_end])
+    else:
+        ext_adj = ext_adj[:n_ref]
+    return ext_adj
+
+
 def _align_external_to_reference(
     ref_mono: np.ndarray,
     ref_sr: int,
@@ -193,6 +218,8 @@ def _align_external_to_reference(
     ext_sr: int,
     *,
     analyze_seconds: float,
+    min_correlation_strength: float = DEFAULT_MIN_CORRELATION_STRENGTH,
+    assume_start_aligned: bool = False,
 ) -> tuple[np.ndarray, dict]:
     """
     Resample external to ref_sr, estimate lag on mono, return external (full
@@ -212,19 +239,42 @@ def _align_external_to_reference(
         raise ValueError("external audio has no channels")
 
     mono_b = _to_mono(ext_rs)
-    lag, strength = _estimate_lag_samples(ref_mono, mono_b, ref_sr, analyze_seconds)
-    report["lag_samples_external_delayed_vs_video_audio"] = lag
-    report["lag_ms"] = lag / float(ref_sr) * 1000.0
+    detected_lag, strength = _estimate_lag_samples(
+        ref_mono, mono_b, ref_sr, analyze_seconds
+    )
+    report["correlation_lag_samples"] = detected_lag
+    report["correlation_lag_ms"] = detected_lag / float(ref_sr) * 1000.0
     report["correlation_peak_strength"] = strength
     report["reference_sample_rate_hz"] = ref_sr
     report["external_original_rate_hz"] = ext_sr
 
+    use_start_aligned = assume_start_aligned
+    if not use_start_aligned and strength < min_correlation_strength:
+        use_start_aligned = True
+        report["start_aligned_fallback"] = True
+        report["start_aligned_reason"] = (
+            f"correlation peak {strength:.4f} below threshold "
+            f"{min_correlation_strength:.4f}"
+        )
+    elif assume_start_aligned:
+        report["start_aligned_fallback"] = True
+        report["start_aligned_reason"] = "--assume-start-aligned"
+
+    applied_lag = 0 if use_start_aligned else detected_lag
+    report["lag_samples_external_delayed_vs_video_audio"] = applied_lag
+    report["lag_ms"] = applied_lag / float(ref_sr) * 1000.0
+    report["start_aligned"] = use_start_aligned
+
     drift, lag_end = _drift_ms(
-        ref_mono, mono_b, ref_sr, analyze_seconds=analyze_seconds, lag_start=lag
+        ref_mono,
+        mono_b,
+        ref_sr,
+        analyze_seconds=analyze_seconds,
+        lag_start=detected_lag,
     )
     report["drift_estimate_ms"] = drift
     report["lag_samples_end_window"] = lag_end
-    if drift > 25.0:
+    if drift > 25.0 and not use_start_aligned:
         report["drift_warning"] = (
             "Start vs end window offset differs by more than ~25 ms. "
             "Clock drift or heavy edits may leave residual lip-sync error; "
@@ -232,17 +282,7 @@ def _align_external_to_reference(
         )
 
     n_ref = len(ref_mono)
-    if lag >= 0:
-        ext_adj = ext_rs[lag:]
-    else:
-        pad = np.zeros((-lag, ext_rs.shape[1]), dtype=np.float32)
-        ext_adj = np.vstack([pad, ext_rs])
-
-    if len(ext_adj) < n_ref:
-        pad_end = np.zeros((n_ref - len(ext_adj), ext_adj.shape[1]), dtype=np.float32)
-        ext_adj = np.vstack([ext_adj, pad_end])
-    else:
-        ext_adj = ext_adj[:n_ref]
+    ext_adj = _shift_external_to_lag(ext_rs, applied_lag, n_ref)
 
     report["output_audio_samples"] = int(ext_adj.shape[0])
     report["reference_audio_samples"] = n_ref
@@ -287,6 +327,23 @@ def main() -> int:
         type=Path,
         default=None,
         help="Write alignment metadata as JSON.",
+    )
+    p.add_argument(
+        "--min-correlation-strength",
+        type=float,
+        default=DEFAULT_MIN_CORRELATION_STRENGTH,
+        help=(
+            "When correlation peak strength is below this value, mux external "
+            "audio at sample 0 with no lag shift (default: 0.35)."
+        ),
+    )
+    p.add_argument(
+        "--assume-start-aligned",
+        action="store_true",
+        help=(
+            "Skip lag correction; mux external audio starting at sample 0 "
+            "(same as low-correlation fallback)."
+        ),
     )
     args = p.parse_args()
 
@@ -348,6 +405,8 @@ def main() -> int:
                 ext,
                 ext_sr,
                 analyze_seconds=args.analyze_seconds,
+                min_correlation_strength=float(args.min_correlation_strength),
+                assume_start_aligned=bool(args.assume_start_aligned),
             )
         except Exception as e:
             print(f"Alignment failed: {e}", file=sys.stderr)
@@ -397,6 +456,12 @@ def main() -> int:
         f"({report['lag_samples_external_delayed_vs_video_audio']} samples @ {ref_sr} Hz)"
     )
     print(f"  Correlation peak strength: {report['correlation_peak_strength']:.4f}")
+    if report.get("correlation_lag_ms") is not None and report.get("start_aligned"):
+        print(
+            f"  Detected lag (not applied): {report['correlation_lag_ms']:.2f} ms"
+        )
+    if report.get("start_aligned_fallback"):
+        print(f"  Start-aligned mux: {report.get('start_aligned_reason', 'yes')}")
     if report.get("drift_estimate_ms", 0) > 0:
         print(f"  Drift estimate (start vs end): {report['drift_estimate_ms']:.2f} ms")
     if report.get("drift_warning"):

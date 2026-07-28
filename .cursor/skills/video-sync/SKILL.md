@@ -154,6 +154,12 @@ From the repository root (use the resolved **`SYNC_DIR`** for this session):
 python scripts/sync_video_wav_replace.py "<resolved-video-path>" "<resolved-audio-path>" -o "<SYNC_DIR>/<intermediate-filename>.mp4" --json-report "<SYNC_DIR>/<intermediate-filename>.json"
 ```
 
+When the video's embedded audio does not correlate with the external WAV (common with
+MultiCorder when HDMI embed differs from Output WAV recorders), the script **automatically
+muxes at sample 0** if peak strength is below **0.35**. The JSON report records both
+the detected (unused) lag and `start_aligned_fallback: true`. Force that behavior with
+`--assume-start-aligned`; tune the threshold with `--min-correlation-strength`.
+
 ## Multicam alignment (default when 2+ videos)
 
 When there are **two or more** videos **and** the user did **not** pass **`--no-align`**:

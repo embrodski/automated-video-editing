@@ -8,7 +8,7 @@ import shutil
 import subprocess
 import wave
 from dataclasses import asdict, dataclass
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 
 import numpy as np
@@ -51,6 +51,10 @@ EST_ONE_MIN_RENDER_SEC = 12 * 60
 # finished at ~0.41×; 0.5× keeps a small cushion on this machine.
 EST_FULL_RENDER_X = 0.5
 EST_PAD_FRACTION = 0.25  # widen into a range
+
+DEFAULT_PREVIEW_CLIP_SEC = 5.0
+DEFAULT_PREVIEW_SECTIONS = (0.25, 0.62)
+MIN_AUDIBLE_RMS = 0.008
 
 
 @dataclass
@@ -204,6 +208,161 @@ def cluster_session_files(
     return sorted(filtered, key=lambda f: (f.kind, f.name.lower()))
 
 
+MIN_PIAB_VIDEOS = 3
+MIN_PIAB_AUDIOS = 2
+
+
+def resolve_scan_dir(*, root: Path, working: Path) -> Path:
+    """
+    Pick where to scan for MultiCorder files in default mode.
+
+    Prefer ``working`` when it already contains sources (special-style layout);
+    otherwise use ``root`` (fresh subfolder under the dump directory).
+    """
+    root = root.resolve()
+    working = working.resolve()
+    if list_top_level_multicorder(working):
+        return working
+    if list_top_level_multicorder(root):
+        return root
+    raise FileNotFoundError(
+        "No MultiCorder video/audio files found in "
+        f"working folder {working} or scan root {root}."
+    )
+
+
+def resolve_init_layout(
+    *,
+    mode: str | None,
+    root: Path,
+    name: str | None,
+    working_folder: Path | None,
+) -> tuple[Path, Path, str, str]:
+    """
+    Return ``(working_folder, scan_dir, session_name, session_mode)``.
+
+    ``session_mode`` is ``default`` (new subfolder under ``root``) or ``special``
+    (sources live inside the given working folder).
+    """
+    root = root.resolve()
+
+    if working_folder is not None:
+        if name is not None:
+            raise ValueError("Use --working-folder or --name, not both.")
+        working = working_folder.resolve()
+        if not working.is_dir():
+            raise FileNotFoundError(f"Working folder not found: {working}")
+        return working, working, working.name, "special"
+
+    if mode == "special":
+        raise ValueError("--mode special requires --working-folder.")
+
+    if not name or not name.strip():
+        raise ValueError("--name is required in default mode.")
+
+    session_name = name.strip()
+    working = (root / session_name).resolve()
+    if working.parent != root:
+        raise ValueError("--name must be a single folder name, not a path.")
+    scan_dir = resolve_scan_dir(root=root, working=working)
+    return working, scan_dir, session_name, "default"
+
+
+def assess_session_requirements(
+    cluster: list[MediaInfo],
+    *,
+    scan_dir: Path,
+    skipped: list[dict] | None = None,
+) -> dict:
+    """Return requirement status and human-readable gaps for PIAB labeling."""
+    videos = [f for f in cluster if f.kind == "video"]
+    audios = [f for f in cluster if f.kind == "audio"]
+    missing: list[str] = []
+    if len(videos) < MIN_PIAB_VIDEOS:
+        missing.append(
+            f"Need at least {MIN_PIAB_VIDEOS} MultiCorder camera videos "
+            f"(found {len(videos)})."
+        )
+    if len(audios) < MIN_PIAB_AUDIOS:
+        missing.append(
+            f"Need at least {MIN_PIAB_AUDIOS} MultiCorder Output WAV files "
+            f"(found {len(audios)})."
+        )
+
+    unrecognized: list[str] = []
+    for path in sorted(scan_dir.iterdir(), key=lambda p: p.name.lower()):
+        if not path.is_file():
+            continue
+        if classify_multicorder(path) is not None:
+            continue
+        if path.name.lower().endswith((".mp4", ".wav", ".m4a")):
+            unrecognized.append(path.name)
+
+    return {
+        "ok": not missing,
+        "missing": missing,
+        "warnings": [
+            f"Skipped unreadable MultiCorder file: {item['name']} ({item['reason']})"
+            for item in (skipped or [])
+        ],
+        "unrecognized_media": unrecognized,
+    }
+
+
+def collect_session_scan(
+    scan_dir: Path,
+    *,
+    mtime_tol_sec: float = 60.0,
+    duration_tol_sec: float = 2.0,
+    date_filter: date | None = None,
+) -> dict:
+    """Scan ``scan_dir`` and return the JSON payload used by PIAB scan/init."""
+    scan_dir = scan_dir.resolve()
+    skipped: list[dict] = []
+    files = list_top_level_multicorder(scan_dir, skipped=skipped)
+    if date_filter:
+        files = [
+            item
+            for item in files
+            if date.fromisoformat(item.mtime_iso[:10]) == date_filter
+        ]
+    cluster = cluster_session_files(
+        files,
+        mtime_tol_sec=mtime_tol_sec,
+        duration_tol_sec=duration_tol_sec,
+    )
+    videos = [f for f in cluster if f.kind == "video"]
+    audios = [f for f in cluster if f.kind == "audio"]
+    durations = [f.duration_sec for f in cluster]
+    mtimes = [f.mtime for f in cluster]
+    requirements = assess_session_requirements(cluster, scan_dir=scan_dir, skipped=skipped)
+    return {
+        "scan_root": str(scan_dir),
+        "date_filter": date_filter.isoformat() if date_filter else None,
+        "file_count": len(cluster),
+        "video_count": len(videos),
+        "audio_count": len(audios),
+        "mtime_span_sec": round(max(mtimes) - min(mtimes), 3),
+        "duration_span_sec": round(max(durations) - min(durations), 3),
+        "typical_duration_sec": sorted(durations)[len(durations) // 2],
+        "typical_duration_human": format_duration(sorted(durations)[len(durations) // 2]),
+        "typical_mtime_iso": sorted(cluster, key=lambda f: f.mtime)[-1].mtime_iso,
+        "skipped_unreadable": skipped,
+        "requirements": requirements,
+        "files": [
+            {
+                "path": f.path,
+                "name": f.name,
+                "kind": f.kind,
+                "mtime_iso": f.mtime_iso,
+                "duration_sec": f.duration_sec,
+                "duration_human": format_duration(f.duration_sec),
+            }
+            for f in cluster
+        ],
+    }
+
+
 def format_duration(seconds: float) -> str:
     total = int(round(seconds))
     h, rem = divmod(total, 3600)
@@ -263,6 +422,7 @@ def new_piab_state(
     name: str,
     scan_root: Path,
     session_files: list[MediaInfo],
+    session_mode: str = "default",
 ) -> dict:
     working_folder = working_folder.resolve()
     now = utc_now_iso()
@@ -270,6 +430,7 @@ def new_piab_state(
     return {
         "kind": "podcast_in_a_box",
         "name": name,
+        "session_mode": session_mode,
         "created_at": now,
         "updated_at": now,
         "skip_reading": True,
@@ -398,10 +559,31 @@ def _wav_mono_float(path: Path) -> tuple[np.ndarray, int]:
         tmp_path.unlink(missing_ok=True)
 
 
+def _max_window_rms(audio: np.ndarray, rate: int, *, window_sec: float = 0.5) -> float:
+    win = max(1, int(window_sec * rate))
+    hop = win // 2 or 1
+    best = 0.0
+    for i in range(0, max(1, len(audio) - win + 1), hop):
+        seg = audio[i : i + win]
+        if len(seg) < win // 2:
+            break
+        rms = float(np.sqrt(np.mean(np.square(seg))))
+        best = max(best, rms)
+    return best
+
+
+def wav_has_audible_content(path: Path, *, min_rms: float = MIN_AUDIBLE_RMS) -> bool:
+    """Return False when the file appears silent (no usable speech/noise for labeling)."""
+    audio, rate = _wav_mono_float(path)
+    if len(audio) < rate // 10:
+        return False
+    return _max_window_rms(audio, rate) >= min_rms
+
+
 def find_loud_clip_start(
     path: Path,
     *,
-    clip_sec: float = 4.0,
+    clip_sec: float = DEFAULT_PREVIEW_CLIP_SEC,
     after_fraction: float = 0.25,
     window_sec: float = 0.5,
 ) -> float:
@@ -436,12 +618,33 @@ def find_loud_clip_start(
     return start / rate
 
 
+def find_loud_clip_starts(
+    path: Path,
+    *,
+    clip_sec: float = DEFAULT_PREVIEW_CLIP_SEC,
+    section_fractions: tuple[float, ...] = DEFAULT_PREVIEW_SECTIONS,
+    window_sec: float = 0.5,
+) -> list[float]:
+    """Return one loud clip start time per section (e.g. early and late in the file)."""
+    starts: list[float] = []
+    for fraction in section_fractions:
+        starts.append(
+            find_loud_clip_start(
+                path,
+                clip_sec=clip_sec,
+                after_fraction=fraction,
+                window_sec=window_sec,
+            )
+        )
+    return starts
+
+
 def extract_audio_clip(
     wav: Path,
     out_wav: Path,
     *,
     start_sec: float,
-    duration_sec: float = 4.0,
+    duration_sec: float = DEFAULT_PREVIEW_CLIP_SEC,
 ) -> Path:
     out_wav.parent.mkdir(parents=True, exist_ok=True)
     proc = subprocess.run(

@@ -285,33 +285,9 @@ def podcast_swap_speaker_ids_cli_args(state: dict) -> list[str]:
 
 def podcast_phrase_cli_args(state: dict) -> list[str]:
     """CLI args for generate_full_dsl.py start/end/pause phrase options."""
-    out: list[str] = []
-    start_phrase = state.get("start_phrase")
-    if start_phrase:
-        out.extend(["--start-phrase", str(start_phrase)])
-        if state.get("start_preroll_sec") is not None:
-            out.extend(["--start-preroll-sec", str(state["start_preroll_sec"])])
-    end_phrase = state.get("end_phrase")
-    if end_phrase:
-        out.extend(["--end-phrase", str(end_phrase)])
-        if state.get("end_postroll_sec") is not None:
-            out.extend(["--end-postroll-sec", str(state["end_postroll_sec"])])
-    pause_phrase = state.get("pause_phrase")
-    if pause_phrase:
-        out.extend(["--pause-phrase", str(pause_phrase)])
-        unpause = state.get("unpause_phrases") or state.get("unpause_phrase")
-        if isinstance(unpause, str):
-            unpause = [unpause]
-        for phrase in unpause or []:
-            out.extend(["--unpause-phrase", str(phrase)])
-        if state.get("pause_preroll_sec") is not None:
-            out.extend(["--pause-preroll-sec", str(state["pause_preroll_sec"])])
-        if state.get("pause_postroll_sec") is not None:
-            out.extend(["--pause-postroll-sec", str(state["pause_postroll_sec"])])
-    abort_phrase = state.get("abort_phrase")
-    if abort_phrase:
-        out.extend(["--abort-phrase", str(abort_phrase)])
-    return out
+    from podcast_phrase_gates import podcast_phrase_cli_args as _shared_phrase_cli_args
+
+    return _shared_phrase_cli_args(state)
 
 
 def reading_keep_rows_cli_args(state: dict) -> list[str]:

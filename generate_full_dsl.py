@@ -35,6 +35,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Mapping, Optional, Tuple
 
+_SCRIPTS_DIR = Path(__file__).resolve().parent / "scripts"
+if str(_SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPTS_DIR))
+
+from podcast_phrase_gates import apply_namespace_phrase_defaults
+
 
 CAM_BY_SPEAKER_ID = {
     0: "speaker_0",
@@ -226,8 +232,13 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help=(
             "Drop everything through this phrase (case/punctuation-insensitive). "
-            "The first cut begins --start-preroll-sec before the first word after "
-            "the phrase. Requires word-level timestamps in the simplified transcript."
+            "With --start-phrase-countdown, the oath prefix is matched exactly (allowing "
+            "i am / I'm) and every optional tail token may be skipped in order: a "
+            "trailing ``in`` before the countdown (when configured), each countdown "
+            "number, and optional one/zero suffix words when spoken. The first cut "
+            "begins --start-preroll-sec before the first word after the phrase. "
+            "Default comes from "
+            "podcast-phrase-gates.json; if absent, start trimming is skipped."
         ),
     )
     parser.add_argument(
@@ -237,19 +248,41 @@ def parse_args() -> argparse.Namespace:
         help="Seconds before the first post-start-phrase word to begin (default: 1.0).",
     )
     parser.add_argument(
-        "--end-phrase",
+        "--start-phrase-countdown",
+        nargs="*",
         default=None,
         help=(
-            "Drop this phrase and everything after it. The last cut ends "
-            "--end-postroll-sec after the last word before the phrase. Requires "
-            "word-level timestamps in the simplified transcript."
+            "Ordered optional tail tokens after the oath prefix; ``in`` (when "
+            "configured before the countdown) and every number may be skipped. "
+            "Default from podcast-phrase-gates.json."
+        ),
+    )
+    parser.add_argument(
+        "--start-phrase-countdown-suffix",
+        nargs="*",
+        default=None,
+        help=(
+            "Optional trailing countdown words removed when present after the "
+            "core countdown (default: one zero)."
+        ),
+    )
+    parser.add_argument(
+        "--end-phrase",
+        action="append",
+        default=None,
+        help=(
+            "Drop this phrase and everything after it (repeatable; the latest "
+            "match among all end phrases wins). The last cut ends "
+            "--end-postroll-sec after the last word before the phrase. Defaults "
+            "come from podcast-phrase-gates.json; if none match, end trimming "
+            "is skipped."
         ),
     )
     parser.add_argument(
         "--end-postroll-sec",
         type=float,
-        default=2.0,
-        help="Seconds after the last pre-end-phrase word to keep (default: 2.0).",
+        default=1.0,
+        help="Seconds after the last pre-end-phrase word to keep (default: 1.0).",
     )
     parser.add_argument(
         "--pause-phrase",
@@ -381,6 +414,229 @@ def _find_phrase_start_index(flat: List[FlatWord], phrase_tokens: List[str]) -> 
     )
 
 
+def _prefix_tokens_match_end(
+    flat: List[FlatWord],
+    start: int,
+    prefix_tokens: List[str],
+) -> int | None:
+    """Return flat index after ``prefix_tokens``, or None if no match."""
+    fi = start
+    pi = 0
+    while pi < len(prefix_tokens):
+        if fi >= len(flat):
+            return None
+        pt = prefix_tokens[pi]
+        ft = flat[fi].token
+        if ft == pt:
+            fi += 1
+            pi += 1
+            continue
+        if (
+            pt == "im"
+            and ft == "i"
+            and fi + 1 < len(flat)
+            and flat[fi + 1].token == "am"
+        ):
+            fi += 2
+            pi += 1
+            continue
+        if (
+            pt == "i"
+            and pi + 1 < len(prefix_tokens)
+            and prefix_tokens[pi + 1] == "am"
+            and ft == "im"
+        ):
+            fi += 1
+            pi += 2
+            continue
+        return None
+    return fi
+
+
+def _prefix_tokens_match(flat: List[FlatWord], start: int, prefix_tokens: List[str]) -> bool:
+    return _prefix_tokens_match_end(flat, start, prefix_tokens) is not None
+
+
+def _start_countdown_tokens_for_phrase(
+    phrase: str,
+    countdown_tokens: List[str] | None,
+) -> List[str]:
+    """Use countdown matching only when the phrase includes a countdown token."""
+    if not countdown_tokens:
+        return []
+    tokens = _tokenize_phrase(phrase)
+    countdown_set = set(countdown_tokens)
+    if not any(t in countdown_set for t in tokens):
+        return []
+    return list(countdown_tokens)
+
+
+def _start_phrase_prefix_and_optional_tail(
+    phrase: str,
+    countdown_tokens: List[str],
+) -> tuple[List[str], List[str]]:
+    """
+    Split a start phrase into a required oath prefix and an optional spoken tail.
+
+    The optional tail is ``in`` (when it immediately precedes the first countdown
+    token in the configured phrase) followed by every countdown token. Each tail
+    token may be omitted in order; suffix tokens (``one``, ``zero``) are handled
+    separately.
+    """
+    tokens = _tokenize_phrase(phrase)
+    countdown_set = {t for t in countdown_tokens}
+    first_cd_idx: int | None = None
+    for idx, tok in enumerate(tokens):
+        if tok in countdown_set:
+            first_cd_idx = idx
+            break
+    if first_cd_idx is None:
+        return tokens, []
+    optional_tail = list(countdown_tokens)
+    prefix_end = first_cd_idx
+    if first_cd_idx > 0 and tokens[first_cd_idx - 1] == "in":
+        optional_tail = ["in", *optional_tail]
+        prefix_end = first_cd_idx - 1
+    return tokens[:prefix_end], optional_tail
+
+
+def _consume_optional_spoken_tail(
+    flat: List[FlatWord],
+    pos: int,
+    optional_tokens: List[str],
+    *,
+    suffix_set: set[str],
+) -> int:
+    """Advance ``pos`` across optional ``in`` / countdown tokens (all skippable)."""
+    opt_idx = 0
+    while opt_idx < len(optional_tokens):
+        if pos >= len(flat):
+            break
+        token = flat[pos].token
+        if token == optional_tokens[opt_idx]:
+            pos += 1
+            opt_idx += 1
+        elif token in optional_tokens[opt_idx + 1 :]:
+            opt_idx += 1
+        elif token in suffix_set:
+            break
+        else:
+            break
+    return pos
+
+
+def _find_countdown_start_span(
+    flat: List[FlatWord],
+    *,
+    prefix_tokens: List[str],
+    optional_tail_tokens: List[str],
+    suffix_tokens: List[str],
+) -> tuple[int, int] | None:
+    """
+    Return (match_start, match_end_exclusive) for a start phrase with optional
+    ``in`` / countdown gaps and optional trailing suffix tokens (e.g. one, zero).
+    """
+    if not prefix_tokens:
+        return None
+    suffix_set = set(suffix_tokens)
+    for i in range(0, len(flat)):
+        pos = _prefix_tokens_match_end(flat, i, prefix_tokens)
+        if pos is None:
+            continue
+        pos = _consume_optional_spoken_tail(
+            flat,
+            pos,
+            optional_tail_tokens,
+            suffix_set=suffix_set,
+        )
+        for suffix in suffix_tokens:
+            if pos < len(flat) and flat[pos].token == suffix:
+                pos += 1
+            else:
+                break
+        if pos >= len(flat):
+            continue
+        return (i, pos)
+    return None
+
+
+def _start_phrase_exists(
+    rows: List[Row],
+    phrase: str,
+    *,
+    countdown_tokens: List[str] | None = None,
+    countdown_suffix_tokens: List[str] | None = None,
+) -> bool:
+    flat = _flatten_match_words(rows)
+    if not flat:
+        return False
+    if countdown_tokens:
+        active = _start_countdown_tokens_for_phrase(phrase, countdown_tokens)
+        if active:
+            prefix, optional_tail = _start_phrase_prefix_and_optional_tail(
+                phrase, active
+            )
+            return (
+                _find_countdown_start_span(
+                    flat,
+                    prefix_tokens=prefix,
+                    optional_tail_tokens=optional_tail,
+                    suffix_tokens=countdown_suffix_tokens or [],
+                )
+                is not None
+            )
+    return _phrase_exists(rows, phrase)
+
+
+def _apply_start_phrase_countdown(
+    rows: List[Row],
+    phrase: str,
+    *,
+    countdown_tokens: List[str],
+    countdown_suffix_tokens: List[str],
+    preroll_sec: float,
+) -> StartPhraseCut:
+    if preroll_sec < 0:
+        raise ValueError("--start-preroll-sec must be >= 0")
+    flat = _flatten_match_words(rows)
+    if not flat:
+        raise ValueError(
+            "--start-phrase requires word-level timestamps on simplified transcript rows."
+        )
+    prefix, optional_tail = _start_phrase_prefix_and_optional_tail(
+        phrase, countdown_tokens
+    )
+    span = _find_countdown_start_span(
+        flat,
+        prefix_tokens=prefix,
+        optional_tail_tokens=optional_tail,
+        suffix_tokens=countdown_suffix_tokens,
+    )
+    if span is None:
+        raise ValueError(
+            "Start phrase with countdown not found in word-timed transcript: "
+            + " ".join(prefix + optional_tail)
+        )
+    match_start, match_end = span
+    next_word = flat[match_end]
+    host_speaker_id = int(rows[flat[match_start].row_i].speaker_id)
+    kept = rows[next_word.row_i :]
+    if not kept:
+        raise ValueError("Start phrase left no transcript rows to keep.")
+    first = kept[0]
+    rel = float(next_word.start) - float(first.start)
+    first_slice_start = rel if rel > 1e-6 else None
+    matched = " ".join(flat[k].token for k in range(match_start, match_end))
+    return StartPhraseCut(
+        rows=kept,
+        first_slice_start=first_slice_start,
+        content_start_abs=float(next_word.start),
+        matched_phrase=matched,
+        next_word_text=next_word.token,
+        host_speaker_id=host_speaker_id,
+    )
+
+
 def _apply_start_phrase(
     rows: List[Row],
     phrase: str,
@@ -444,6 +700,7 @@ def _apply_end_phrase(
     phrase: str,
     *,
     postroll_sec: float,
+    match_index: int | None = None,
 ) -> EndPhraseCut:
     if postroll_sec < 0:
         raise ValueError("--end-postroll-sec must be >= 0")
@@ -453,7 +710,10 @@ def _apply_end_phrase(
             "--end-phrase requires word-level timestamps on simplified transcript rows."
         )
     phrase_tokens = _tokenize_phrase(phrase)
-    match_i = _find_phrase_start_index(flat, phrase_tokens)
+    if match_index is None:
+        match_i = _find_phrase_start_index(flat, phrase_tokens)
+    else:
+        match_i = match_index
     if match_i <= 0:
         raise ValueError(
             f"End phrase {' '.join(phrase_tokens)!r} was found, but no timed word precedes it."
@@ -465,7 +725,6 @@ def _apply_end_phrase(
     last = kept[-1]
     content_end_abs = float(last_word.end) + float(postroll_sec)
     rel_end = content_end_abs - float(last.start)
-    # Keep at least through the last content word if postroll is tiny.
     rel_end = max(rel_end, float(last_word.end) - float(last.start))
     last_slice_end = rel_end
     return EndPhraseCut(
@@ -475,6 +734,31 @@ def _apply_end_phrase(
         matched_phrase=" ".join(phrase_tokens),
         last_word_text=last_word.token,
     )
+
+
+def _find_latest_end_phrase_match(
+    rows: List[Row],
+    phrases: List[str],
+) -> tuple[str, int] | None:
+    """Return (phrase, flat_word_index) for the latest end-phrase match, if any."""
+    flat = _flatten_match_words(rows)
+    if not flat:
+        return None
+    best: tuple[str, int] | None = None
+    for phrase in phrases:
+        if not phrase or not str(phrase).strip():
+            continue
+        tokens = _tokenize_phrase(str(phrase))
+        for match_i in _find_all_phrase_starts(flat, tokens):
+            if match_i <= 0:
+                continue
+            if best is None or match_i > best[1]:
+                best = (str(phrase), match_i)
+    return best
+
+
+def _any_end_phrase_exists(rows: List[Row], phrases: List[str]) -> bool:
+    return _find_latest_end_phrase_match(rows, phrases) is not None
 
 
 def _phrase_exists(rows: List[Row], phrase: str) -> bool:
@@ -560,6 +844,44 @@ def _rel_slice_end(row: Row, abs_time: float) -> float:
     return max(0.0, float(abs_time) - float(row.start))
 
 
+def _row_overlaps_keep(row: Row, keep_lo: float, keep_hi: float) -> bool:
+    return float(row.end) > keep_lo + 1e-6 and float(row.start) < keep_hi - 1e-6
+
+
+def _piece_slices_for_keep_span(
+    row: Row,
+    keep_lo: float,
+    keep_hi: float,
+    *,
+    is_first_in_interval: bool,
+    is_last_in_interval: bool,
+) -> Tuple[Optional[float], Optional[float]]:
+    """
+    Map a keep interval onto one transcript row as DSL slice offsets.
+
+    First/last pieces in the interval may extend before ``row.start`` (negative
+    ``slice_start``) or after ``row.end`` (``slice_end`` past the row duration).
+    """
+    clip_lo = float(keep_lo) if is_first_in_interval else max(float(row.start), float(keep_lo))
+    clip_hi = (
+        float(keep_hi) if is_last_in_interval else min(float(row.end), float(keep_hi))
+    )
+
+    rel_start = clip_lo - float(row.start)
+    slice_start = None if abs(rel_start) <= 1e-6 else rel_start
+
+    if is_last_in_interval and float(keep_hi) > float(row.end) + 1e-6:
+        slice_end = float(keep_hi) - float(row.start)
+    elif abs(clip_hi - float(row.end)) <= 1e-6:
+        slice_end = None
+    elif clip_hi < float(row.end) - 1e-6:
+        slice_end = float(clip_hi) - float(row.start)
+    else:
+        slice_end = None
+
+    return slice_start, slice_end
+
+
 def _build_pieces_from_rows(
     rows: List[Row],
     *,
@@ -593,7 +915,9 @@ def _apply_pause_unpause_to_pieces(
     Remove matched Pause→Unpause spans from rows and return emit pieces.
 
     Seam rolls: keep ``preroll_sec`` after the last word before Pause, and resume
-    ``postroll_sec`` before the first word after Unpause.
+    ``postroll_sec`` before the first word after Unpause. Padding is emitted as
+    explicit slice lead-in/tail on the boundary pieces (negative ``slice_start``
+    / extended ``slice_end``), not just as keep-interval cut points.
     """
     if preroll_sec < 0 or postroll_sec < 0:
         raise ValueError("Pause preroll/postroll must be >= 0")
@@ -623,7 +947,7 @@ def _apply_pause_unpause_to_pieces(
     if first_slice_start is not None:
         cursor_abs = float(rows[0].start) + float(first_slice_start)
 
-    seam_force_at_abs: List[Tuple[float, str]] = []  # (resume_abs, forced_cam)
+    seam_force_at_abs: List[float] = []
 
     for pair in pairs:
         if pair.pause_start_i <= 0:
@@ -649,7 +973,7 @@ def _apply_pause_unpause_to_pieces(
             resume_abs = mid
 
         keep_intervals.append((cursor_abs, cut_end_abs))
-        seam_force_at_abs.append((resume_abs, ""))  # marker only; cam resolved later
+        seam_force_at_abs.append(resume_abs)
         notes.append(
             f"Pause {pair.pause_phrase!r} → Unpause {pair.unpause_phrase!r}: "
             f"drop {float(last_before.end):.3f}s..{float(first_after.start):.3f}s"
@@ -666,31 +990,25 @@ def _apply_pause_unpause_to_pieces(
     for keep_lo, keep_hi in keep_intervals:
         if keep_hi <= keep_lo + 1e-6:
             continue
-        for row in rows:
-            overlap_lo = max(float(row.start), keep_lo)
-            overlap_hi = min(float(row.end), keep_hi)
-            if overlap_hi <= overlap_lo + 1e-6:
-                continue
-            slice_start = _rel_slice_start(row, overlap_lo)
-            # If we keep through the natural row end, omit slice_end unless this
-            # is an intentional early end inside the row.
-            if abs(overlap_hi - float(row.end)) <= 1e-6 and keep_hi >= float(row.end) - 1e-6:
-                slice_end = None
-            else:
-                slice_end = _rel_slice_end(row, overlap_hi)
-            force = None
-            seam_after = False
-            for resume_abs, _ignored in seam_force_at_abs:
-                if abs(overlap_lo - resume_abs) <= 1e-3:
-                    seam_after = True
-                    break
+        is_resume_interval = any(abs(keep_lo - resume_abs) <= 1e-3 for resume_abs in seam_force_at_abs)
+        overlapping = [row for row in rows if _row_overlaps_keep(row, keep_lo, keep_hi)]
+        for i, row in enumerate(overlapping):
+            is_first = i == 0
+            is_last = i == len(overlapping) - 1
+            slice_start, slice_end = _piece_slices_for_keep_span(
+                row,
+                keep_lo,
+                keep_hi,
+                is_first_in_interval=is_first,
+                is_last_in_interval=is_last,
+            )
             pieces.append(
                 Piece(
                     row=row,
                     slice_start=slice_start,
                     slice_end=slice_end,
-                    force_cam=force,
-                    seam_after_pause=seam_after,
+                    force_cam=None,
+                    seam_after_pause=is_resume_interval and is_first,
                 )
             )
 
@@ -1048,7 +1366,7 @@ def main() -> int:
 
 
 def _main_impl() -> int:
-    args = parse_args()
+    args = apply_namespace_phrase_defaults(parse_args())
 
     transcript_path = Path(args.transcript_json)
     output_path = Path(args.output)
@@ -1068,36 +1386,71 @@ def _main_impl() -> int:
     last_slice_end: Optional[float] = None
     content_start_abs = 0.0
     pause_notes: List[str] = []
+    phrase_notes: List[str] = []
     abort_triggered = False
 
     if args.abort_phrase and _phrase_exists(full_rows, str(args.abort_phrase)):
         abort_triggered = True
 
     if args.start_phrase:
-        start_cut = _apply_start_phrase(
-            rows,
+        countdown_tokens = _start_countdown_tokens_for_phrase(
             str(args.start_phrase),
-            preroll_sec=float(args.start_preroll_sec),
+            list(args.start_phrase_countdown or []),
         )
-        rows = start_cut.rows
-        first_slice_start = start_cut.first_slice_start
-        content_start_abs = start_cut.content_start_abs
+        countdown_suffix = list(args.start_phrase_countdown_suffix or [])
+        if _start_phrase_exists(
+            full_rows,
+            str(args.start_phrase),
+            countdown_tokens=countdown_tokens or None,
+            countdown_suffix_tokens=countdown_suffix,
+        ):
+            if countdown_tokens:
+                start_cut = _apply_start_phrase_countdown(
+                    rows,
+                    str(args.start_phrase),
+                    countdown_tokens=countdown_tokens,
+                    countdown_suffix_tokens=countdown_suffix,
+                    preroll_sec=float(args.start_preroll_sec),
+                )
+            else:
+                start_cut = _apply_start_phrase(
+                    rows,
+                    str(args.start_phrase),
+                    preroll_sec=float(args.start_preroll_sec),
+                )
+            rows = start_cut.rows
+            first_slice_start = start_cut.first_slice_start
+            content_start_abs = start_cut.content_start_abs
+        else:
+            phrase_notes.append(
+                f"Start phrase not found ({args.start_phrase!r}); using full transcript start."
+            )
 
     if args.end_phrase:
-        end_cut = _apply_end_phrase(
-            rows,
-            str(args.end_phrase),
-            postroll_sec=float(args.end_postroll_sec),
-        )
-        rows = end_cut.rows
-        last_slice_end = end_cut.last_slice_end
-        if (
-            start_cut is not None
-            and end_cut.content_end_abs <= start_cut.content_start_abs
-        ):
-            raise ValueError(
-                "End phrase content ends at or before the start-phrase content start. "
-                f"start={start_cut.content_start_abs:.3f}s end={end_cut.content_end_abs:.3f}s"
+        end_phrases = [str(p) for p in args.end_phrase if str(p).strip()]
+        latest = _find_latest_end_phrase_match(rows, end_phrases)
+        if latest is not None:
+            matched_phrase, match_i = latest
+            end_cut = _apply_end_phrase(
+                rows,
+                matched_phrase,
+                postroll_sec=float(args.end_postroll_sec),
+                match_index=match_i,
+            )
+            rows = end_cut.rows
+            last_slice_end = end_cut.last_slice_end
+            if (
+                start_cut is not None
+                and end_cut.content_end_abs <= start_cut.content_start_abs
+            ):
+                raise ValueError(
+                    "End phrase content ends at or before the start-phrase content start. "
+                    f"start={start_cut.content_start_abs:.3f}s end={end_cut.content_end_abs:.3f}s"
+                )
+        else:
+            shown = " | ".join(end_phrases)
+            phrase_notes.append(
+                f"End phrase not found ({shown!r}); using full transcript end."
             )
 
     cam_by_speaker: Dict[int, str] = dict(CAM_BY_SPEAKER_ID)
@@ -1276,6 +1629,8 @@ def _main_impl() -> int:
             f"(abs {end_cut.content_end_abs:.3f}s)"
         )
     for note in pause_notes:
+        lines.append(f"// {note}")
+    for note in phrase_notes:
         lines.append(f"// {note}")
     lines.append(
         f"// Open: first {float(args.open_ben_sec):.1f}s on speaker_0 (no cuts off Ben before then); "

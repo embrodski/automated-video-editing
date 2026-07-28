@@ -20,6 +20,7 @@ from harness_episode_lib import (
     step_state,
 )
 from harness_overwrite_guard import HarnessOverwriteError, OVERWRITE_EXIT_CODE
+from podcast_flag_phrases import report_flag_timestamps_after_render
 
 
 def rebuild_interview_dsl(state: dict) -> Path:
@@ -103,6 +104,15 @@ def main() -> int:
             max_seconds=max_seconds,
             allow_overwrite=args.allow_overwrite,
         )
+
+        flag_summary = None
+        if args.mode == "full":
+            flag_summary = report_flag_timestamps_after_render(
+                interview_dsl,
+                temp,
+                state=state,
+            )
+            state["flag_timestamps"] = flag_summary
 
         state["interview_dsl"] = str(interview_dsl)
         if args.mode == "test":

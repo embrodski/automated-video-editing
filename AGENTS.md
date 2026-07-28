@@ -16,6 +16,8 @@ After the user approves and you **start** a long prep/render/video-sync job in t
 
 **While any harness rendering-class task is running** (video-sync / multicam prep, `podcast_dsl` / reading renders, stitch, PIAB prep or full render, or a chained prep→1-min-test pipeline): **check status about every 5 minutes** until the job completes or fails, then notify the user immediately. Prefer a short progress note on each check (current step / newest outputs) when useful; always notify on completion or failure.
 
+PIAB prep/full render also write **`Temp/harness-FAILURE.json`** and raise a **Windows toast with sound** on step failure (e.g. ElevenLabs payment errors). Treat that marker or a non-zero exit as an immediate failure — do not wait for the next 5-minute poll.
+
 Do not busy-wait with sub-minute polling. Five minutes is the default cadence for these jobs unless the user asks for a different interval.
 
 ## Crash dumps (this machine)

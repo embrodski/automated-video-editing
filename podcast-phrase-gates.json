@@ -1,0 +1,25 @@
+{
+  "start_phrase": "I solemnly swear I'm up to no good, in five four three two",
+  "start_phrase_countdown_tokens": ["five", "four", "three", "two"],
+  "start_phrase_countdown_suffix": ["one", "zero"],
+  "end_phrases": [
+    "Be excellent to each other and party on dudes",
+    "Hut of brown, now sit down"
+  ],
+  "start_preroll_sec": 1.0,
+  "end_postroll_sec": 1.0,
+  "pause_phrase": "Computer Freeze Program.",
+  "unpause_phrases": [
+    "Computer Resume Program",
+    "Computer Unfreeze Program"
+  ],
+  "abort_phrase": "Emergency override - Eject the warp core",
+  "pause_preroll_sec": 0.25,
+  "pause_postroll_sec": 0.7,
+  "flag_phrases": [
+    "Computer Drop Flag",
+    "Computer Raise Flag",
+    "Computer Timestamp",
+    "Computer Drop Timestamp"
+  ]
+}
