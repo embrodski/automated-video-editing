@@ -16,6 +16,19 @@ Cursor-guided skill (no GUI). Reuses harness Interview tools; skips reading, int
 **State file:** `<working_folder>/podcast-in-a-box.json`  
 **Default scan root:** `E:\PodcastRoom`
 
+## Recording flow vs autocut flow
+
+| Phase | Steps | Purpose |
+|-------|-------|---------|
+| **Recording flow** | −1, 0–0e | Already recorded?, vMix, preset, camera, MultiCorder, continue or stop |
+| **Autocut flow** | 1–6 + resume | Scan, label, prep, 1-min approval, full render, delivery |
+
+**New session:** `python scripts/piab_start_session.py` → option **1** asks whether the podcast is **already recorded** or will be **recorded now**. Already recorded → autocut flow (default vs special folder). Record now → recording flow, then **Continue to Autocut or Stop**.
+
+**Resume autocut only:** option **2** skips recording flow entirely.
+
+**Non-interactive:** `--already-recorded` / `--skip-recording-flow` for autocut-only; `--record-now` + `--continue-to-autocut` or `--stop-after-recording` after recording.
+
 ## Hard rules
 
 - **No overwrite** without listing paths and getting explicit approval; then pass `--allow-overwrite`.
@@ -58,7 +71,119 @@ MultiCorder sources (top-level only under scan root):
 
 ---
 
-## Step 1 — Where are the source files?
+## Recording flow
+
+### Step −1 — Already recorded or record now?
+
+First question for a **new session** (option 1):
+
+> Have you already recorded this podcast, or will you be recording now?
+
+| Answer | Next |
+|--------|------|
+| **Already recorded** | Skip to **autocut flow** — Step 1 asks default folder vs special folder |
+| **Record now** | Continue with Steps 0–0d, then Step 0e |
+
+### Step 0 — vMix must be running
+
+Before recording, ensure **vMix** is open on the podcast machine:
+
+```powershell
+python scripts/piab_ensure_vmix.py
+```
+
+Or start the interactive launcher (runs this check first):
+
+```powershell
+python scripts/piab_start_session.py
+```
+
+Behavior:
+
+1. If **vMix is already running**, continue immediately.
+2. If not, print **`Opening vMix`** and launch from `C:\Program Files (x86)\vMix\` (`vMix64.exe`, then `vMix.exe`).
+3. If vMix still is not running after ~30 seconds, print **`Please open vMix`** and open the help image: `assets/piab-vmix-icon-help.png` (shows the vMix taskbar icon).
+
+Use `--skip-vmix` only for automation/CI.
+
+### Step 0b — Open the PIAB vMix preset
+
+After vMix is running, load **`4 People - 5 Cameras - Default.vmix`** from `E:\PodcastRoom\vMix Configs\`:
+
+```powershell
+python scripts/piab_open_vmix_preset.py
+```
+
+`piab_start_session.py` runs Steps 0–0d for **new sessions** (option 1). Resume (option 2) skips recording flow.
+
+Behavior:
+
+1. Find `4 People - 5 Cameras - Default.vmix` under `E:\PodcastRoom\vMix Configs\` (also accepts the spaced filename `Default .vmix`).
+2. If that preset is already loaded, continue immediately.
+3. Otherwise print **`Opening vMix preset: …`** and call the vMix HTTP API (`OpenPreset`) on `http://127.0.0.1:8088/api/`.
+4. Wait until vMix reports the preset path in its API XML.
+
+Use `--skip-vmix-preset` only for automation/CI, or `--preset-path` to override the file location.
+
+### Step 0c — Camera and microphone setup
+
+After the preset is loaded, confirm camera framing and mic levels:
+
+```powershell
+python scripts/piab_confirm_camera_setup.py
+```
+
+`piab_start_session.py` runs this automatically after Step 0b.
+
+Behavior:
+
+1. Print the setup instructions (cameras off-center toward center, eyes at top viewfinder line, mic ~80%).
+2. Open all three reference images at once:
+   - `assets/piab-camera-left.jpg`
+   - `assets/piab-camera-right.jpg`
+   - `assets/piab-camera-wide.jpg`
+3. Wait for the user to confirm ready (today: type **`ready`** in the Cursor terminal; future standalone app: **`PIAB_USE_CONTINUE_BUTTON=1`** + Continue button — see `PIAB_USE_CONTINUE_BUTTON` in `scripts/piab_confirm_camera_setup.py`).
+
+Use `--skip-camera-setup` or `--confirm-camera-ready` for automation/CI.
+
+### Step 0d — MultiCorder recording session
+
+After camera setup, start **MultiCorder** and wait while the hosts record:
+
+```powershell
+python scripts/piab_multicorder_record.py
+```
+
+`piab_start_session.py` runs this automatically after Step 0c.
+
+Behavior:
+
+1. If MultiCorder is **not** recording, call vMix API `StartMultiCorder`.
+2. If MultiCorder is **already** recording, ask: continue current recording, or stop and restart (`StopMultiCorder`, wait 2s, `StartMultiCorder`).
+3. Print the running-program instructions with **Start Phrase** and **Ending Phrase** from `podcast-phrase-gates.json`.
+4. Wait for the user to type **`continue`** (future standalone app: **`PIAB_USE_CONTINUE_BUTTON=1`** + Continue button).
+5. Call vMix API `StopMultiCorder` when the user continues.
+
+Use `--skip-multicorder`, `--auto-continue-recording`, or `--already-recording continue|restart` for automation/CI.
+
+### Step 0e — Continue to autocut or stop
+
+After MultiCorder stops, the **newest** files in `E:\PodcastRoom` are the session sources. The launcher asks:
+
+> Continue to Autocut, or Stop? (you can use the files yourself now, or resume autocut later)
+
+| Answer | Next |
+|--------|------|
+| **Continue to autocut** | Autocut flow with the newest default-folder cluster (no default vs special prompt) |
+| **Stop** | Exit; files remain in `E:\PodcastRoom`. Start autocut later via option **1** → already recorded, option **2** resume, or Step 1 scripts |
+
+Use `--continue-to-autocut` or `--stop-after-recording` for non-interactive runs.
+
+---
+
+## Autocut flow
+
+### Step 1 — Where are the source files?
 
 **Email delivery (optional):** When starting a **new** session (not resume), ask whether to email `Full Interview.mp4` when the full render completes. If yes, collect the recipient email, read it back, and confirm with **“Is this correct? [Y/N or A to abort]”**. Abort = continue without delivery. On **resume**, do not re-prompt if `podcast-in-a-box.json` already has a confirmed delivery email for this session.
 
@@ -89,11 +214,13 @@ After Adobe sign-in, allow the browser prompt to **Open** the PIAB OAuth handler
 
 Tokens live in `.frameio-oauth.json` (gitignored) and refresh automatically.
 
-**First ask the user:**
+**After recording flow (Step 0e → continue):** scan the default folder and confirm the newest cluster.
+
+**Already recorded (Step −1) or autocut-only:** ask the user:
 
 > Are the MultiCorder files in the **default folder** (`E:\PodcastRoom`), or in a **special folder** you already created (e.g. `E:\Bayeswatch\Jessiah`)?
 
-### Default folder (previous behavior)
+### Default folder
 
 Sources sit at the top level of `E:\PodcastRoom`. PIAB creates a **new working subfolder** there.
 
@@ -138,11 +265,11 @@ For a terminal-only flow without the agent:
 python scripts/piab_start_session.py
 ```
 
-Prompts default vs special, scans, validates, then calls init.
+Option **1**: Step −1 (already recorded vs record now) → recording and/or autocut init. Option **2**: resume autocut only. Flags: `--already-recorded`, `--continue-to-autocut`, `--stop-after-recording`.
 
 ---
 
-## Step 2 — Label videos
+### Step 2 — Label videos
 
 ```powershell
 python scripts/piab_extract_video_previews.py "E:\PodcastRoom\<name>"
@@ -162,7 +289,7 @@ Show a confirmation table. Offer **Accept**, **Re-label**, or **Swap Host ↔ Gu
 
 ---
 
-## Step 3 — Label audio
+### Step 3 — Label audio
 
 ```powershell
 python scripts/piab_extract_audio_previews.py "E:\PodcastRoom\<name>"
@@ -182,7 +309,7 @@ Rules: exactly one Host, one Guest; rest do not use. Confirm / re-label / swap H
 
 ---
 
-## Step 4 — Apply labels + Estimate A
+### Step 4 — Apply labels + Estimate A
 
 Build JSON maps of absolute source path → role, then:
 
@@ -207,7 +334,7 @@ python scripts/piab_swap.py "E:\PodcastRoom\<name>" --files video   # or audio |
 
 ---
 
-## Step 5 — Prep through 1-min test
+### Step 5 — Prep through 1-min test
 
 Long job — only after Estimate A approval:
 
@@ -256,7 +383,7 @@ the user:
 
 ---
 
-## Step 6 — Estimate B + full render
+### Step 6 — Estimate B + full render
 
 ```powershell
 python scripts/piab_estimate.py "E:\PodcastRoom\<name>" --which full --mark-awaiting
