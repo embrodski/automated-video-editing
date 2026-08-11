@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 import sys
 from dataclasses import dataclass
@@ -141,10 +142,20 @@ def run_video_sync(
     *,
     no_downscale_1080p: bool = False,
     allow_overwrite: bool = False,
+    force_detected_lag: bool = False,
+    sync_dir: Path | None = None,
+    prepped_dir: Path | None = None,
 ) -> dict:
     dirs = resolve_video_sync_dirs(raw_dir)
+    if sync_dir is not None:
+        dirs.sync_dir = sync_dir.resolve()
+        dirs.sync_dir.mkdir(parents=True, exist_ok=True)
+    if prepped_dir is not None:
+        dirs.input_dir = prepped_dir.resolve()
+        dirs.input_dir.mkdir(parents=True, exist_ok=True)
     synced_paths: list[Path] = []
     predicted_prepped: list[Path] = []
+    sync_reports: list[dict] = []
     anchor_wav = dirs.input_dir / prepped_wav_basename(audio_file)
 
     for video in videos:
@@ -158,19 +169,22 @@ def run_video_sync(
         synced_name = synced_basename(video)
         synced_path = dirs.sync_dir / synced_name
         report_path = dirs.sync_dir / synced_name.replace(".mp4", ".json")
-        run_cmd(
-            [
-                sys.executable,
-                str(REPO_ROOT / "scripts" / "sync_video_wav_replace.py"),
-                str(video.resolve()),
-                str(audio_file.resolve()),
-                "-o",
-                str(synced_path),
-                "--json-report",
-                str(report_path),
-            ]
-        )
+        cmd = [
+            sys.executable,
+            str(REPO_ROOT / "scripts" / "sync_video_wav_replace.py"),
+            str(video.resolve()),
+            str(audio_file.resolve()),
+            "-o",
+            str(synced_path),
+            "--json-report",
+            str(report_path),
+        ]
+        if force_detected_lag:
+            cmd.append("--force-detected-lag")
+        run_cmd(cmd)
         synced_paths.append(synced_path)
+        if report_path.is_file():
+            sync_reports.append(json.loads(report_path.read_text(encoding="utf-8")))
 
     for prepped in predicted_prepped:
         refuse_overwrite(prepped, allow_overwrite=allow_overwrite)
@@ -226,4 +240,5 @@ def run_video_sync(
         "synced": [str(p) for p in synced_paths],
         "prepped_videos": [str(p) for p in prepped_paths],
         "prepped_audio_wav": str(anchor_wav),
+        "sync_reports": sync_reports,
     }

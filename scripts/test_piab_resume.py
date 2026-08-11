@@ -7,6 +7,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from harness_episode_lib import PIAB_STATE_FILENAME
 from piab_lib import new_piab_state, save_piab_state
 from piab_resume import (
     build_prep_resume_plan,
@@ -43,7 +44,7 @@ class PrepResumeTests(unittest.TestCase):
             "output": str(working / "Output"),
             "temp": str(working / "Temp"),
             "previews": str(working / "Temp" / "piab-previews"),
-            "state": str(working / "podcast-in-a-box.json"),
+            "state": str(working / PIAB_STATE_FILENAME),
         }
         save_piab_state(working, state)
         return working, state

@@ -122,7 +122,9 @@ Command template:
 python convert_transcript_json.py "<input folder>/<detail transcript filename>" -o "<temp folder>/interview_transcript_simplified.json"
 ```
 
-Only if the user explicitly requests a Host/Guest camera swap: re-run step 2 with **`--swap-speaker-ids`**, then repeat steps 4–5 (regenerate DSL and re-render the 1-minute test).
+Only if the user explicitly requests a Host/Guest camera swap **or says Host/Guest audio is swapped in the edit**: assume Raw/Input files are labeled correctly. Re-run step 2 with **`--swap-speaker-ids`** (toggle if fixing a prior swap), then repeat steps 4–5 (regenerate DSL and re-render the 1-minute test). **Do not** re-sync video or re-transcribe unless the user confirms Raw files were mislabeled.
+
+**PIAB sessions:** use `python scripts/piab_fix_audio_speaker_swap.py "<working folder>" --allow-overwrite` instead of swapping Raw audio or re-running prep.
 
 ### 3) Register the interview segment in `<temp folder>/segments.json`
 
@@ -196,7 +198,7 @@ python -m podcast_dsl "<temp folder>\interview.dsl" -o "<output folder>\1 Min Te
 
 After the 1-minute render completes, **pause** and report completion. **Always** include this note (verbatim intent; wording may be natural):
 
-> **1-minute test render complete.** Review `1 Min Test.mp4` in `<output folder>`. If Host and Guest cameras look swapped, say so and we can re-run transcript conversion with `--swap-speaker-ids`, regenerate the DSL, and render again. Otherwise, continue when ready.
+> **1-minute test render complete.** Review `1 Min Test.mp4` in `<output folder>`. If Host and Guest audio or cameras sound swapped in the edit (Raw files labeled correctly), re-run transcript conversion with `--swap-speaker-ids`, regenerate the DSL, and render again — or on PIAB, run `piab_fix_audio_speaker_swap.py`. Only re-prep if Raw Host/Guest files were mislabeled. Otherwise, continue when ready.
 
 Then ask:
 

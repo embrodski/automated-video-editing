@@ -10,6 +10,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+from harness_av_sync_lib import maybe_write_sync_confidence_flag
 from harness_episode_lib import (
     intro_steps_active,
     load_episode_state,
@@ -130,6 +131,8 @@ def main() -> int:
                 allow_overwrite=args.allow_overwrite,
             )
             state["main_prepped"] = result
+            if result.get("sync_reports"):
+                maybe_write_sync_confidence_flag(state, result["sync_reports"], scope="main")
             steps["12_main_video_prep"] = step_state(
                 steps,
                 "12_main_video_prep",

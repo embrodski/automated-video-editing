@@ -22,7 +22,14 @@ from harness_delivery_prompt import (
     merge_delivery_into_state,
     prompt_delivery_opt_in,
 )
-from piab_lib import DEFAULT_SCAN_ROOT, collect_session_scan, load_piab_state, print_json, save_piab_state
+from piab_lib import (
+    DEFAULT_SCAN_ROOT,
+    collect_session_scan,
+    default_session_folder_name,
+    load_piab_state,
+    print_json,
+    save_piab_state,
+)
 from piab_ensure_vmix import ensure_vmix_running
 from piab_open_vmix_preset import open_vmix_preset
 from piab_confirm_camera_setup import confirm_camera_setup
@@ -48,6 +55,31 @@ def _prompt_choice(prompt: str, *, choices: dict[str, str]) -> str:
         if answer in choices:
             return answer
         print(f"Please enter one of: {', '.join(choices)}")
+
+
+def _prompt_custom_folder_name() -> str:
+    while True:
+        name = input("Custom folder name: ").strip()
+        if name and "/" not in name and "\\" not in name:
+            return name
+        print("Enter a single folder name (no path separators).")
+
+
+def _prompt_session_folder_name(default_name: str | None) -> str:
+    if default_name:
+        return default_name
+
+    suggested = default_session_folder_name()
+    choice = _prompt_choice(
+        "Name the working folder under PodcastRoom",
+        choices={
+            "1": "enter a custom name",
+            "2": f"use default date+time ({suggested})",
+        },
+    )
+    if choice == "2":
+        return suggested
+    return _prompt_custom_folder_name()
 
 
 def _prompt_yes_no(prompt: str, *, default: bool = False) -> bool:
@@ -231,14 +263,10 @@ def _init_default_folder(repo: Path, args: argparse.Namespace, *, after_recordin
         print("Aborted. Move or copy sources into the default folder and re-run.")
         return 1
 
-    if args.default_name:
-        name = args.default_name
+    if args.use_default_datetime_name:
+        name = default_session_folder_name()
     else:
-        while True:
-            name = input("Working folder name to create under PodcastRoom: ").strip()
-            if name and "/" not in name and "\\" not in name:
-                break
-            print("Enter a single folder name (no path separators).")
+        name = _prompt_session_folder_name(args.default_name)
 
     working = DEFAULT_SCAN_ROOT / name
     rc = _run_init(
@@ -294,7 +322,9 @@ def _run_autocut_flow(
 
 def _run_autocut_resume(repo: Path) -> int:
     while True:
-        raw = input("Enter working folder path (contains podcast-in-a-box.json): ").strip().strip('"')
+        raw = input(
+            "Enter working folder path (contains cursor-podcast-in-a-box.json): "
+        ).strip().strip('"')
         if not raw:
             print("Path is required.")
             continue
@@ -333,11 +363,16 @@ def main() -> int:
     parser.add_argument(
         "--non-interactive",
         action="store_true",
-        help="Require --default-name or --working-folder; do not prompt.",
+        help="Require --working-folder, --default-name, or --use-default-datetime-name; do not prompt.",
     )
     parser.add_argument(
         "--default-name",
         help="Default mode: working subfolder name under E:\\PodcastRoom.",
+    )
+    parser.add_argument(
+        "--use-default-datetime-name",
+        action="store_true",
+        help="Default mode: use local date+time as the working folder name (non-interactive).",
     )
     parser.add_argument(
         "--working-folder",
@@ -424,6 +459,12 @@ def main() -> int:
     already_recorded = args.already_recorded or args.skip_recording_flow
 
     if args.non_interactive:
+        if args.default_name and args.use_default_datetime_name:
+            print(
+                "ERROR: --default-name and --use-default-datetime-name are mutually exclusive.",
+                file=sys.stderr,
+            )
+            return 1
         if args.record_now and already_recorded:
             print(
                 "ERROR: --record-now cannot be combined with --already-recorded or "
@@ -452,17 +493,24 @@ def main() -> int:
                 not args.continue_to_autocut
                 and args.working_folder is None
                 and args.default_name is None
+                and not args.use_default_datetime_name
             ):
                 print(
                     "ERROR: after recording, pass --continue-to-autocut with "
-                    "--default-name or --working-folder, or --stop-after-recording.",
+                    "--default-name, --use-default-datetime-name, or --working-folder, "
+                    "or --stop-after-recording.",
                     file=sys.stderr,
                 )
                 return 1
 
-        if args.working_folder is None and args.default_name is None:
+        if (
+            args.working_folder is None
+            and args.default_name is None
+            and not args.use_default_datetime_name
+        ):
             print(
-                "ERROR: --non-interactive requires --working-folder or --default-name.",
+                "ERROR: --non-interactive requires --working-folder, --default-name, "
+                "or --use-default-datetime-name.",
                 file=sys.stderr,
             )
             return 1

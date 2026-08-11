@@ -335,11 +335,44 @@ Chains **Inkhaven-Podcast-Autocut** (convert transcript, register segment, `inte
 python scripts/harness_podcast_autocut_test.py "<episode_folder>"
 ```
 
-- **Output:** **`<output>/1 Min Test.mp4`**
+- **Normal output:** **`<output>/1 Min Test.mp4`**
+- **When video-sync failed confidence** (`Temp/failed-sync-confidence.json` exists after step 12), step 15 renders **two** tests instead:
+  - **`<output>/1 Min Test no offset.mp4`** — start-aligned fallback (sample 0)
+  - **`<output>/1 Min Test forced audio offset.mp4`** — detected lags applied via `--force-detected-lag`
 
-Tell the user: **Main Interview 1 Min Test File is ready for review** (`1 Min Test.mp4`). Then enter **Step 16** (reading approval) unless **`skip_reading`**.
+When the dual-test path runs, **`resume_at`** is **`18a_sync_offset_approval`** (not step 18 yet). See **Step 18a** before general 1-min approval.
 
-After step **15**, **`resume_at`** is **`16_reading_test_approval`** when reading is enabled, else **`18_interview_test_approval`**.
+Otherwise tell the user: **Main Interview 1 Min Test File is ready for review** (`1 Min Test.mp4`). Then enter **Step 16** (reading approval) unless **`skip_reading`**.
+
+After step **15** (no sync flag), **`resume_at`** is **`16_reading_test_approval`** when reading is enabled, else **`18_interview_test_approval`**.
+
+See **`docs/av-sync-confidence-fallback.md`** for PIAB port notes and full workflow.
+
+---
+
+## Step 18a — Sync offset A/B approval (when confidence failed)
+
+**Skip** when **`Temp/failed-sync-confidence.json`** is absent.
+
+**Gate:** **`steps.18a_sync_offset_approval`** is **`awaiting_user`** after step **15** when sync correlation was below threshold.
+
+Ask the user to review **both**:
+
+- **`1 Min Test no offset.mp4`**
+- **`1 Min Test forced audio offset.mp4`**
+
+**Prompt:** Which do you prefer — **no offset** (start-aligned) or **forced audio offset**?
+
+Record choice (do not proceed to step 18 until recorded):
+
+```powershell
+python scripts/harness_record_sync_offset_choice.py "<episode_folder>" --choice start_aligned
+python scripts/harness_record_sync_offset_choice.py "<episode_folder>" --choice forced_offset
+```
+
+Then continue to **Step 18** with the chosen test as the active 1-min reference.
+
+**Speaker swap:** If the user fixes speaker-ID mapping (`swap_speaker_ids`) while this flag exists, re-run step **15** (or rebuild DSL + A/B renders). Return here so they can confirm offset choice again before general 1-min approval.
 
 ---
 
@@ -399,9 +432,11 @@ python scripts/harness_step_status.py "<episode_folder>" --step 17_reading_full_
 
 ## Step 18 — Interview 1-minute test approval
 
-**Gate:** **`steps.18_interview_test_approval`** is **`awaiting_user`** after step **15**.
+**Gate:** **`steps.18_interview_test_approval`** is **`awaiting_user`** after step **15** (or after **18a** when sync confidence failed).
 
-Review **`1 Min Test.mp4`**. Troubleshoot using **Inkhaven-Podcast-Autocut** parameters from step **15** (**`interview.dsl`**, segment **`main_segment_id`**).
+Review the active 1-min test (`1 Min Test.mp4`, or the file chosen in step **18a**). Troubleshoot using **Inkhaven-Podcast-Autocut** parameters from step **15** (**`interview.dsl`**, segment **`main_segment_id`**).
+
+**Second prompt (after offset choice if applicable):** Is the test otherwise OK, or do other changes need to be made (speaker swap, DSL tweaks)?
 
 **Never re-render without explicit user approval.** If the target file already exists, list it and ask before overwriting; pass **`--allow-overwrite`** only after approval.
 
@@ -453,7 +488,7 @@ python scripts/harness_step_status.py "<episode_folder>" --step 19_interview_fiv
 python scripts/harness_podcast_autocut_render.py "<episode_folder>" --mode full [--rebuild-dsl] [--allow-overwrite]
 ```
 
-**Output:** **`<output>/Full Interview.mp4`**.
+**Output:** **`<output>/Full Interview.mp4`** — or **`full video with audio offset.mp4`** when the user chose forced offset in step **18a**.
 
 When complete, tell the user exactly:
 

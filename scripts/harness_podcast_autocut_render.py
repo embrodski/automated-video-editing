@@ -10,7 +10,16 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+from harness_av_sync_lib import (
+    FULL_VIDEO_FORCED_OFFSET,
+    SYNC_CHOICE_FORCED_OFFSET,
+    active_main_prepped,
+    build_segment_entry,
+    full_interview_output_name,
+    render_full_with_prep,
+)
 from harness_autocut_common import render_dsl, run_cmd
+from episode_segments import MAIN_SEGMENT_KEY, save_segments_file, segments_path
 from harness_episode_lib import (
     REPO_ROOT,
     load_episode_state,
@@ -73,23 +82,43 @@ def main() -> int:
         action="store_true",
         help="Overwrite existing output MP4 (requires explicit user approval).",
     )
+    parser.add_argument(
+        "--output-name",
+        help="Override output MP4 filename (e.g. 'full video with audio offset.mp4').",
+    )
+    parser.add_argument(
+        "--use-forced-offset-prep",
+        action="store_true",
+        help="Render using forced-offset prepped media (Temp/av-sync/forced-offset).",
+    )
     args = parser.parse_args()
 
     outputs = {
         "test": ("1 Min Test.mp4", 60, "18_interview_test_approval"),
         "five_min": ("5 Min Test.mp4", 300, "19_interview_five_min_approval"),
-        "full": ("Full Interview.mp4", None, "20_full_interview_render"),
+        "full": (None, None, "20_full_interview_render"),
     }
-    filename, max_seconds, _ = outputs[args.mode]
+    default_filename, max_seconds, _ = outputs[args.mode]
 
     try:
         state = load_episode_state(args.episode_folder)
         if not state.get("main_segment_id"):
             raise RuntimeError("main_segment_id missing; run harness_podcast_autocut_test.py first.")
 
+        if args.use_forced_offset_prep:
+            state["sync_offset_choice"] = SYNC_CHOICE_FORCED_OFFSET
+
+        if args.output_name:
+            filename = args.output_name
+        elif args.mode == "full":
+            filename = full_interview_output_name(state)
+        else:
+            filename = default_filename or "1 Min Test.mp4"
+
         temp = Path(state["paths"]["temp"])
         output_dir = Path(state["paths"]["output"])
         interview_dsl = Path(state.get("interview_dsl") or temp / "interview.dsl")
+        simplified = temp / "interview_transcript_simplified.json"
 
         if args.rebuild_dsl:
             interview_dsl = rebuild_interview_dsl(state)
@@ -97,13 +126,36 @@ def main() -> int:
             raise FileNotFoundError(f"interview.dsl not found: {interview_dsl}")
 
         out_mp4 = output_dir / filename
-        render_dsl(
-            interview_dsl,
-            out_mp4,
-            temp,
-            max_seconds=max_seconds,
-            allow_overwrite=args.allow_overwrite,
+        use_forced_prep = (
+            args.use_forced_offset_prep
+            or state.get("sync_offset_choice") == SYNC_CHOICE_FORCED_OFFSET
         )
+        if use_forced_prep and args.mode == "full":
+            from harness_av_sync_lib import ensure_forced_offset_prep
+
+            prep = ensure_forced_offset_prep(state, allow_overwrite=args.allow_overwrite)
+            render_full_with_prep(
+                interview_dsl=interview_dsl,
+                prep=prep,
+                simplified_json=simplified,
+                output_mp4=out_mp4,
+                segments_dir=temp / "av-sync" / "render-segments" / "forced-offset-full",
+                allow_overwrite=args.allow_overwrite,
+            )
+        else:
+            if use_forced_prep:
+                prep = active_main_prepped(state)
+                save_segments_file(
+                    segments_path(temp),
+                    {MAIN_SEGMENT_KEY: build_segment_entry(prep, simplified)},
+                )
+            render_dsl(
+                interview_dsl,
+                out_mp4,
+                temp,
+                max_seconds=max_seconds,
+                allow_overwrite=args.allow_overwrite,
+            )
 
         flag_summary = None
         if args.mode == "full":

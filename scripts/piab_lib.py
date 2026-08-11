@@ -24,6 +24,13 @@ from harness_episode_lib import (
 
 DEFAULT_SCAN_ROOT = Path(r"E:\PodcastRoom")
 
+
+def default_session_folder_name(now: datetime | None = None) -> str:
+    """Return a Windows-safe working-folder name from local date+time."""
+    stamp = now or datetime.now().astimezone()
+    return stamp.strftime("%Y-%m-%d %H-%M-%S")
+
+
 VIDEO_NAME_RE = re.compile(
     r"^MultiCorder\d+\s*-\s*DeckLink Quad HDMI Recorder",
     re.IGNORECASE,
@@ -487,6 +494,44 @@ def mark_step(
     steps[step_id] = step_state(steps, step_id, title=title, status=status, **extra)
 
 
+def mark_piab_sync_ab_steps(state: dict, *, ab_result: dict) -> None:
+    """Gate on A/B sync offset choice before general 1-min approval."""
+    mark_step(
+        state,
+        "10a_sync_offset_approval",
+        title="Sync offset A/B approval",
+        status="awaiting_user",
+        one_min_no_offset=ab_result["one_min_no_offset"],
+        one_min_forced_offset=ab_result["one_min_forced_offset"],
+    )
+    mark_step(
+        state,
+        "11_one_min_approval",
+        title="1-min test approval",
+        status="pending",
+        note="Complete sync offset choice (step 10a) first.",
+    )
+    state["resume_at"] = "10a_sync_offset_approval"
+
+
+def mark_piab_sync_choice_completed(state: dict) -> None:
+    mark_step(
+        state,
+        "10a_sync_offset_approval",
+        title="Sync offset A/B approval",
+        status="completed",
+        choice=state.get("sync_offset_choice"),
+    )
+    mark_step(
+        state,
+        "11_one_min_approval",
+        title="1-min test approval",
+        status="awaiting_user",
+        chosen_test=state.get("podcast_autocut_test_mp4"),
+    )
+    state["resume_at"] = "11_one_min_approval"
+
+
 def extract_midpoint_frame(video: Path, out_jpg: Path) -> Path:
     duration = ffprobe_duration(video)
     mid = max(0.0, duration / 2.0)
@@ -723,7 +768,7 @@ def move_labeled_media(
     audio_labels: dict[str, str],
     allow_overwrite: bool = False,
 ) -> dict:
-    """Move labeled sources into Raw with standard names. Keys are source paths."""
+    """Copy labeled sources into Raw with standard names. Source files are never moved."""
     from harness_overwrite_guard import refuse_overwrite
 
     validate_video_labels(video_labels)
@@ -731,7 +776,15 @@ def move_labeled_media(
     raw = Path(state["paths"]["raw"])
     raw.mkdir(parents=True, exist_ok=True)
     original_paths: dict[str, str] = {}
-    moved: dict[str, str] = {}
+    copied: dict[str, str] = {}
+
+    def _copy_labeled_source(src: Path, dest: Path) -> None:
+        if src.resolve() == dest.resolve():
+            return
+        refuse_overwrite(dest, allow_overwrite=allow_overwrite)
+        if dest.exists():
+            dest.unlink()
+        shutil.copy2(src, dest)
 
     for src_str, role in video_labels.items():
         if role == "do_not_use":
@@ -740,12 +793,9 @@ def move_labeled_media(
         if not src.is_file():
             raise FileNotFoundError(f"Labeled video missing: {src}")
         dest = raw / role_to_video_name(role)
-        refuse_overwrite(dest, allow_overwrite=allow_overwrite)
-        if dest.exists():
-            dest.unlink()
-        shutil.move(str(src), str(dest))
-        original_paths[dest.name] = str(src)
-        moved[role] = str(dest)
+        _copy_labeled_source(src, dest)
+        original_paths[dest.name] = str(src.resolve())
+        copied[role] = str(dest.resolve())
 
     for src_str, role in audio_labels.items():
         if role == "do_not_use":
@@ -754,20 +804,52 @@ def move_labeled_media(
         if not src.is_file():
             raise FileNotFoundError(f"Labeled audio missing: {src}")
         dest = raw / role_to_audio_name(role)
-        refuse_overwrite(dest, allow_overwrite=allow_overwrite)
-        if dest.exists():
-            dest.unlink()
-        shutil.move(str(src), str(dest))
-        original_paths[dest.name] = str(src)
-        moved[role + "_audio"] = str(dest)
+        _copy_labeled_source(src, dest)
+        original_paths[dest.name] = str(src.resolve())
+        copied[role + "_audio"] = str(dest.resolve())
 
     state["labels"] = {
         "videos": {Path(k).name: v for k, v in video_labels.items()},
         "audios": {Path(k).name: v for k, v in audio_labels.items()},
     }
     state["original_paths"] = original_paths
-    state["moved_raw"] = moved
+    state["copied_raw"] = copied
+    state["moved_raw"] = copied
     return state
+
+
+def restore_moved_sources(
+    state: dict,
+    working_folder: Path,
+    *,
+    allow_overwrite: bool = False,
+) -> list[str]:
+    """
+    Copy labeled Raw files back to their original source paths when missing.
+
+    Used to recover sources that were moved before copy-only labeling. Existing
+    Raw copies are kept so in-progress sessions can continue.
+    """
+    from harness_overwrite_guard import refuse_overwrite
+
+    original_paths = state.get("original_paths")
+    if not isinstance(original_paths, dict) or not original_paths:
+        return []
+
+    raw = Path(state["paths"]["raw"])
+    restored: list[str] = []
+    for dest_name, original_str in original_paths.items():
+        original = Path(original_str)
+        if original.is_file():
+            continue
+        raw_copy = raw / dest_name
+        if not raw_copy.is_file():
+            continue
+        original.parent.mkdir(parents=True, exist_ok=True)
+        refuse_overwrite(original, allow_overwrite=allow_overwrite)
+        shutil.copy2(raw_copy, original)
+        restored.append(f"{raw_copy} -> {original}")
+    return restored
 
 
 def swap_host_guest_files(raw_dir: Path, *, kind: str) -> list[str]:

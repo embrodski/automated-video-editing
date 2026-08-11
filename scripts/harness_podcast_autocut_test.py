@@ -10,33 +10,25 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+from harness_av_sync_lib import (
+    ONE_MIN_DEFAULT,
+    load_failed_sync_confidence_flag,
+    mark_sync_ab_steps,
+    run_sync_ab_one_min_tests,
+)
 from harness_autocut_common import render_dsl, run_cmd
 from harness_overwrite_guard import HarnessOverwriteError, OVERWRITE_EXIT_CODE, refuse_overwrite
 from episode_segments import MAIN_SEGMENT_KEY, segments_path, upsert_segment
 from harness_episode_lib import (
-    BEN_HOST_RE,
     REPO_ROOT,
-    WIDE_RE,
     load_episode_state,
+    pick_interview_videos,
     podcast_phrase_cli_args,
     podcast_swap_speaker_ids_cli_args,
     save_episode_state,
     should_skip_reading,
     step_state,
 )
-
-
-def _pick_interview_videos(prepped_videos: list[str]) -> tuple[Path, Path, Path]:
-    paths = [Path(p) for p in prepped_videos]
-    ben = next((p for p in paths if BEN_HOST_RE.search(p.name)), None)
-    wide = next((p for p in paths if WIDE_RE.search(p.name)), None)
-    guest = next(
-        (p for p in paths if not BEN_HOST_RE.search(p.name) and not WIDE_RE.search(p.name)),
-        None,
-    )
-    if not ben or not guest or not wide:
-        raise FileNotFoundError(f"Could not find Ben/Guest/Wide prepped in {prepped_videos}")
-    return ben, guest, wide
 
 
 def main() -> int:
@@ -55,14 +47,13 @@ def main() -> int:
         output_dir = Path(state["paths"]["output"])
         temp.mkdir(parents=True, exist_ok=True)
 
-        ben, guest, wide = _pick_interview_videos(state["main_prepped"]["prepped_videos"])
+        ben, guest, wide = pick_interview_videos(state["main_prepped"]["prepped_videos"])
         audio_wav = Path(state["main_prepped"]["prepped_audio_wav"])
         detail_json = Path(state["main_transcript_json"])
 
         simplified = temp / "interview_transcript_simplified.json"
         interview_dsl = temp / "interview.dsl"
-        out_mp4 = output_dir / "1 Min Test.mp4"
-        for path in (simplified, interview_dsl, out_mp4):
+        for path in (simplified, interview_dsl):
             refuse_overwrite(path, allow_overwrite=args.allow_overwrite)
 
         convert_cmd = [
@@ -108,15 +99,37 @@ def main() -> int:
             ]
         )
 
-        render_dsl(
-            interview_dsl,
-            out_mp4,
-            temp,
-            max_seconds=60,
-            allow_overwrite=args.allow_overwrite,
-        )
+        state["interview_dsl"] = str(interview_dsl)
+        sync_flag = load_failed_sync_confidence_flag(temp)
+        if sync_flag is None and state.get("sync_confidence_failed"):
+            sync_flag = {"failed": True}
 
-        state["podcast_autocut_test_mp4"] = str(out_mp4)
+        if sync_flag:
+            ab_result = run_sync_ab_one_min_tests(state, allow_overwrite=args.allow_overwrite)
+            mark_sync_ab_steps(state, ab_result=ab_result)
+            out_mp4 = Path(ab_result["one_min_no_offset"])
+        else:
+            out_mp4 = output_dir / ONE_MIN_DEFAULT
+            render_dsl(
+                interview_dsl,
+                out_mp4,
+                temp,
+                max_seconds=60,
+                allow_overwrite=args.allow_overwrite,
+            )
+            state["podcast_autocut_test_mp4"] = str(out_mp4)
+            steps = state.setdefault("steps", {})
+            steps["18_interview_test_approval"] = step_state(
+                steps,
+                "18_interview_test_approval",
+                title="Interview 1-min test approval",
+                status="awaiting_user",
+            )
+            if should_skip_reading(state):
+                state["resume_at"] = "18_interview_test_approval"
+            else:
+                state["resume_at"] = "16_reading_test_approval"
+
         steps = state.setdefault("steps", {})
         steps["15_podcast_autocut_test"] = step_state(
             steps,
@@ -126,18 +139,8 @@ def main() -> int:
             output_mp4=str(out_mp4),
             interview_dsl=str(interview_dsl),
             segment_id=segment_id,
+            sync_ab=bool(sync_flag),
         )
-        state["interview_dsl"] = str(interview_dsl)
-        steps["18_interview_test_approval"] = step_state(
-            steps,
-            "18_interview_test_approval",
-            title="Interview 1-min test approval",
-            status="awaiting_user",
-        )
-        if should_skip_reading(state):
-            state["resume_at"] = "18_interview_test_approval"
-        else:
-            state["resume_at"] = "16_reading_test_approval"
         save_episode_state(args.episode_folder, state)
     except HarnessOverwriteError:
         return OVERWRITE_EXIT_CODE

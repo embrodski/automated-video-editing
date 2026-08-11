@@ -11,6 +11,7 @@ from piab_lib import (
     MediaInfo,
     _max_window_rms,
     cluster_session_files,
+    default_session_folder_name,
     estimate_full_render,
     estimate_prep_through_one_min,
     resolve_scan_dir,
@@ -20,6 +21,7 @@ from piab_lib import (
     validate_video_labels,
 )
 import numpy as np
+from datetime import datetime, timezone
 
 
 def _info(name: str, kind: str, mtime: float, duration: float) -> MediaInfo:
@@ -41,6 +43,12 @@ class AudibleContentTests(unittest.TestCase):
         loud[rate : rate + 8000] = 0.5
         self.assertLess(_max_window_rms(silent, rate), 0.008)
         self.assertGreater(_max_window_rms(loud, rate), 0.008)
+
+
+class DefaultSessionFolderNameTests(unittest.TestCase):
+    def test_uses_local_datetime_without_colons(self) -> None:
+        fixed = datetime(2026, 7, 29, 22, 0, 15, tzinfo=timezone.utc)
+        self.assertEqual(default_session_folder_name(fixed), "2026-07-29 22-00-15")
 
 
 class ResolveScanDirTests(unittest.TestCase):
@@ -150,6 +158,45 @@ class ClassifyNameTests(unittest.TestCase):
             self.assertIsNone(classify_multicorder(other))
 
 
+class CopyLabeledMediaTests(unittest.TestCase):
+    def test_copy_leaves_sources_in_place(self) -> None:
+        from piab_lib import move_labeled_media
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            dump = root / "dump"
+            dump.mkdir()
+            working = root / "Session"
+            raw = working / "Raw"
+            raw.mkdir(parents=True)
+
+            host_video = dump / "MultiCorder1 - DeckLink Quad HDMI Recorder (1) 1.mp4"
+            guest_video = dump / "MultiCorder2 - DeckLink Quad HDMI Recorder (2) 2.mp4"
+            wide_video = dump / "MultiCorder3 - DeckLink Quad HDMI Recorder (3) 3.mp4"
+            host_audio = dump / "MultiCorder6 - Output 1 a.wav"
+            guest_audio = dump / "MultiCorder7 - Output 2 b.wav"
+            for path in (host_video, guest_video, wide_video, host_audio, guest_audio):
+                path.write_bytes(b"x" * 128)
+
+            state = {"paths": {"raw": str(raw)}}
+            move_labeled_media(
+                state,
+                video_labels={
+                    str(host_video): "host",
+                    str(guest_video): "guest",
+                    str(wide_video): "wide",
+                },
+                audio_labels={
+                    str(host_audio): "host",
+                    str(guest_audio): "guest",
+                },
+            )
+
+            for path in (host_video, guest_video, wide_video, host_audio, guest_audio):
+                self.assertTrue(path.is_file(), f"source should remain: {path}")
+            self.assertTrue((raw / "Host Raw Video.mp4").is_file())
+
+
 class PiabStatePathTests(unittest.TestCase):
     def test_save_load_roundtrip(self) -> None:
         from harness_episode_lib import load_episode_state, save_episode_state
@@ -175,7 +222,7 @@ class PiabStatePathTests(unittest.TestCase):
             save_piab_state(folder, state)
             loaded = load_episode_state(folder)
             self.assertEqual(loaded["kind"], "podcast_in_a_box")
-            self.assertTrue((folder / "podcast-in-a-box.json").is_file())
+            self.assertTrue((folder / "cursor-podcast-in-a-box.json").is_file())
 
 
 if __name__ == "__main__":

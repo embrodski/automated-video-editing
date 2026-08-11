@@ -24,9 +24,18 @@ class ExtractGuestNameTests(unittest.TestCase):
     def test_standard_folder(self) -> None:
         self.assertEqual(extract_guest_name(Path("E:/Inkhaven Viv")), "Viv")
 
-    def test_rejects_missing_prefix(self) -> None:
+    def test_non_inkhaven_folder_uses_basename(self) -> None:
+        self.assertEqual(
+            extract_guest_name(Path("E:/PodcastRoom/KAT TV AND AELLA")),
+            "KAT TV AND AELLA",
+        )
+
+    def test_rejects_empty_guest_after_inkhaven_prefix(self) -> None:
+        folder = Path("E:/shows/Inkhaven ")
+        if not folder.name.endswith(" "):
+            self.skipTest("Pathlib normalized trailing space in folder name.")
         with self.assertRaises(ValueError):
-            extract_guest_name(Path("E:/PodcastRoom/Viv"))
+            extract_guest_name(folder)
 
 
 class ConversationWavPairTests(unittest.TestCase):

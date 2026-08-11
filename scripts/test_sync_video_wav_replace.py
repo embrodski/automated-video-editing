@@ -83,6 +83,35 @@ class SyncVideoWavReplaceTests(unittest.TestCase):
         self.assertEqual(report["lag_samples_external_delayed_vs_video_audio"], 0)
         np.testing.assert_array_equal(aligned, external[:n])
 
+    def test_force_detected_lag_applies_offset_despite_weak_correlation(self) -> None:
+        sr = 48000
+        n = sr * 2
+        rng = np.random.default_rng(0)
+        ref_mono = rng.normal(0, 0.2, n).astype(np.float32)
+        external = rng.normal(0, 0.2, (n, 2)).astype(np.float32)
+
+        aligned_weak, report_weak = _align_external_to_reference(
+            ref_mono,
+            sr,
+            external,
+            sr,
+            analyze_seconds=1.0,
+            min_correlation_strength=DEFAULT_MIN_CORRELATION_STRENGTH,
+        )
+        aligned_forced, report_forced = _align_external_to_reference(
+            ref_mono,
+            sr,
+            external,
+            sr,
+            analyze_seconds=1.0,
+            min_correlation_strength=DEFAULT_MIN_CORRELATION_STRENGTH,
+            force_detected_lag=True,
+        )
+
+        self.assertTrue(report_weak["start_aligned"])
+        self.assertFalse(report_forced["start_aligned"])
+        self.assertTrue(report_forced.get("force_detected_lag"))
+
 
 if __name__ == "__main__":
     unittest.main()

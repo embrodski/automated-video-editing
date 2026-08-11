@@ -11,6 +11,9 @@ When correlation peak strength is below ``--min-correlation-strength`` (default
 0.35), or when ``--assume-start-aligned`` is set, the external WAV is muxed at
 sample 0 with no lag shift (MultiCorder-style shared record start).
 
+``--force-detected-lag`` applies the cross-correlation offset even when peak
+strength is below the threshold (for experiments / manual override).
+
 Requires: ffmpeg/ffprobe on PATH, numpy, scipy.
 """
 from __future__ import annotations
@@ -220,6 +223,7 @@ def _align_external_to_reference(
     analyze_seconds: float,
     min_correlation_strength: float = DEFAULT_MIN_CORRELATION_STRENGTH,
     assume_start_aligned: bool = False,
+    force_detected_lag: bool = False,
 ) -> tuple[np.ndarray, dict]:
     """
     Resample external to ref_sr, estimate lag on mono, return external (full
@@ -249,7 +253,15 @@ def _align_external_to_reference(
     report["external_original_rate_hz"] = ext_sr
 
     use_start_aligned = assume_start_aligned
-    if not use_start_aligned and strength < min_correlation_strength:
+    if force_detected_lag and not assume_start_aligned:
+        report["force_detected_lag"] = True
+        if strength < min_correlation_strength:
+            report["start_aligned_fallback"] = False
+            report["forced_lag_reason"] = (
+                f"correlation peak {strength:.4f} below threshold "
+                f"{min_correlation_strength:.4f}; --force-detected-lag applied offset"
+            )
+    elif not use_start_aligned and strength < min_correlation_strength:
         use_start_aligned = True
         report["start_aligned_fallback"] = True
         report["start_aligned_reason"] = (
@@ -345,6 +357,14 @@ def main() -> int:
             "(same as low-correlation fallback)."
         ),
     )
+    p.add_argument(
+        "--force-detected-lag",
+        action="store_true",
+        help=(
+            "Apply cross-correlation lag even when peak strength is below "
+            "--min-correlation-strength."
+        ),
+    )
     args = p.parse_args()
 
     if not args.video.is_file():
@@ -407,6 +427,7 @@ def main() -> int:
                 analyze_seconds=args.analyze_seconds,
                 min_correlation_strength=float(args.min_correlation_strength),
                 assume_start_aligned=bool(args.assume_start_aligned),
+                force_detected_lag=bool(args.force_detected_lag),
             )
         except Exception as e:
             print(f"Alignment failed: {e}", file=sys.stderr)

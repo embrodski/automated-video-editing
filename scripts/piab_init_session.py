@@ -121,8 +121,10 @@ def main() -> int:
         )
 
         if working.exists() and any(working.iterdir()):
+            from harness_episode_lib import PIAB_STATE_FILENAME
+
             refuse_overwrite(
-                working / "podcast-in-a-box.json",
+                working / PIAB_STATE_FILENAME,
                 allow_overwrite=args.allow_overwrite,
                 label="existing working folder state",
             )

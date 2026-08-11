@@ -4,7 +4,9 @@ description: >-
   Walk-in podcast pipeline: scan MultiCorder dumps in E:\PodcastRoom, label
   Host/Guest/Wide video and Host/Guest audio, then run conversation-sync,
   Combined-as-Clean (DeRoom placeholder), video-sync, ElevenLabs transcribe,
-  podcast autocut 1-min approval, and full interview render. Use when the user
+  podcast autocut 1-min approval, and full interview render. If Host/Guest audio
+  sounds swapped in the edit, run piab_fix_audio_speaker_swap.py (speaker-ID remap
+  + 1-min re-render only; never swap Raw audio unless Raw was mislabeled). Use when the user
   says "Lighthaven Podcast In A Box", "podcast in a box", "PIAB", or wants a
   stripped-down interview-only edit from fresh MultiCorder files.
 ---
@@ -13,7 +15,7 @@ description: >-
 
 Cursor-guided skill (no GUI). Reuses harness Interview tools; skips reading, intro, stitch, hand-edit, and real DeRoom.
 
-**State file:** `<working_folder>/podcast-in-a-box.json`  
+**State file:** `<working_folder>/cursor-podcast-in-a-box.json` (Cursor agent / CLI). The walk-in GUI app uses `podcast-in-a-box.json` in the same folder layout — do not overwrite that file from the agent.  
 **Default scan root:** `E:\PodcastRoom`
 
 ## Recording flow vs autocut flow
@@ -185,7 +187,7 @@ Use `--continue-to-autocut` or `--stop-after-recording` for non-interactive runs
 
 ### Step 1 — Where are the source files?
 
-**Email delivery (optional):** When starting a **new** session (not resume), ask whether to email `Full Interview.mp4` when the full render completes. If yes, collect the recipient email, read it back, and confirm with **“Is this correct? [Y/N or A to abort]”**. Abort = continue without delivery. On **resume**, do not re-prompt if `podcast-in-a-box.json` already has a confirmed delivery email for this session.
+**Email delivery (optional):** When starting a **new** session (not resume), ask whether to email `Full Interview.mp4` when the full render completes. If yes, collect the recipient email, read it back, and confirm with **“Is this correct? [Y/N or A to abort]”**. Abort = continue without delivery. On **resume**, do not re-prompt if `cursor-podcast-in-a-box.json` already has a confirmed delivery email for this session.
 
 Interactive launcher (`piab_start_session.py`) handles this after init. Agent-driven starts should call the same flow or use:
 
@@ -229,7 +231,7 @@ Set-Location "<repo>"
 python scripts/piab_scan_session.py --root "E:\PodcastRoom"
 ```
 
-Show the user: file list, typical mtime, typical duration, counts, and any **`requirements.missing`** lines. Ask: **Are these the files from this session?** and **What should the working folder be named?**
+Show the user: file list, typical mtime, typical duration, counts, and any **`requirements.missing`** lines. Ask: **Are these the files from this session?** Then ask how to name the working folder: **enter a custom name** or **use the default date+time** (e.g. `2026-07-29 22-00-15`). The interactive launcher (`piab_start_session.py`) prompts for this automatically.
 
 On confirm:
 
@@ -237,7 +239,13 @@ On confirm:
 python scripts/piab_init_session.py --name "<UserChosenName>" --root "E:\PodcastRoom"
 ```
 
-Creates `E:\PodcastRoom\<UserChosenName>\` with `Raw`, `Input`, `Output`, `Temp`, and `podcast-in-a-box.json`. Init scans **`E:\PodcastRoom`** (not the empty new subfolder).
+Or for the default date+time name without prompting:
+
+```powershell
+python scripts/piab_init_session.py --name "2026-07-29 22-00-15" --root "E:\PodcastRoom"
+```
+
+Creates `E:\PodcastRoom\<UserChosenName>\` with `Raw`, `Input`, `Output`, `Temp`, and `cursor-podcast-in-a-box.json`. Init scans **`E:\PodcastRoom`** (not the empty new subfolder).
 
 ### Special folder (sources already in place)
 
@@ -265,7 +273,7 @@ For a terminal-only flow without the agent:
 python scripts/piab_start_session.py
 ```
 
-Option **1**: Step −1 (already recorded vs record now) → recording and/or autocut init. Option **2**: resume autocut only. Flags: `--already-recorded`, `--continue-to-autocut`, `--stop-after-recording`.
+Option **1**: Step −1 (already recorded vs record now) → recording and/or autocut init. Option **2**: resume autocut only. Flags: `--already-recorded`, `--continue-to-autocut`, `--stop-after-recording`, `--default-name`, `--use-default-datetime-name`.
 
 ---
 
@@ -317,7 +325,7 @@ Build JSON maps of absolute source path → role, then:
 python scripts/piab_apply_labels.py "E:\PodcastRoom\<name>" --video-labels-json "<json>" --audio-labels-json "<json>"
 ```
 
-Script moves files into `Raw` and prints **Estimate A** (prep through 1-min test).
+Script copies files into `Raw` (sources stay in place) and prints **Estimate A** (prep through 1-min test).
 
 **Open `Raw`** (`explorer.exe`), give plain path + optional link, tell the user
 the estimate, then **wait for confirmation** before prep.
@@ -355,7 +363,7 @@ Interactive launcher option **2 = resume existing session** runs the same path.
 
 Does: conversation-sync → copy Combined→Clean (**DeRoom placeholder**) → video-sync → `elevenlabs_transcribe_wav.py` → podcast autocut **1 Min Test.mp4**.
 
-Optional phrase gates live in **`podcast-phrase-gates.json`** at the repo root (created automatically with walk-in defaults). Start/end/pause are **always attempted**; if a phrase is missing from the transcript, that gate is skipped. Override the file with `piab_set_phrase_gates.py` or per-episode fields on `podcast-in-a-box.json`.
+Optional phrase gates live in **`podcast-phrase-gates.json`** at the repo root (created automatically with walk-in defaults). Start/end/pause are **always attempted**; if a phrase is missing from the transcript, that gate is skipped. Override the file with `piab_set_phrase_gates.py` or per-episode fields on `cursor-podcast-in-a-box.json`.
 
 Default gates (editable in `podcast-phrase-gates.json`):
 - **Start:** `I solemnly swear I'm up to no good, in five four three two` / preroll 1.0s — `in` before the countdown is optional; countdown numbers may be skipped; optional trailing `one` / `zero` are removed when spoken; skipped if not in transcript
@@ -370,15 +378,45 @@ the user:
 
 > 1 Min Test is ready for review: `E:\PodcastRoom\<name>\Output\1 Min Test.mp4`
 
+When **`Temp/failed-sync-confidence.json`** exists (video-sync correlation below threshold), prep renders **two** tests instead:
+
+- **`1 Min Test no offset.mp4`** — start-aligned fallback
+- **`1 Min Test forced audio offset.mp4`** — detected lags forced on
+
+**Stop at step 10a** (`resume_at`: **`10a_sync_offset_approval`**). Ask which offset version they prefer, then ask whether the chosen test is otherwise OK (step 11). See **`docs/av-sync-confidence-fallback.md`**.
+
+Record offset choice:
+
+```powershell
+python scripts/piab_record_sync_offset_choice.py "E:\PodcastRoom\<name>" --choice start_aligned
+python scripts/piab_record_sync_offset_choice.py "E:\PodcastRoom\<name>" --choice forced_offset
+```
+
 **Stop and wait.**
 
 ### 1-min approval loop
 
+**Host/Guest audio swapped in the edit (default interpretation):** When the user says
+Host and Guest **audio** are swapped, reversed, or on the wrong mic **in the cut** —
+or similar phrasing — assume **Raw and Input files are labeled correctly**. Do **not**
+swap Raw audio or re-run prep. Run:
+
+```powershell
+python scripts/piab_fix_audio_speaker_swap.py "E:\PodcastRoom\<name>" --allow-overwrite
+```
+
+That toggles transcript speaker-id mapping, re-converts the existing detail JSON with
+`--swap-speaker-ids`, regenerates `interview.dsl`, and re-renders the 1-min test
+(or **both A/B tests** if `failed-sync-confidence.json` exists — user must re-pick offset).
+Unchanged on disk: prepped Input video/audio and the detail transcript JSON.
+
 | User intent | Action |
 |-------------|--------|
 | Looks good | Go to Estimate B |
-| Host/Guest cameras feel swapped | `python scripts/piab_swap.py "<folder>" --speaker-ids toggle` then `python scripts/piab_rerun_one_min.py "<folder>" --allow-overwrite` (after overwrite approval) |
-| Wrong Raw Host/Guest files | `piab_swap.py --files video` and/or `--files audio`, then re-run **full prep** (`piab_run_prep.py --allow-overwrite` after approval) |
+| Sync offset A/B (flag set) | User picks no offset vs forced offset; record with `piab_record_sync_offset_choice.py`; then confirm test is otherwise OK |
+| Host/Guest **audio swapped / reversed / wrong mic in the edit** | **`piab_fix_audio_speaker_swap.py --allow-overwrite`** (after overwrite approval) |
+| Host/Guest **cameras** feel swapped (same speaker-ID fix) | Same as audio swapped — `piab_fix_audio_speaker_swap.py --allow-overwrite` |
+| Wrong **Raw** Host/Guest files (mislabeled during Step 2–3) | `piab_swap.py --files video` and/or `--files audio`, then re-run **full prep** (`piab_run_prep.py --allow-overwrite` after approval) |
 | Other fixes | Adjust and re-run 1-min only when possible |
 
 ---
@@ -414,7 +452,7 @@ Filename: **`Full Interview.mp4`** under the session **Output** folder. Stop.
 
 ## Resume
 
-Read `podcast-in-a-box.json` → `resume_at` and `steps`.
+Read `cursor-podcast-in-a-box.json` → `resume_at` and `steps`.
 
 | `resume_at` | Next action |
 |-------------|-------------|
@@ -422,7 +460,8 @@ Read `podcast-in-a-box.json` → `resume_at` and `steps`.
 | `04_label_audio` | Audio previews / labels |
 | `05_estimate_prep` | Show Estimate A; on OK run prep |
 | `06_conversation_sync` … `10_one_min_test` | Run `piab_run_prep.py --resume` (or `piab_start_session.py` → resume) |
-| `11_one_min_approval` | Review 1 Min Test |
+| `10a_sync_offset_approval` | A/B sync offset choice (when confidence failed) |
+| `11_one_min_approval` | Review chosen 1 Min Test |
 | `12_estimate_full` | Show Estimate B; on OK full render |
 | `14_done` | Finished |
 

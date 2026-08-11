@@ -11,7 +11,10 @@ from pathlib import Path
 
 
 SUBFOLDERS = ("Raw", "Input", "Output", "Temp")
-PIAB_STATE_FILENAME = "podcast-in-a-box.json"
+# Cursor agent / CLI PIAB and harness PIAB-style folders (not the GUI app state file).
+PIAB_STATE_FILENAME = "cursor-podcast-in-a-box.json"
+# Walk-in GUI app uses podcast-in-a-box.json; read-only fallback when resuming old folders.
+LEGACY_PIAB_STATE_FILENAME = "podcast-in-a-box.json"
 RAW_NAME_RE = re.compile(r"raw", re.IGNORECASE)
 INKHAVEN_PREFIX_RE = re.compile(r"^inkhaven\s+(.+)$", re.IGNORECASE)
 BEN_HOST_RE = re.compile(r"\b(ben|host)\b", re.IGNORECASE)
@@ -39,21 +42,25 @@ def utc_now_iso() -> str:
 
 def extract_guest_name(episode_folder: Path) -> str:
     match = INKHAVEN_PREFIX_RE.match(episode_folder.name.strip())
-    if not match:
-        raise ValueError(
-            f"Episode folder name must start with 'Inkhaven ' "
-            f"(got {episode_folder.name!r})."
-        )
-    name = match.group(1).strip()
+    if match:
+        name = match.group(1).strip()
+        if not name:
+            raise ValueError(
+                f"Guest name is empty after 'Inkhaven ' in {episode_folder.name!r}."
+            )
+        return name
+    name = episode_folder.name.strip()
     if not name:
-        raise ValueError(
-            f"Guest name is empty after 'Inkhaven ' in {episode_folder.name!r}."
-        )
+        raise ValueError(f"Episode folder name is empty ({episode_folder!r}).")
     return name
 
 
 def piab_state_path(episode_folder: Path) -> Path:
     return episode_folder.resolve() / PIAB_STATE_FILENAME
+
+
+def legacy_piab_state_path(episode_folder: Path) -> Path:
+    return episode_folder.resolve() / LEGACY_PIAB_STATE_FILENAME
 
 
 def is_piab_folder(episode_folder: Path) -> bool:
@@ -62,40 +69,55 @@ def is_piab_folder(episode_folder: Path) -> bool:
 
 def episode_json_path(episode_folder: Path, name: str | None = None) -> Path:
     episode_folder = episode_folder.resolve()
-    piab = piab_state_path(episode_folder)
-    if piab.is_file():
-        return piab
+    cursor = piab_state_path(episode_folder)
+    if cursor.is_file():
+        return cursor
     guest = name or extract_guest_name(episode_folder)
     return episode_folder / f"{guest}-episode.json"
 
 
+def _read_state_file(path: Path) -> dict:
+    with path.open(encoding="utf-8") as fh:
+        return json.load(fh)
+
+
 def load_episode_state(episode_folder: Path) -> dict:
     episode_folder = episode_folder.resolve()
+    cursor = piab_state_path(episode_folder)
+    if cursor.is_file():
+        return _read_state_file(cursor)
+    legacy = legacy_piab_state_path(episode_folder)
+    if legacy.is_file():
+        state = _read_state_file(legacy)
+        if state.get("kind") == "podcast_in_a_box":
+            return state
     path = episode_json_path(episode_folder)
     if not path.is_file():
         raise FileNotFoundError(
-            f"Episode state not found ({path}). Run init_inkhaven_episode.py "
+            f"Episode state not found ({cursor} or {path}). Run init_inkhaven_episode.py "
             f"or piab_init_session.py first."
         )
-    with path.open(encoding="utf-8") as fh:
-        return json.load(fh)
+    return _read_state_file(path)
 
 
 def load_episode_state_if_exists(episode_folder: Path) -> dict:
     """Return episode JSON dict, or ``{}`` when the state file has not been created yet."""
     episode_folder = episode_folder.resolve()
-    piab = piab_state_path(episode_folder)
-    if piab.is_file():
-        with piab.open(encoding="utf-8") as fh:
-            return json.load(fh)
+    cursor = piab_state_path(episode_folder)
+    if cursor.is_file():
+        return _read_state_file(cursor)
+    legacy = legacy_piab_state_path(episode_folder)
+    if legacy.is_file():
+        state = _read_state_file(legacy)
+        if state.get("kind") == "podcast_in_a_box":
+            return state
     try:
         path = episode_json_path(episode_folder)
     except ValueError:
         return {}
     if not path.is_file():
         return {}
-    with path.open(encoding="utf-8") as fh:
-        return json.load(fh)
+    return _read_state_file(path)
 
 
 def audit_raw_source_inventory(raw_dir: Path) -> dict[str, object]:
@@ -281,6 +303,20 @@ def podcast_swap_speaker_ids_cli_args(state: dict) -> list[str]:
     if state.get("swap_speaker_ids"):
         return ["--swap-speaker-ids"]
     return []
+
+
+def pick_interview_videos(prepped_videos: list[str]) -> tuple[Path, Path, Path]:
+    """Return (host/ben, guest, wide) paths from prepped video filenames."""
+    paths = [Path(p) for p in prepped_videos]
+    ben = next((p for p in paths if BEN_HOST_RE.search(p.name)), None)
+    wide = next((p for p in paths if WIDE_RE.search(p.name)), None)
+    guest = next(
+        (p for p in paths if not BEN_HOST_RE.search(p.name) and not WIDE_RE.search(p.name)),
+        None,
+    )
+    if not ben or not guest or not wide:
+        raise FileNotFoundError(f"Could not find Ben/Guest/Wide prepped in {prepped_videos}")
+    return ben, guest, wide
 
 
 def podcast_phrase_cli_args(state: dict) -> list[str]:
