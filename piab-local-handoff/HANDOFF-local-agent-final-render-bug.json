@@ -1,0 +1,31 @@
+{
+  "title": "Handoff for local agent \u2014 Final Render window bugs",
+  "date": "2026-08-14",
+  "local_repo": "E:\\PodcastRoom\\Cursor\\podcast-in-a-box-app",
+  "prefer_local_agent": true,
+  "do_not_use_cloud_agents": true,
+  "cloud_run_url": "https://cursor.com/agents/bc-5fb48539-b8e8-4047-9cc7-9f05401fe5c0",
+  "full_transcript_json": [
+    "/opt/cursor/artifacts/cloud-chat-transcript-bc-5fb48539.json",
+    "/workspace/podcast-in-a-box-app/cloud-chat-transcript-bc-5fb48539.json"
+  ],
+  "concise_handoff_md": [
+    "/opt/cursor/artifacts/HANDOFF-local-agent-final-render-bug.md",
+    "/workspace/podcast-in-a-box-app/HANDOFF-local-agent-final-render-bug.md"
+  ],
+  "windows_prior_transcript_jsonl": "C:\\Users\\jakey\\.cursor\\projects\\e-PodcastRoom-Cursor-podcast-in-a-box-app\\agent-transcripts\\8ef420c0-5177-4bbb-bbf2-1ccad63dd025\\8ef420c0-5177-4bbb-bbf2-1ccad63dd025.jsonl",
+  "immediate_bug": {
+    "symptoms": [
+      "Cannot Alt-Tab to Home while Final Render is up",
+      "Abort Yes does nothing; window stays Rendering",
+      "Window X does nothing"
+    ],
+    "likely_cause": "Final MainWindow.closeEvent ignores close unless resume_at==14_done, so Abort/X cannot close; Home may also be moved off-screen",
+    "files_to_check": [
+      "app/gui/main_window.py",
+      "app/gui/window_manager.py",
+      "app/gui/views/review_screens.py"
+    ]
+  },
+  "rebuild_status": "No environment rebuild was running; stop/archive the cloud agent run from the Cursor UI if it still appears busy."
+}
