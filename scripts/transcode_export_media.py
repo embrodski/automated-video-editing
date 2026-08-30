@@ -4,16 +4,17 @@
 from __future__ import annotations
 
 import argparse
-import subprocess
 import sys
 from pathlib import Path
+
+from hide_console import run as _run_hidden
 
 VIDEO_EXTS = {".mp4", ".mov", ".mkv"}
 AUDIO_EXTS = {".wav", ".flac", ".aiff", ".aif"}
 
 
 def _run(cmd: list[str]) -> None:
-    proc = subprocess.run(cmd, capture_output=True, text=True)
+    proc = _run_hidden(cmd, capture_output=True, text=True)
     if proc.returncode != 0:
         raise RuntimeError(
             f"Command failed ({proc.returncode}): {' '.join(cmd)}\n"
@@ -59,7 +60,7 @@ def _encoder_usable(encoder: str) -> bool:
         "null",
         "-",
     ]
-    return subprocess.run(cmd, capture_output=True).returncode == 0
+    return _run_hidden(cmd, capture_output=True).returncode == 0
 
 
 def resolve_video_encoder(requested: str) -> str:

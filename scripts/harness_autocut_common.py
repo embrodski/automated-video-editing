@@ -3,16 +3,16 @@
 from __future__ import annotations
 
 import os
-import subprocess
 import sys
 from pathlib import Path
 
 from harness_episode_lib import REPO_ROOT
 from harness_overwrite_guard import refuse_overwrite
+from hide_console import run as _run_hidden
 
 
 def run_cmd(cmd: list[str], *, cwd: Path | None = None, env: dict | None = None) -> None:
-    proc = subprocess.run(
+    proc = _run_hidden(
         cmd,
         cwd=str(cwd or REPO_ROOT),
         capture_output=True,

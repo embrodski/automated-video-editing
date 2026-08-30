@@ -33,6 +33,7 @@ SRC_DIR = REPO_ROOT / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
+from podcast_dsl.hidden_subprocess import run as _run_hidden
 from podcast_dsl.video_renderer import (
     DEFAULT_VIDEO_ENCODER,
     VIDEO_HARDWARE_ENCODE_ENV,
@@ -68,7 +69,7 @@ class MediaInfo:
 
 
 def _run(cmd: list[str]) -> subprocess.CompletedProcess:
-    return subprocess.run(cmd, capture_output=True, text=True)
+    return _run_hidden(cmd, capture_output=True, text=True)
 
 
 def _summarize_stderr(stderr_text: str, max_lines: int = 20) -> str:
@@ -357,7 +358,7 @@ def stitch_episode(
                 f"Note: falling back to libx264 after hardware encoder ({primary}) failed (stitch).",
                 file=sys.stderr,
             )
-        p = subprocess.run(cmd, text=True)
+        p = _run_hidden(cmd, text=True)
         last_rc = p.returncode
         if p.returncode == 0:
             break

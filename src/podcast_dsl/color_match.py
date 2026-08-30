@@ -4,9 +4,10 @@ Shared utilities for reference-based video color matching.
 
 import math
 import re
-import subprocess
 from functools import lru_cache
 from typing import Dict, List, Optional, Tuple
+
+from .hidden_subprocess import run as _run_hidden
 
 
 def ffmpeg_cmd_base() -> List[str]:
@@ -24,7 +25,7 @@ def _get_video_duration(video_file: str) -> float:
         '-of', 'default=noprint_wrappers=1:nokey=1',
         video_file,
     ]
-    result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+    result = _run_hidden(cmd, capture_output=True, text=True, check=True)
     return float(result.stdout.strip())
 
 
@@ -57,7 +58,7 @@ def probe_mean_signalstats_at_offset(
         '-f', 'null',
         '-',
     ]
-    result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+    result = _run_hidden(cmd, capture_output=True, text=True, check=False)
     if result.returncode != 0:
         raise RuntimeError(f"ffmpeg signalstats failed for {video_file}:\n{result.stderr.strip()}")
 

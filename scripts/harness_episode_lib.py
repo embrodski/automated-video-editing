@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import json
 import re
-import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+
+from hide_console import run as _run_hidden
 
 
 SUBFOLDERS = ("Raw", "Input", "Output", "Temp")
@@ -282,7 +283,7 @@ def run_conversation_sync(wav1: Path, wav2: Path) -> Path:
     if not SYNC_SCRIPT.is_file():
         raise FileNotFoundError(f"Missing sync script: {SYNC_SCRIPT}")
     cmd = [sys.executable, str(SYNC_SCRIPT), str(wav1), str(wav2)]
-    proc = subprocess.run(cmd, cwd=str(REPO_ROOT), capture_output=True, text=True)
+    proc = _run_hidden(cmd, cwd=str(REPO_ROOT), capture_output=True, text=True)
     if proc.returncode != 0:
         raise RuntimeError(
             "conversation-sync failed.\n"

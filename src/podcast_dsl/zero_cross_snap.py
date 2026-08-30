@@ -13,6 +13,8 @@ import subprocess
 from functools import lru_cache
 from typing import List, Optional, Sequence, Tuple
 
+from .hidden_subprocess import run as _run_hidden
+
 DEFAULT_HALF_WINDOW_SEC = 0.2
 DEFAULT_SAMPLE_RATE = 48000
 # Prefer crossings in low-level (room-tone) regions when multiple exist.
@@ -100,7 +102,7 @@ def _decode_mono_f32_window(
         "pipe:1",
     ]
     try:
-        proc = subprocess.run(cmd, capture_output=True, check=True)
+        proc = _run_hidden(cmd, capture_output=True, check=True)
     except (subprocess.CalledProcessError, FileNotFoundError):
         return tuple(), start
 
