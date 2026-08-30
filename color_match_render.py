@@ -19,6 +19,7 @@ SRC_DIR = REPO_ROOT / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
+from podcast_dsl.hidden_subprocess import run as _run_hidden
 from podcast_dsl.color_match import (
     build_color_match_vf,
     ffmpeg_cmd_base,
@@ -246,7 +247,7 @@ def _validate_video_output(output_path: Path) -> None:
         "json",
         str(output_path),
     ]
-    probe_result = subprocess.run(probe_cmd, check=False, text=True, capture_output=True)
+    probe_result = _run_hidden(probe_cmd, check=False, text=True, capture_output=True)
     if probe_result.returncode != 0:
         raise RuntimeError(
             f"ffprobe could not inspect video stream for {output_path}:\n"
@@ -278,7 +279,7 @@ def _validate_video_output(output_path: Path) -> None:
         "null",
         "-",
     ]
-    decode_result = subprocess.run(decode_cmd, check=False, text=True, capture_output=True)
+    decode_result = _run_hidden(decode_cmd, check=False, text=True, capture_output=True)
     if decode_result.returncode != 0:
         raise RuntimeError(
             f"Video stream decode validation failed for {output_path}:\n"
@@ -297,7 +298,7 @@ def _probe_format_duration_seconds(path: Path) -> float:
         "default=noprint_wrappers=1:nokey=1",
         str(path),
     ]
-    result = subprocess.run(cmd, check=False, text=True, capture_output=True)
+    result = _run_hidden(cmd, check=False, text=True, capture_output=True)
     if result.returncode != 0:
         raise RuntimeError(
             f"ffprobe could not read duration for {path}:\n{_summarize_stderr(result.stderr)}"
@@ -372,7 +373,7 @@ def _ffmpeg_concat_stream_copy(list_path: Path, out_path: Path) -> subprocess.Co
         "copy",
         str(out_path),
     ]
-    return subprocess.run(cmd, check=False, text=True, capture_output=True)
+    return _run_hidden(cmd, check=False, text=True, capture_output=True)
 
 
 def _ffmpeg_concat_reencode(
@@ -413,7 +414,7 @@ def _ffmpeg_concat_reencode(
             str(out_path),
         ]
     )
-    return subprocess.run(cmd, check=False, text=True, capture_output=True)
+    return _run_hidden(cmd, check=False, text=True, capture_output=True)
 
 
 def _duration_close_enough(actual: float, expected: float, tol: float) -> bool:
@@ -511,7 +512,7 @@ def _render_target_time_chunked(
                 cmd.extend([ffmpeg_key, value])
         cmd.append(str(chunk_out))
 
-        result = subprocess.run(cmd, check=False, text=True, capture_output=True)
+        result = _run_hidden(cmd, check=False, text=True, capture_output=True)
         if result.returncode != 0:
             raise RuntimeError(
                 f"ffmpeg failed for time chunk {index + 1}/{time_chunks} of {target}:\n"
@@ -650,7 +651,7 @@ def probe_video_settings(target: Path) -> dict:
         '-of', 'json',
         str(target),
     ]
-    result = subprocess.run(cmd, check=True, text=True, capture_output=True)
+    result = _run_hidden(cmd, check=True, text=True, capture_output=True)
     info = json.loads(result.stdout)
     streams = info.get('streams', [])
     if not streams:
@@ -793,7 +794,7 @@ def _encoder_is_usable(video_encoder: str, video_preset: str, video_quality: int
     try:
         Path(temp_path).unlink(missing_ok=True)
         cmd = _encoder_test_command(temp_path, video_encoder, video_preset, video_quality)
-        result = subprocess.run(cmd, check=False, text=True, capture_output=True)
+        result = _run_hidden(cmd, check=False, text=True, capture_output=True)
         return result.returncode == 0 and Path(temp_path).exists() and Path(temp_path).stat().st_size > 0
     finally:
         Path(temp_path).unlink(missing_ok=True)
@@ -1031,7 +1032,7 @@ def render_target(
             str(temp_output_path),
         ])
 
-    result = subprocess.run(cmd, check=False, text=True, capture_output=True)
+    result = _run_hidden(cmd, check=False, text=True, capture_output=True)
     if result.returncode != 0:
         raise RuntimeError(
             f"ffmpeg failed for {target} -> {output_path}:\n{result.stderr.strip()}"

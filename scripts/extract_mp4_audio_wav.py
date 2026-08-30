@@ -8,13 +8,14 @@ Used by the video-sync workflow to write the anchor clip's final audio
 from __future__ import annotations
 
 import argparse
-import subprocess
 import sys
 from pathlib import Path
 
+from hide_console import run as _run_hidden
+
 
 def _run(cmd: list[str]) -> None:
-    r = subprocess.run(cmd, capture_output=True, text=True)
+    r = _run_hidden(cmd, capture_output=True, text=True)
     if r.returncode != 0:
         raise RuntimeError(
             f"Command failed ({r.returncode}): {' '.join(cmd)}\n{r.stderr or r.stdout}"

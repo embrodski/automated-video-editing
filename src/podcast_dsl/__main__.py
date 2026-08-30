@@ -5,12 +5,12 @@ CLI entry point for podcast DSL renderer.
 
 import argparse
 import os
-import subprocess
 import sys
 import time
 from pathlib import Path
 from typing import List
 
+from .hidden_subprocess import run as _run_hidden
 from .video_renderer import (
     DEFAULT_VIDEO_ENCODER,
     VIDEO_DOWNSCALE_4K_ENV,
@@ -240,7 +240,7 @@ Examples:
             '\n--massive: generating single-camera DSLs and rendering sequentially '
             '(interview: Ben/Guest/Wide; reading: Front/Side)...\n'
         )
-        result = subprocess.run(cmd, cwd=str(repo_root), check=False)
+        result = _run_hidden(cmd, cwd=str(repo_root), check=False)
         if result.returncode != 0:
             raise SystemExit(result.returncode)
 

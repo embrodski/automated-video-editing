@@ -14,7 +14,6 @@ from __future__ import annotations
 import argparse
 import json
 import math
-import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -23,9 +22,11 @@ import numpy as np
 from scipy import signal
 from scipy.io import wavfile
 
+from hide_console import run as _run_hidden
+
 
 def _run(cmd: list[str]) -> None:
-    r = subprocess.run(cmd, capture_output=True, text=True)
+    r = _run_hidden(cmd, capture_output=True, text=True)
     if r.returncode != 0:
         raise RuntimeError(
             f"Command failed ({r.returncode}): {' '.join(cmd)}\n{r.stderr or r.stdout}"
@@ -33,7 +34,7 @@ def _run(cmd: list[str]) -> None:
 
 
 def _ffprobe_duration(path: Path) -> float:
-    r = subprocess.run(
+    r = _run_hidden(
         [
             "ffprobe",
             "-v",

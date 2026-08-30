@@ -13,7 +13,6 @@ predictable.
 from __future__ import annotations
 
 import argparse
-import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -26,6 +25,7 @@ _REPO_SRC = Path(__file__).resolve().parent / "src"
 if str(_REPO_SRC) not in sys.path:
     sys.path.insert(0, str(_REPO_SRC))
 
+from podcast_dsl.hidden_subprocess import run as _run_hidden
 from podcast_dsl.config import is_reading_dsl_text
 
 
@@ -156,7 +156,7 @@ def _run_render_job(
     if video_preset:
         cmd.extend(["--video-preset", video_preset])
 
-    proc = subprocess.run(cmd, cwd=str(repo_src_dir), check=False)
+    proc = _run_hidden(cmd, cwd=str(repo_src_dir), check=False)
     return job, int(proc.returncode)
 
 

@@ -13,6 +13,8 @@ import json
 from typing import List, Dict, Tuple, Optional
 from multiprocessing import Pool, cpu_count
 from functools import lru_cache
+
+from .hidden_subprocess import run as _run_hidden
 from .config import (
     SEGMENT_CONFIG,
     SHORTEN_JOIN_DEFAULT_CROSSFADE_MS,
@@ -244,7 +246,7 @@ def _encoder_is_usable(video_encoder: str, preset: str) -> bool:
             temp_path = tmp.name
         os.unlink(temp_path)
         cmd = _encoder_test_command(temp_path, video_encoder, preset)
-        result = subprocess.run(cmd, check=False, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
+        result = _run_hidden(cmd, check=False, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
         return result.returncode == 0 and os.path.exists(temp_path) and os.path.getsize(temp_path) > 0
     finally:
         if temp_path and os.path.exists(temp_path):
@@ -342,7 +344,7 @@ def _run_ffmpeg_h264_encode_with_fallback(
                 shutil.copy2(cached_file, output_path)
                 return
 
-        result = subprocess.run(
+        result = _run_hidden(
             cmd, check=False, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True
         )
         ok = (
@@ -377,7 +379,7 @@ def _get_video_dimensions(video_file: str) -> Tuple[int, int]:
         '-of', 'json',
         video_file
     ]
-    result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+    result = _run_hidden(cmd, capture_output=True, text=True, check=True)
     info = json.loads(result.stdout)
     streams = info.get('streams', [])
     if not streams:
@@ -408,7 +410,7 @@ def _validate_video_stream(video_file: str) -> None:
         '-of', 'json',
         video_file,
     ]
-    probe_result = subprocess.run(
+    probe_result = _run_hidden(
         probe_cmd,
         capture_output=True,
         text=True,
@@ -444,7 +446,7 @@ def _validate_video_stream(video_file: str) -> None:
         '-f', 'null',
         '-',
     ]
-    decode_result = subprocess.run(
+    decode_result = _run_hidden(
         decode_cmd,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.PIPE,
@@ -674,7 +676,7 @@ def _filter_valid_concat_clips(clip_files: List[str]) -> List[str]:
             '-of', 'json',
             clip_file,
         ]
-        result = subprocess.run(cmd, capture_output=True, text=True)
+        result = _run_hidden(cmd, capture_output=True, text=True)
 
         try:
             info = json.loads(result.stdout)
@@ -905,7 +907,7 @@ def _concatenate_clips_demuxer(clip_files: List[str], output_file: str):
             '-c', 'copy',
             output_file,
         ]
-        subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL)
+        _run_hidden(cmd, check=True, stdout=subprocess.DEVNULL)
     finally:
         if os.path.exists(concat_file.name):
             os.unlink(concat_file.name)
@@ -1088,7 +1090,7 @@ def apply_audio_overlays(video_file: str, output_file: str, audio_overlays: List
     ])
 
     # Run FFmpeg (show errors for debugging)
-    result = subprocess.run(cmd, check=False, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
+    result = _run_hidden(cmd, check=False, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
     if result.returncode != 0:
         print(f"\nFFmpeg error output:\n{result.stderr}", file=sys.stderr)
         raise RuntimeError(f"Audio overlay failed with exit code {result.returncode}")
@@ -1711,7 +1713,7 @@ def _extract_multi_camera_group(group: List[Tuple[str, str, str, float, float, O
                 '-shortest',
                 output_file,
             ]
-            subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            _run_hidden(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     finally:
         for seg in combined_segments:
             if os.path.exists(seg):

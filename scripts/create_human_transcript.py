@@ -12,11 +12,11 @@ Only the cleaned Host-Guest transcript stays in the deliverable folder when
 from __future__ import annotations
 
 import argparse
-import subprocess
 import sys
 import tempfile
 from pathlib import Path
 
+from hide_console import run as _run_hidden
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS_DIR = Path(__file__).resolve().parent
@@ -26,7 +26,7 @@ DEFAULT_KEY_FILE = "ElevenLabs 100k Key.txt"
 
 
 def _run(cmd: list[str]) -> None:
-    r = subprocess.run(cmd, capture_output=True, text=True)
+    r = _run_hidden(cmd, capture_output=True, text=True)
     if r.returncode != 0:
         raise RuntimeError(
             f"Command failed ({r.returncode}): {' '.join(cmd)}\n{(r.stderr or r.stdout).strip()}"

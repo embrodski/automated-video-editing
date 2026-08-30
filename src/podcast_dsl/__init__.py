@@ -5,6 +5,11 @@ This package provides a DSL for specifying podcast video editing operations
 including camera switches, cuts, fades, and segment playback.
 """
 
+# Hide ffmpeg/ffprobe console windows on Windows before any renderer imports.
+from .hidden_subprocess import install as _install_hidden_subprocess
+
+_install_hidden_subprocess()
+
 # Export configuration
 from .config import SEGMENT_CONFIG
 
